@@ -205,6 +205,28 @@
     .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
   }
 
+  /* ==== Install Checklist ==== */
+  .checklist-step{border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;background:var(--surface);overflow:hidden;transition:border-color .15s}
+  .checklist-step.checked{border-color:var(--green);background:rgba(127,176,105,0.06)}
+  .checklist-step-header{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
+  .checklist-step-header:hover{background:var(--surface2)}
+  .checklist-checkbox{width:18px;height:18px;cursor:pointer;flex-shrink:0;accent-color:var(--green)}
+  .checklist-step-num{color:var(--text-muted);font-size:12px;font-weight:600;flex-shrink:0;min-width:18px}
+  .checklist-step-title{flex:1;font-size:13px;color:var(--text);min-width:0}
+  .checklist-step.checked .checklist-step-title{color:var(--text-dim);text-decoration:line-through}
+  .checklist-required{color:var(--amber);font-size:11px;font-weight:600;flex-shrink:0}
+  .checklist-meta{font-size:10px;color:var(--text-muted);font-style:italic;flex-shrink:0}
+  .checklist-caret{color:var(--text-muted);font-size:10px;flex-shrink:0;transition:transform .15s}
+  .checklist-step-body{padding:10px 14px 12px 36px;border-top:1px solid var(--border);background:var(--surface3)}
+  .checklist-instructions{font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:8px;white-space:pre-wrap}
+  .checklist-template-photo{position:relative;display:inline-block;width:140px;height:90px;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;border:1px solid var(--border);margin-bottom:8px;margin-right:8px}
+  .checklist-template-photo img{width:100%;height:100%;object-fit:cover}
+  .checklist-template-photo:hover{border-color:var(--amber)}
+  .checklist-photo-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;text-align:center}
+  .checklist-step-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .checklist-step-photo{position:relative;width:90px;height:90px;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;border:1px solid var(--green)}
+  .checklist-step-photo img{width:100%;height:100%;object-fit:cover}
+
   /* ==== Inline site-detail photo strip ==== */
   .site-detail-photo-strip{display:flex;gap:6px;flex-wrap:wrap;padding:6px;border:1px dashed transparent;border-radius:var(--radius-sm);transition:border-color .15s,background .15s}
   .site-detail-photo-strip.drag-over{border-color:var(--amber);background:rgba(212,134,10,0.08)}
@@ -281,7 +303,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.10 · AutoFlag© stack</div>
+  <div class="ver">v1.11 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -290,6 +312,7 @@
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
     <button class="icon-btn" id="installersBtn" onclick="openInstallersModal()" title="Manage installers" style="display:none">👷</button>
+    <button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none">📋</button>
     <div class="user-pill" id="userPill"></div>
   </header>
 
@@ -348,7 +371,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.10</span>
+    AutoFlag© <span>Rev v1.11</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -459,6 +482,12 @@
       <div class="section-h">Installer notes & issues</div>
       <div class="form-row"><textarea id="mp-notes" placeholder="What happened on-site, blockers, follow-ups needed..."></textarea></div>
 
+      <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">
+        <span>🔧 Install Steps <span id="mp-checklist-progress" style="color:var(--text-muted);font-weight:normal;font-size:10px;margin-left:6px"></span></span>
+        <span id="mp-checklist-type" style="color:var(--text-muted);font-weight:normal;font-size:10px;text-transform:none;letter-spacing:0"></span>
+      </div>
+      <div id="mp-checklist" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-top:6px"></div>
+
       <div class="section-h">📷 Photos <span style="color:var(--text-muted);font-weight:normal;font-size:10px;margin-left:6px">install evidence (before/during/after)</span></div>
       <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
         <label class="btn" style="cursor:pointer;font-size:12px;padding:6px 12px">
@@ -489,6 +518,49 @@
         <button class="btn-secondary btn" id="mp-delete" onclick="deletePole()">Delete</button>
         <button class="btn-secondary btn" onclick="closeModal('modalPole')">Cancel</button>
         <button class="btn" onclick="savePole()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Procedures admin (admin only) ==== -->
+<div class="modal-overlay" id="modalProcedures">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-header">
+      <h2>📋 Install Procedures</h2>
+      <button class="modal-close" onclick="closeModal('modalProcedures')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+        Edit step-by-step install procedures for each install type. Steps appear in the Pole modal as a checklist for matching poles.
+        Changes take effect immediately for all installers.
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="chip" id="proc-tab-external" onclick="switchProcTab('external')">🪢 External</button>
+        <button class="chip" id="proc-tab-internal" onclick="switchProcTab('internal')">🧵 Internal</button>
+        <button class="chip" id="proc-tab-cylinder" onclick="switchProcTab('cylinder')">🛢 Cylinder</button>
+      </div>
+
+      <div id="procStepsList" style="margin-bottom:14px"></div>
+
+      <div style="background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);padding:12px;margin-top:6px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">+ Add new step</div>
+        <div class="form-row"><label>Step title *</label><input id="proc-new-title" placeholder="e.g., Mount control box to flagpole" /></div>
+        <div class="form-row"><label>Instructions</label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line." rows="3"></textarea></div>
+        <div class="form-row"><label>Reference photo URL (optional)</label><input id="proc-new-photo" placeholder="https://... (paste URL or leave blank)" /></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="proc-new-required" />
+            Require photo before this step can be checked off
+          </label>
+          <div style="flex:1"></div>
+          <button class="btn" onclick="addProcedureStep()">+ Add Step</button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-secondary btn" onclick="closeModal('modalProcedures')">Close</button>
       </div>
     </div>
   </div>
@@ -641,6 +713,7 @@ const state = {
   editing: { type:null, customerId:null, siteId:null, poleId:null },
   poleTempPhotos: [],                // pending uploads for current pole modal
   siteTempPhotos: [],                // pending uploads for current site modal
+  procedures: { external:null, internal:null, cylinder:null }, // templates from RTDB
   filter: { status:"all", customer:"all", installType:"all" },
   search: "",
   aiHistory: [],
@@ -679,7 +752,8 @@ function sanitizePole(p, id){
     warrantyStart: stripHTML(p.warrantyStart||""),
     survey: stripHTML(p.survey||""), notes: stripHTML(p.notes||""),
     photos: Array.isArray(p.photos) ? p.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
-    history: Array.isArray(p.history) ? p.history.slice(-100) : [],   // cap at 100 entries
+    checklist: (p.checklist && typeof p.checklist === "object") ? p.checklist : {},
+    history: Array.isArray(p.history) ? p.history.slice(-100) : [],
     createdAt: p.createdAt || Date.now(), updatedAt: p.updatedAt || Date.now(),
     createdBy: p.createdBy || null, updatedBy: p.updatedBy || null
   };
@@ -757,9 +831,11 @@ onAuthStateChanged(auth, async user => {
   document.getElementById("mc-installer-row").style.display = state.isAdmin ? "" : "none";
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("installersBtn").style.display = state.isAdmin ? "" : "none";
+  document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
 
   // Subscribe to installers roster (admins only — installers don't need this)
   if(state.isAdmin) subscribeInstallers();
+  subscribeProcedures();
   subscribeData();
 });
 
@@ -844,6 +920,26 @@ function fmtHistoryField(f){
   return labels[f] || f;
 }
 
+function subscribeProcedures(){
+  ["external","internal","cylinder"].forEach(type => {
+    onValue(ref(db, `autoflag/procedures/${type}`), snap => {
+      const v = snap.val();
+      state.procedures[type] = v && typeof v === "object" ? v : null;
+      // If a pole modal is open and showing this type, re-render the checklist
+      if(state.editing.type === "pole" && state.editing.poleId){
+        const p = state.data.customers[state.editing.customerId]?.sites[state.editing.siteId]?.poles[state.editing.poleId];
+        if(p && p.installType === type){
+          renderPoleChecklist(p);
+        }
+      }
+      // If procedures admin modal is open on this tab, re-render
+      if(document.getElementById("modalProcedures")?.classList.contains("open") && activeProcTab === type){
+        renderProcSteps();
+      }
+    });
+  });
+}
+
 // ==== Installer roster (admin only) ====
 function subscribeInstallers(){
   onValue(ref(db, "autoflag/installers"), snap => {
@@ -923,6 +1019,122 @@ window.removeInstaller = async (uid) => {
     toast("Removed");
   }catch(e){ toast("Failed: "+e.message, true); }
 };
+
+// ==== Procedures admin (admin only) ====
+let activeProcTab = "external";
+
+window.openProceduresModal = () => {
+  if(!state.isAdmin) return;
+  activeProcTab = "external";
+  switchProcTab("external");
+  openModal("modalProcedures");
+};
+
+window.switchProcTab = (type) => {
+  activeProcTab = type;
+  ["external","internal","cylinder"].forEach(t => {
+    document.getElementById(`proc-tab-${t}`).classList.toggle("active", t === type);
+  });
+  renderProcSteps();
+};
+
+function renderProcSteps(){
+  const wrap = document.getElementById("procStepsList");
+  if(!wrap) return;
+  const tpl = state.procedures[activeProcTab];
+  const steps = tpl?.steps || [];
+  if(steps.length === 0){
+    wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:14px;background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm)">No steps defined yet for ${formatInstallType(activeProcTab)}. Add steps below.</div>`;
+    return;
+  }
+  let html = `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">${steps.length} step${steps.length===1?'':'s'}</div>`;
+  steps.forEach((st, idx) => {
+    html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:6px">
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep(${idx},-1)" ${idx===0?'disabled style="opacity:.3"':''}>▲</button>
+          <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep(${idx},1)" ${idx===steps.length-1?'disabled style="opacity:.3"':''}>▼</button>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--amber-bright);font-weight:600">${idx+1}. ${st.title || '(untitled)'}${st.requirePhoto?' <span style="color:var(--amber);font-size:11px">📷*</span>':''}</div>
+          ${st.instructions?`<div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap">${st.instructions}</div>`:''}
+          ${st.photoUrl?`<div style="margin-top:6px"><img src="${st.photoUrl}" style="width:120px;height:80px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${st.photoUrl}','_blank')" /></div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px" onclick="editProcStep('${st.id}')">✎ Edit</button>
+          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="deleteProcStep('${st.id}')">✕ Delete</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML = html;
+}
+
+window.addProcedureStep = async () => {
+  const title = document.getElementById("proc-new-title").value.trim();
+  if(!title) return toast("Step title required", true);
+  const instructions = document.getElementById("proc-new-instructions").value.trim();
+  const photoUrl = document.getElementById("proc-new-photo").value.trim();
+  const requirePhoto = document.getElementById("proc-new-required").checked;
+  const stepId = `step_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  const newStep = { id: stepId, title, instructions, photoUrl, requirePhoto };
+  const current = state.procedures[activeProcTab] || { steps: [] };
+  const newSteps = [...(current.steps || []), newStep];
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    steps: newSteps,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+  document.getElementById("proc-new-title").value = "";
+  document.getElementById("proc-new-instructions").value = "";
+  document.getElementById("proc-new-photo").value = "";
+  document.getElementById("proc-new-required").checked = false;
+  toast("Step added");
+};
+
+window.editProcStep = async (stepId) => {
+  const tpl = state.procedures[activeProcTab];
+  const step = tpl?.steps?.find(s => s.id === stepId);
+  if(!step) return;
+  const newTitle = prompt("Step title:", step.title);
+  if(newTitle === null) return;
+  const newInstructions = prompt("Instructions (multi-line OK):", step.instructions || "");
+  if(newInstructions === null) return;
+  const newPhoto = prompt("Reference photo URL (blank to remove):", step.photoUrl || "");
+  if(newPhoto === null) return;
+  const newRequired = confirm("Require a photo before this step can be checked off?\n\nOK = Required, Cancel = Not required");
+  const updated = { ...step, title: newTitle.trim(), instructions: newInstructions.trim(), photoUrl: newPhoto.trim(), requirePhoto: newRequired };
+  const newSteps = tpl.steps.map(s => s.id === stepId ? updated : s);
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+  toast("Step updated");
+};
+
+window.deleteProcStep = async (stepId) => {
+  const tpl = state.procedures[activeProcTab];
+  const step = tpl?.steps?.find(s => s.id === stepId);
+  if(!step) return;
+  if(!confirm(`Delete step "${step.title}"? Existing pole checklists with this step will lose the check state.`)) return;
+  const newSteps = tpl.steps.filter(s => s.id !== stepId);
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+  toast("Step deleted");
+};
+
+window.moveProcStep = async (idx, dir) => {
+  const tpl = state.procedures[activeProcTab];
+  const steps = [...(tpl?.steps || [])];
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= steps.length) return;
+  [steps[idx], steps[newIdx]] = [steps[newIdx], steps[idx]];
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    steps, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+};
+
+// Re-render proc steps when procedures data updates — handled inside subscribeProcedures
 
 // ==== Search haystack (per 8.3) ====
 function matchesSearch(c, s, p){
@@ -1289,6 +1501,8 @@ window.drillTo = (customerId, siteId) => {
 window.goHome = () => {
   state.drillCustomer=null; state.drillSite=null;
   state.filter={status:"all",customer:"all",installType:"all"}; state.search="";
+  state.expanded.customers.clear();
+  state.expanded.sites.clear();
   document.getElementById("searchInput").value="";
   renderActive();
 };
@@ -1643,6 +1857,7 @@ window.openPoleModal = (pid, cid, sid) => {
   document.getElementById("mp-delete").style.display = p ? "" : "none";
   renderPolePhotos(p?.photos || []);
   renderPoleHistory(p?.history || []);
+  renderPoleChecklist(p);
   // Reset history collapsed state on every open
   document.getElementById("mp-history").style.display = "none";
   document.getElementById("mp-history-caret").textContent = "▶";
@@ -1693,6 +1908,183 @@ window.toggleHistory = () => {
   if(w.style.display === "none"){ w.style.display = ""; c.textContent = "▼"; }
   else { w.style.display = "none"; c.textContent = "▶"; }
 };
+
+function renderPoleChecklist(p){
+  const wrap = document.getElementById("mp-checklist");
+  const progressEl = document.getElementById("mp-checklist-progress");
+  const typeEl = document.getElementById("mp-checklist-type");
+  if(!wrap) return;
+
+  // Use the live install type from the dropdown (changes as user edits)
+  const liveType = document.getElementById("mp-installType")?.value || p?.installType || "";
+
+  if(!liveType){
+    wrap.innerHTML = `<div style="text-align:center;padding:14px;color:var(--text-muted);font-size:12px">Select an Install Type above to load the checklist.</div>`;
+    progressEl.textContent = "";
+    typeEl.textContent = "";
+    return;
+  }
+  const tpl = state.procedures[liveType];
+  if(!tpl || !Array.isArray(tpl.steps) || tpl.steps.length === 0){
+    wrap.innerHTML = `<div style="text-align:center;padding:14px;color:var(--text-muted);font-size:12px">
+      No procedure defined for <strong>${formatInstallType(liveType)}</strong> yet.
+      ${state.isAdmin ? '<br><span style="color:var(--amber);cursor:pointer;text-decoration:underline" onclick="openProceduresModal()">📋 Edit procedures</span>' : '<br>Ask an admin to create one.'}
+    </div>`;
+    progressEl.textContent = "";
+    typeEl.textContent = `Type: ${formatInstallType(liveType)}`;
+    return;
+  }
+
+  const checklist = (p && p.checklist) || {};
+  const total = tpl.steps.length;
+  const checked = tpl.steps.filter(st => checklist[st.id]?.checked).length;
+  progressEl.textContent = `(${checked}/${total} done)`;
+  typeEl.textContent = `${formatInstallType(liveType)} procedure`;
+
+  let html = "";
+  tpl.steps.forEach((st, idx) => {
+    const c = checklist[st.id] || {};
+    const isChecked = !!c.checked;
+    const stepPhotoUrl = c.photoUrl || "";
+    html += `<div class="checklist-step ${isChecked?'checked':''}" data-step-id="${st.id}">
+      <div class="checklist-step-header" onclick="toggleStepDetails('${st.id}')">
+        <input type="checkbox" class="checklist-checkbox" ${isChecked?'checked':''} onclick="event.stopPropagation();toggleChecklistStep('${st.id}')" ${(!state.editing.poleId)?'disabled title="Save the pole first"':''} />
+        <span class="checklist-step-num">${idx+1}.</span>
+        <span class="checklist-step-title">${st.title || '(untitled step)'}</span>
+        ${st.requirePhoto?'<span class="checklist-required" title="Photo required">📷*</span>':''}
+        ${isChecked && c.checkedByName?`<span class="checklist-meta">${c.checkedByName} · ${new Date(c.checkedAt||0).toLocaleDateString()}</span>`:''}
+        <span class="checklist-caret" id="caret-${st.id}">▶</span>
+      </div>
+      <div class="checklist-step-body" id="body-${st.id}" style="display:none">
+        ${st.instructions?`<div class="checklist-instructions">${st.instructions.replace(/\n/g,'<br>')}</div>`:''}
+        ${st.photoUrl?`<div class="checklist-template-photo" onclick="window.open('${st.photoUrl}','_blank')"><img src="${st.photoUrl}" alt="reference" /><span class="checklist-photo-label">Reference</span></div>`:''}
+        <div class="checklist-step-actions">
+          ${stepPhotoUrl
+            ? `<div class="checklist-step-photo" onclick="window.open('${stepPhotoUrl}','_blank')"><img src="${stepPhotoUrl}" /><span class="checklist-photo-label">Your photo</span></div>
+               <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="removeStepPhoto('${st.id}')">✕ Remove photo</button>`
+            : `<label class="btn-secondary btn" style="cursor:pointer;font-size:11px;padding:5px 10px">
+                 📷 Add photo
+                 <input type="file" accept="image/*" capture="environment" style="display:none" onchange="uploadStepPhoto(event,'${st.id}')">
+               </label>`
+          }
+        </div>
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML = html;
+}
+
+window.toggleStepDetails = (stepId) => {
+  const body = document.getElementById(`body-${stepId}`);
+  const caret = document.getElementById(`caret-${stepId}`);
+  if(!body) return;
+  const open = body.style.display !== "none";
+  body.style.display = open ? "none" : "";
+  caret.textContent = open ? "▶" : "▼";
+};
+
+window.toggleChecklistStep = async (stepId) => {
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid) return toast("Save the pole first, then check off steps", true);
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const liveType = document.getElementById("mp-installType")?.value || p.installType;
+  const tpl = state.procedures[liveType];
+  if(!tpl) return;
+  const step = tpl.steps.find(s => s.id === stepId);
+  if(!step) return;
+
+  const current = (p.checklist || {})[stepId] || {};
+  const newlyChecked = !current.checked;
+
+  // Block check if photo required but not yet attached
+  if(newlyChecked && step.requirePhoto && !current.photoUrl){
+    toast("This step requires a photo first 📷", true);
+    return;
+  }
+
+  const updated = newlyChecked
+    ? { ...current, checked: true, checkedBy: state.user.uid, checkedByName: state.user.displayName || state.user.email, checkedAt: Date.now() }
+    : { ...current, checked: false, checkedBy: null, checkedByName: null, checkedAt: null };
+
+  const newChecklist = { ...(p.checklist || {}), [stepId]: updated };
+  const historyEntry = buildHistoryEntry([{ field: "checklist", from: newlyChecked?"unchecked":"checked", to: `Step "${step.title}" → ${newlyChecked?'checked':'unchecked'}` }]);
+  const newHistory = [...(p.history || []), historyEntry].slice(-100);
+
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+    checklist: newChecklist,
+    history: newHistory,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+
+  // Re-render the checklist to reflect the change
+  renderPoleChecklist({ ...p, checklist: newChecklist, history: newHistory });
+
+  // Auto-prompt to advance status if all required steps are now checked
+  if(newlyChecked){
+    const allRequiredDone = tpl.steps.every(s => {
+      if(!s.requirePhoto && !s.required) return newChecklist[s.id]?.checked;
+      // Treat all steps as required for completion, but flagged ones are explicitly enforced above
+      return newChecklist[s.id]?.checked;
+    });
+    if(allRequiredDone && p.status !== "completed" && p.status !== "verified"){
+      if(confirm("All install steps are checked. Mark this pole as Completed?")){
+        document.getElementById("mp-status").value = "completed";
+        toast("Status set to Completed — click Save to confirm");
+      }
+    }
+  }
+};
+
+window.uploadStepPhoto = async (ev, stepId) => {
+  const f = ev.target.files?.[0];
+  ev.target.value = "";
+  if(!f) return;
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid) return toast("Save the pole first", true);
+  toast("Uploading photo...");
+  try{
+    const path = `autoflag/installs/${cid}/${sid}/${pid}/step_${stepId}_${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const sr = sref(storage, path);
+    await uploadBytes(sr, f);
+    const url = await getDownloadURL(sr);
+    const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+    const current = (p.checklist || {})[stepId] || {};
+    const newChecklist = { ...(p.checklist || {}), [stepId]: { ...current, photoUrl: url } };
+    await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+      checklist: newChecklist,
+      updatedAt: Date.now(),
+      updatedBy: state.user.uid
+    });
+    renderPoleChecklist({ ...p, checklist: newChecklist });
+    toast("✓ Photo attached");
+  }catch(e){ toast("Upload failed: "+e.message, true); }
+};
+
+window.removeStepPhoto = async (stepId) => {
+  if(!confirm("Remove this step's photo?")) return;
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const current = (p.checklist || {})[stepId] || {};
+  const url = current.photoUrl;
+  const newChecklist = { ...(p.checklist || {}), [stepId]: { ...current, photoUrl: null } };
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+    checklist: newChecklist, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+  if(url){ try{ const path = decodeURIComponent(url.split("/o/")[1].split("?")[0]); deleteObject(sref(storage, path)).catch(()=>{}); }catch(_){} }
+  renderPoleChecklist({ ...p, checklist: newChecklist });
+};
+
+// Re-render checklist when install type changes mid-edit
+document.addEventListener("change", e => {
+  if(e.target?.id === "mp-installType"){
+    const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+    const p = (cid && sid && pid) ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
+    renderPoleChecklist(p);
+  }
+});
 
 function renderPolePhotos(existing){
   const grid = document.getElementById("mp-photos");
@@ -1991,8 +2383,9 @@ CRITICAL RULES:
 - Be concise. Phil prefers short responses.
 - When the user attaches photos, include the URLs in the photos array of add_pole or update_pole. For update_pole, MERGE with existing photos.
 - Install types: "external" = rope-on-outside halyard, "internal" = rope-inside halyard, "cylinder" = ornamental/architectural pole. If user mentions a halyard type or the pole appearance, infer the installType. Otherwise ask.
-- Status workflow: in_review (specs incomplete) → scheduled (date set) → in_progress (installer on site) → done (installer marked complete) → verified (admin QA-checked).
-- Status "verified" can ONLY be set by admins. If the current user is not admin and asks to verify a pole, refuse and explain that an admin must verify.`;
+- Status workflow: in_review (specs incomplete) → scheduled (date set) → in_progress (installer on site) → completed (installer marked complete) → verified (admin QA-checked).
+- Status "verified" can ONLY be set by admins. If the current user is not admin and asks to verify a pole, refuse and explain that an admin must verify.
+- Install procedures: The data context includes _procedures with the step-by-step install templates for each installType (external/internal/cylinder). When an installer asks "what's next on Pole X" or "I'm stuck on step N" or "how do I install this", look up the pole's installType, find the matching procedure template, and reference the specific step. Also use the per-pole "progress" field to know which step they're likely on.`;
 
   try{
     const idToken = await auth.currentUser.getIdToken(true);
@@ -2036,11 +2429,27 @@ function buildAIContext(){
     Object.entries(c.sites).forEach(([sid,s]) => {
       out[cid].sites[sid] = {
         id:sid, name:s.name, address:s.address,
-        poles: Object.fromEntries(Object.entries(s.poles).map(([pid,p]) =>
-          [pid, {id:pid,label:p.label,status:p.status,serial:p.serial,plan:p.plan,saas:p.saas}]))
+        poles: Object.fromEntries(Object.entries(s.poles).map(([pid,p]) => {
+          // Compact pole — include checklist progress as fraction-only summary
+          const cl = p.checklist || {};
+          const tpl = state.procedures[p.installType];
+          const totalSteps = tpl?.steps?.length || 0;
+          const checkedSteps = totalSteps ? tpl.steps.filter(st => cl[st.id]?.checked).length : 0;
+          return [pid, {
+            id:pid, label:p.label, status:p.status, installType:p.installType,
+            serial:p.serial, plan:p.plan, saas:p.saas,
+            ...(totalSteps ? { progress: `${checkedSteps}/${totalSteps} steps done` } : {})
+          }];
+        }))
       };
     });
   });
+  // Include procedure templates so the AI can answer "what's next on Pole X"
+  out._procedures = {
+    external: state.procedures.external?.steps?.map(s => ({ id:s.id, title:s.title, instructions:s.instructions, requirePhoto:s.requirePhoto })) || [],
+    internal: state.procedures.internal?.steps?.map(s => ({ id:s.id, title:s.title, instructions:s.instructions, requirePhoto:s.requirePhoto })) || [],
+    cylinder: state.procedures.cylinder?.steps?.map(s => ({ id:s.id, title:s.title, instructions:s.instructions, requirePhoto:s.requirePhoto })) || []
+  };
   return out;
 }
 
@@ -2111,41 +2520,66 @@ window.mergeJSON = (ev) => {
   reader.onload = async () => {
     try{
       const parsed = JSON.parse(reader.result);
-      if(!parsed.customers) throw new Error("Invalid file format — missing customers");
-      const stats = { addedCustomers:0, addedSites:0, addedPoles:0, skipped:0 };
-      const current = state.data.customers;
+      const hasCustomers = parsed.customers && typeof parsed.customers === "object";
+      const hasProcedures = parsed.procedures && typeof parsed.procedures === "object";
+      if(!hasCustomers && !hasProcedures) throw new Error("Invalid file format — expected 'customers' or 'procedures' at top level");
+
+      const stats = { addedCustomers:0, addedSites:0, addedPoles:0, addedProcedures:0, skipped:0 };
       const updates = {};
 
-      Object.entries(parsed.customers).forEach(([cid, incomingC]) => {
-        if(!current[cid]){
-          // New customer — add whole subtree
-          updates[`autoflag/installs/customers/${cid}`] = sanitizeCustomer(incomingC, cid);
-          stats.addedCustomers++;
-          Object.values(incomingC.sites||{}).forEach(s => {
-            stats.addedSites++;
-            stats.addedPoles += Object.keys(s.poles||{}).length;
-          });
-          return;
-        }
-        // Customer exists — merge sites
-        Object.entries(incomingC.sites||{}).forEach(([sid, incomingS]) => {
-          if(!current[cid].sites[sid]){
-            updates[`autoflag/installs/customers/${cid}/sites/${sid}`] = sanitizeSite(incomingS, sid);
-            stats.addedSites++;
-            stats.addedPoles += Object.keys(incomingS.poles||{}).length;
+      if(hasCustomers){
+        const current = state.data.customers;
+        Object.entries(parsed.customers).forEach(([cid, incomingC]) => {
+          if(!current[cid]){
+            updates[`autoflag/installs/customers/${cid}`] = sanitizeCustomer(incomingC, cid);
+            stats.addedCustomers++;
+            Object.values(incomingC.sites||{}).forEach(s => {
+              stats.addedSites++;
+              stats.addedPoles += Object.keys(s.poles||{}).length;
+            });
             return;
           }
-          // Site exists — merge poles
-          Object.entries(incomingS.poles||{}).forEach(([pid, incomingP]) => {
-            if(!current[cid].sites[sid].poles[pid]){
-              updates[`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`] = sanitizePole(incomingP, pid);
-              stats.addedPoles++;
-            } else {
-              stats.skipped++;
+          Object.entries(incomingC.sites||{}).forEach(([sid, incomingS]) => {
+            if(!current[cid].sites[sid]){
+              updates[`autoflag/installs/customers/${cid}/sites/${sid}`] = sanitizeSite(incomingS, sid);
+              stats.addedSites++;
+              stats.addedPoles += Object.keys(incomingS.poles||{}).length;
+              return;
             }
+            Object.entries(incomingS.poles||{}).forEach(([pid, incomingP]) => {
+              if(!current[cid].sites[sid].poles[pid]){
+                updates[`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`] = sanitizePole(incomingP, pid);
+                stats.addedPoles++;
+              } else {
+                stats.skipped++;
+              }
+            });
           });
         });
-      });
+      }
+
+      if(hasProcedures){
+        if(!state.isAdmin){
+          throw new Error("Only admins can import procedures");
+        }
+        Object.entries(parsed.procedures).forEach(([type, tpl]) => {
+          if(!["external","internal","cylinder"].includes(type)) return;
+          // Procedures merge: only import if no procedure exists for that type yet (don't overwrite admin's edits)
+          if(!state.procedures[type]){
+            updates[`autoflag/procedures/${type}`] = {
+              type,
+              name: tpl.name || "",
+              steps: Array.isArray(tpl.steps) ? tpl.steps : [],
+              createdAt: tpl.createdAt || Date.now(),
+              updatedAt: Date.now(),
+              importedAt: Date.now()
+            };
+            stats.addedProcedures++;
+          } else {
+            stats.skipped++;
+          }
+        });
+      }
 
       if(Object.keys(updates).length === 0){
         setStatus("Nothing new to import — all records already exist");
@@ -2153,14 +2587,21 @@ window.mergeJSON = (ev) => {
         return;
       }
 
-      if(!confirm(`Merge from ${f.name}?\n\n+ ${stats.addedCustomers} customers\n+ ${stats.addedSites} sites\n+ ${stats.addedPoles} poles\nSkipped (already exist): ${stats.skipped}`)){
+      const summary = [];
+      if(stats.addedCustomers) summary.push(`+ ${stats.addedCustomers} customers`);
+      if(stats.addedSites) summary.push(`+ ${stats.addedSites} sites`);
+      if(stats.addedPoles) summary.push(`+ ${stats.addedPoles} poles`);
+      if(stats.addedProcedures) summary.push(`+ ${stats.addedProcedures} procedure templates`);
+      if(stats.skipped) summary.push(`Skipped (already exist): ${stats.skipped}`);
+
+      if(!confirm(`Merge from ${f.name}?\n\n${summary.join("\n")}`)){
         ev.target.value = "";
         document.getElementById("merge-filename").textContent = "No file selected";
         return;
       }
 
       await update(ref(db), updates);
-      setStatus(`✓ Merge complete — added ${stats.addedCustomers}c / ${stats.addedSites}s / ${stats.addedPoles}p, skipped ${stats.skipped}`);
+      setStatus(`✓ Merge complete — ${summary.join(", ")}`);
       toast("Merge complete");
     }catch(e){ setStatus("✗ Merge failed: " + e.message); toast("Merge failed: " + e.message, true); }
   };
