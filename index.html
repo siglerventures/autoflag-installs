@@ -259,7 +259,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.4 · AutoFlag© stack</div>
+  <div class="ver">v1.5 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -326,7 +326,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.4</span>
+    AutoFlag© <span>Rev v1.5</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -890,7 +890,11 @@ function renderBrowse(){
     const sites = Object.values(c.sites).sort((a,b)=>a.name.localeCompare(b.name));
     const allPoles = sites.flatMap(s => Object.values(s.poles));
     const counts = { scheduled:0, in_progress:0, installed:0, verified:0 };
-    allPoles.forEach(p => counts[p.status] = (counts[p.status]||0)+1);
+    const typeCounts = { external:0, internal:0, cylinder:0 };
+    allPoles.forEach(p => {
+      counts[p.status] = (counts[p.status]||0)+1;
+      if(p.installType) typeCounts[p.installType] = (typeCounts[p.installType]||0)+1;
+    });
 
     html += `<div class="tree-customer">
       <div class="tree-row tree-row-customer" onclick="toggleCustomer('${c.id}')">
@@ -899,6 +903,9 @@ function renderBrowse(){
         <div class="tree-stats">
           <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
+          ${typeCounts.external?`<span class="tree-stat" style="background:#2a2520;color:var(--amber-bright)">🪢 ${typeCounts.external}</span>`:''}
+          ${typeCounts.internal?`<span class="tree-stat" style="background:#252a30;color:#a8c5e6">🧵 ${typeCounts.internal}</span>`:''}
+          ${typeCounts.cylinder?`<span class="tree-stat" style="background:#2a2030;color:#c8a8e8">🛢 ${typeCounts.cylinder}</span>`:''}
           ${counts.scheduled?`<span class="tree-stat status-scheduled">${counts.scheduled} scheduled</span>`:''}
           ${counts.in_progress?`<span class="tree-stat status-in_progress">${counts.in_progress} in progress</span>`:''}
           ${counts.installed?`<span class="tree-stat status-installed">${counts.installed} installed</span>`:''}
