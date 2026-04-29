@@ -89,9 +89,20 @@
   /* ==== Kanban ==== */
   .kanban{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   @media (max-width:1100px){.kanban{grid-template-columns:repeat(5,220px)}}
-  .kanban-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:200px}
+  .kanban-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:200px;transition:background .15s,border-color .15s}
+  .kanban-col.kanban-drop-target{background:rgba(212,134,10,0.08);border-color:var(--amber)}
   .kanban-col h4{margin:0 0 10px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:1px solid var(--border)}
   .kanban-col h4 .count{background:var(--surface3);color:var(--amber);padding:1px 8px;border-radius:var(--radius-pill);font-size:10px}
+  .kanban-col-body{min-height:60px}
+  .kanban-empty{color:var(--text-muted);font-size:11px;text-align:center;padding:20px 0;font-style:italic;border:1px dashed transparent;border-radius:var(--radius-sm)}
+  .kanban-col.kanban-drop-target .kanban-empty{border-color:var(--amber-dim)}
+  .kanban-card{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:transform .1s,opacity .1s,border-color .15s}
+  .kanban-card:active{cursor:grabbing}
+  .kanban-card.kanban-dragging{opacity:0.4}
+  .kanban-card.kanban-insert-before{border-top:3px solid var(--amber);margin-top:-2px}
+  .kanban-card.kanban-insert-after{border-bottom:3px solid var(--amber);margin-bottom:-2px}
+  .kanban-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:0.85;transform:rotate(2deg);box-shadow:0 8px 30px rgba(0,0,0,.6);background:var(--surface2);border:1px solid var(--amber);border-radius:var(--radius-sm);padding:10px}
+  .kanban-hint{margin-top:14px;text-align:center;color:var(--text-muted);font-size:11px;font-style:italic}
   .pole-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;cursor:pointer;font-size:12px}
   .pole-card:hover{border-color:var(--amber-dim)}
   .pole-card .title{color:var(--amber-bright);font-weight:600;margin-bottom:4px;font-size:13px}
@@ -303,7 +314,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.11 · AutoFlag© stack</div>
+  <div class="ver">v1.13 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -371,7 +382,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.11</span>
+    AutoFlag© <span>Rev v1.13</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -754,6 +765,7 @@ function sanitizePole(p, id){
     photos: Array.isArray(p.photos) ? p.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
     checklist: (p.checklist && typeof p.checklist === "object") ? p.checklist : {},
     history: Array.isArray(p.history) ? p.history.slice(-100) : [],
+    kanbanOrder: typeof p.kanbanOrder === "number" ? p.kanbanOrder : null,
     createdAt: p.createdAt || Date.now(), updatedAt: p.updatedAt || Date.now(),
     createdBy: p.createdBy || null, updatedBy: p.updatedBy || null
   };
@@ -1499,26 +1511,48 @@ window.drillTo = (customerId, siteId) => {
   renderActive();
 };
 window.goHome = () => {
-  state.drillCustomer=null; state.drillSite=null;
-  state.filter={status:"all",customer:"all",installType:"all"}; state.search="";
-  state.expanded.customers.clear();
-  state.expanded.sites.clear();
-  document.getElementById("searchInput").value="";
-  renderActive();
+  // Hard reload — guarantees full reset regardless of current view, modals, drill state, map instance, etc.
+  // Strips URL hash so reload lands on the default home view.
+  if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+  location.reload();
 };
 
 // ==== KANBAN ====
 function renderKanban(){
   const allPoles = collectPoles();
-  const cols = STATUSES.map(s => ({
-    status:s, label:STATUS_LABELS[s],
-    poles: allPoles.filter(x => x.p.status===s)
-  }));
+  const cols = STATUSES.map(s => {
+    const colPoles = allPoles.filter(x => x.p.status===s).sort((a,b) => {
+      // Poles with kanbanOrder come first, sorted ascending; rest fall back to updatedAt desc
+      const ao = a.p.kanbanOrder;
+      const bo = b.p.kanbanOrder;
+      if(ao != null && bo != null) return ao - bo;
+      if(ao != null) return -1;
+      if(bo != null) return 1;
+      return b.p.updatedAt - a.p.updatedAt;
+    });
+    return { status:s, label:STATUS_LABELS[s], poles: colPoles };
+  });
   let html = `<div class="kanban">`;
   cols.forEach(col => {
-    html += `<div class="kanban-col"><h4>${col.label} <span class="count">${col.poles.length}</span></h4>`;
+    html += `<div class="kanban-col" data-status="${col.status}"
+      ondragover="kanbanDragOver(event,'${col.status}')"
+      ondragleave="kanbanDragLeave(event)"
+      ondrop="kanbanDrop(event,'${col.status}')">
+      <h4>${col.label} <span class="count">${col.poles.length}</span></h4>
+      <div class="kanban-col-body" data-status="${col.status}">`;
     col.poles.forEach(({c,s,p}) => {
-      html += `<div class="pole-card" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
+      html += `<div class="pole-card kanban-card"
+        draggable="true"
+        data-pole-id="${p.id}"
+        data-customer-id="${c.id}"
+        data-site-id="${s.id}"
+        data-status="${p.status}"
+        ondragstart="kanbanDragStart(event,'${c.id}','${s.id}','${p.id}','${p.status}')"
+        ondragend="kanbanDragEnd(event)"
+        ontouchstart="kanbanTouchStart(event,'${c.id}','${s.id}','${p.id}','${p.status}')"
+        ontouchmove="kanbanTouchMove(event)"
+        ontouchend="kanbanTouchEnd(event)"
+        onclick="kanbanCardClick(event,'${p.id}','${c.id}','${s.id}')">
         <div class="title">${p.label||'(unlabeled)'}</div>
         <div style="color:var(--text-dim);font-size:11px">${c.name} · ${s.name}</div>
         <div class="meta">
@@ -1529,12 +1563,261 @@ function renderKanban(){
         </div>
       </div>`;
     });
-    if(col.poles.length===0) html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0">—</div>`;
-    html += `</div>`;
+    if(col.poles.length===0) html += `<div class="kanban-empty">drop here</div>`;
+    html += `</div></div>`;
   });
-  html += `</div>`;
+  html += `</div><div class="kanban-hint">💡 Drag cards between columns to change status, or within a column to reorder. On mobile, long-press to start dragging.</div>`;
   return html;
 }
+
+// ==== Kanban drag-and-drop ====
+const kanbanDrag = {
+  poleId: null, customerId: null, siteId: null, fromStatus: null,
+  // Touch state
+  touchActive: false, longPressTimer: null, touchEl: null, ghost: null,
+  startX: 0, startY: 0, lastTarget: null, touchMoved: false
+};
+
+window.kanbanCardClick = (ev, pid, cid, sid) => {
+  // Suppress click if a drag just ended
+  if(kanbanDrag.suppressClickUntil && Date.now() < kanbanDrag.suppressClickUntil) return;
+  openPoleModal(pid, cid, sid);
+};
+
+window.kanbanDragStart = (ev, cid, sid, pid, fromStatus) => {
+  kanbanDrag.poleId = pid;
+  kanbanDrag.customerId = cid;
+  kanbanDrag.siteId = sid;
+  kanbanDrag.fromStatus = fromStatus;
+  ev.target.classList.add("kanban-dragging");
+  ev.dataTransfer.effectAllowed = "move";
+  ev.dataTransfer.setData("text/plain", pid);
+};
+
+window.kanbanDragEnd = (ev) => {
+  ev.target.classList.remove("kanban-dragging");
+  document.querySelectorAll(".kanban-col.kanban-drop-target").forEach(el => el.classList.remove("kanban-drop-target"));
+  document.querySelectorAll(".kanban-card.kanban-insert-before").forEach(el => el.classList.remove("kanban-insert-before"));
+};
+
+window.kanbanDragOver = (ev, toStatus) => {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = "move";
+  const col = ev.currentTarget;
+  col.classList.add("kanban-drop-target");
+
+  // Determine which card we're hovering over for within-column ordering
+  const target = ev.target.closest(".kanban-card");
+  document.querySelectorAll(".kanban-card.kanban-insert-before").forEach(el => el.classList.remove("kanban-insert-before"));
+  if(target && target.dataset.poleId !== kanbanDrag.poleId){
+    const rect = target.getBoundingClientRect();
+    const above = (ev.clientY - rect.top) < rect.height / 2;
+    target.classList.toggle("kanban-insert-before", above);
+    target.classList.toggle("kanban-insert-after", !above);
+  }
+};
+
+window.kanbanDragLeave = (ev) => {
+  // Only clear if leaving the column entirely (not just child elements)
+  if(ev.currentTarget.contains(ev.relatedTarget)) return;
+  ev.currentTarget.classList.remove("kanban-drop-target");
+};
+
+window.kanbanDrop = async (ev, toStatus) => {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("kanban-drop-target");
+  if(!kanbanDrag.poleId) return;
+  // Find drop position within column
+  const target = ev.target.closest(".kanban-card");
+  let insertBeforePoleId = null;
+  if(target && target.dataset.poleId !== kanbanDrag.poleId){
+    const rect = target.getBoundingClientRect();
+    const above = (ev.clientY - rect.top) < rect.height / 2;
+    insertBeforePoleId = above ? target.dataset.poleId : null;
+    if(!above){
+      // After this card — find next sibling card
+      const siblings = Array.from(ev.currentTarget.querySelectorAll(".kanban-card"));
+      const idx = siblings.indexOf(target);
+      const next = siblings[idx+1];
+      insertBeforePoleId = next ? next.dataset.poleId : null;
+    }
+  }
+  await applyKanbanDrop(toStatus, insertBeforePoleId);
+};
+
+async function applyKanbanDrop(toStatus, insertBeforePoleId){
+  const { poleId, customerId, siteId, fromStatus } = kanbanDrag;
+  if(!poleId) return;
+  // Suppress the click that fires on drop release
+  kanbanDrag.suppressClickUntil = Date.now() + 300;
+
+  // Verified is admin-only — block non-admins from dragging into Verified
+  if(toStatus === "verified" && fromStatus !== "verified" && !state.isAdmin){
+    toast("Only admins can move poles to Verified", true);
+    return;
+  }
+
+  const pole = state.data.customers[customerId]?.sites[siteId]?.poles[poleId];
+  if(!pole) return;
+
+  // Compute new kanbanOrder: midpoint between neighbors
+  const targetCol = collectPoles().filter(x => x.p.status === toStatus && x.p.id !== poleId).sort((a,b) => {
+    const ao = a.p.kanbanOrder, bo = b.p.kanbanOrder;
+    if(ao != null && bo != null) return ao - bo;
+    if(ao != null) return -1;
+    if(bo != null) return 1;
+    return b.p.updatedAt - a.p.updatedAt;
+  });
+
+  let insertIdx = insertBeforePoleId
+    ? targetCol.findIndex(x => x.p.id === insertBeforePoleId)
+    : targetCol.length;
+  if(insertIdx < 0) insertIdx = targetCol.length;
+
+  const before = insertIdx > 0 ? targetCol[insertIdx-1].p : null;
+  const after  = insertIdx < targetCol.length ? targetCol[insertIdx].p : null;
+  const beforeOrder = before?.kanbanOrder ?? (before ? -before.updatedAt : null);
+  const afterOrder  = after?.kanbanOrder  ?? (after  ? -after.updatedAt  : null);
+
+  let newOrder;
+  if(beforeOrder == null && afterOrder == null) newOrder = 0;
+  else if(beforeOrder == null) newOrder = afterOrder - 100;
+  else if(afterOrder == null) newOrder = beforeOrder + 100;
+  else newOrder = (beforeOrder + afterOrder) / 2;
+
+  // Build patch with status change + ordering + audit log
+  const changes = [];
+  if(fromStatus !== toStatus){
+    changes.push({ field: "status", from: fromStatus, to: toStatus });
+  }
+  changes.push({ field: "kanbanOrder", from: pole.kanbanOrder, to: newOrder });
+
+  const patch = {
+    status: toStatus,
+    kanbanOrder: newOrder,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  };
+  if(changes.length > 0){
+    const newEntry = buildHistoryEntry(changes);
+    patch.history = [...(pole.history || []), newEntry].slice(-100);
+  }
+
+  try{
+    await patchNode(`autoflag/installs/customers/${customerId}/sites/${siteId}/poles/${poleId}`, patch);
+    if(fromStatus !== toStatus) toast(`Moved to ${STATUS_LABELS[toStatus]}`);
+  }catch(e){ toast("Move failed: "+e.message, true); }
+
+  // Reset drag state
+  kanbanDrag.poleId = null;
+}
+
+// ==== Touch drag (mobile) ====
+window.kanbanTouchStart = (ev, cid, sid, pid, fromStatus) => {
+  if(ev.touches.length !== 1) return;
+  const t = ev.touches[0];
+  kanbanDrag.touchEl = ev.currentTarget;
+  kanbanDrag.startX = t.clientX;
+  kanbanDrag.startY = t.clientY;
+  kanbanDrag.touchMoved = false;
+  // Long press = 350ms before drag activates
+  kanbanDrag.longPressTimer = setTimeout(() => {
+    kanbanDrag.touchActive = true;
+    kanbanDrag.poleId = pid;
+    kanbanDrag.customerId = cid;
+    kanbanDrag.siteId = sid;
+    kanbanDrag.fromStatus = fromStatus;
+    kanbanDrag.touchEl.classList.add("kanban-dragging");
+    // Haptic feedback if available
+    if(navigator.vibrate) navigator.vibrate(40);
+    // Create ghost
+    const r = kanbanDrag.touchEl.getBoundingClientRect();
+    const g = kanbanDrag.touchEl.cloneNode(true);
+    g.classList.add("kanban-ghost");
+    g.style.width = r.width + "px";
+    g.style.left = r.left + "px";
+    g.style.top = r.top + "px";
+    document.body.appendChild(g);
+    kanbanDrag.ghost = g;
+  }, 350);
+};
+
+window.kanbanTouchMove = (ev) => {
+  if(ev.touches.length !== 1) return;
+  const t = ev.touches[0];
+  const dx = t.clientX - kanbanDrag.startX;
+  const dy = t.clientY - kanbanDrag.startY;
+  if(Math.abs(dx) > 8 || Math.abs(dy) > 8) kanbanDrag.touchMoved = true;
+  // Cancel long-press if user is scrolling (move >10px before timer fires)
+  if(!kanbanDrag.touchActive){
+    if(Math.abs(dy) > 10 || Math.abs(dx) > 10){
+      clearTimeout(kanbanDrag.longPressTimer);
+      kanbanDrag.longPressTimer = null;
+    }
+    return;
+  }
+  // Active drag: prevent scrolling, move ghost, highlight target column
+  ev.preventDefault();
+  if(kanbanDrag.ghost){
+    kanbanDrag.ghost.style.left = (t.clientX - 100) + "px";
+    kanbanDrag.ghost.style.top = (t.clientY - 30) + "px";
+  }
+  // Find what's under the touch point
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  document.querySelectorAll(".kanban-col.kanban-drop-target").forEach(c => c.classList.remove("kanban-drop-target"));
+  document.querySelectorAll(".kanban-card.kanban-insert-before, .kanban-card.kanban-insert-after").forEach(c => {
+    c.classList.remove("kanban-insert-before");
+    c.classList.remove("kanban-insert-after");
+  });
+  const col = el?.closest(".kanban-col");
+  if(col) col.classList.add("kanban-drop-target");
+  const card = el?.closest(".kanban-card");
+  if(card && card.dataset.poleId !== kanbanDrag.poleId){
+    const rect = card.getBoundingClientRect();
+    const above = (t.clientY - rect.top) < rect.height / 2;
+    card.classList.add(above ? "kanban-insert-before" : "kanban-insert-after");
+  }
+  kanbanDrag.lastTouchX = t.clientX;
+  kanbanDrag.lastTouchY = t.clientY;
+};
+
+window.kanbanTouchEnd = async (ev) => {
+  clearTimeout(kanbanDrag.longPressTimer);
+  if(!kanbanDrag.touchActive){
+    // Wasn't a drag — let normal click fire
+    return;
+  }
+  ev.preventDefault();
+  // Determine drop target
+  const x = kanbanDrag.lastTouchX, y = kanbanDrag.lastTouchY;
+  const el = document.elementFromPoint(x, y);
+  const col = el?.closest(".kanban-col");
+  const card = el?.closest(".kanban-card");
+  let toStatus = col?.dataset.status || kanbanDrag.fromStatus;
+  let insertBeforePoleId = null;
+  if(card && card.dataset.poleId !== kanbanDrag.poleId){
+    const rect = card.getBoundingClientRect();
+    const above = (y - rect.top) < rect.height / 2;
+    insertBeforePoleId = above ? card.dataset.poleId : null;
+    if(!above){
+      const siblings = Array.from(col.querySelectorAll(".kanban-card"));
+      const idx = siblings.indexOf(card);
+      const next = siblings[idx+1];
+      insertBeforePoleId = next ? next.dataset.poleId : null;
+    }
+  }
+  // Cleanup
+  if(kanbanDrag.ghost){ kanbanDrag.ghost.remove(); kanbanDrag.ghost = null; }
+  if(kanbanDrag.touchEl) kanbanDrag.touchEl.classList.remove("kanban-dragging");
+  document.querySelectorAll(".kanban-col.kanban-drop-target").forEach(c => c.classList.remove("kanban-drop-target"));
+  document.querySelectorAll(".kanban-card.kanban-insert-before, .kanban-card.kanban-insert-after").forEach(c => {
+    c.classList.remove("kanban-insert-before");
+    c.classList.remove("kanban-insert-after");
+  });
+  await applyKanbanDrop(toStatus, insertBeforePoleId);
+  kanbanDrag.touchActive = false;
+  kanbanDrag.touchEl = null;
+};
 
 // ==== LIST ====
 function renderList(){
