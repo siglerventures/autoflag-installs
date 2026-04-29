@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0d0d0f" />
+<title>AutoFlag Installs · Rev 1.1</title>
+
+<!-- CSP: Firebase RTDB hosts + Cloud Function + Storage + Google Maps tiles -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self' https://siglerventures.github.io;
+  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com;
+  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
+  font-src    'self' https://fonts.gstatic.com data:;
+  img-src     'self' data: blob: https: https://*.googleusercontent.com https://*.tile.openstreetmap.org;
+  connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com
+              https://*.firebasedatabase.app wss://*.firebasedatabase.app
+              https://identitytoolkit.googleapis.com
+              https://securetoken.googleapis.com
+              https://firebasestorage.googleapis.com
+              https://*.firebasestorage.app
+              https://us-central1-philinity-893d2.cloudfunctions.net
+              https://nominatim.openstreetmap.org;
+  frame-src   https://philinity-893d2.firebaseapp.com;
+">
+
+<style>
+  :root{
+    --bg:#0d0d0f; --surface:#16161a; --surface2:#1d1d22; --surface3:#26262d;
+    --text:#f4f1ea; --text-dim:#9c9890; --text-muted:#6f6c66;
+    --amber:#e0a96d; --amber-bright:#f3c489; --amber-dim:#7a5a36;
+    --green:#7fb069; --red:#d96e6e; --blue:#6ea3d9;
+    --border:#2a2a31; --border-dashed:#7a5a36;
+    --shadow:0 4px 18px rgba(0,0,0,.45);
+    --radius:10px; --radius-sm:6px; --radius-pill:20px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.4;overscroll-behavior:none}
+  button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;background:transparent;border:none;outline:none}
+  button{cursor:pointer}
+  a{color:var(--amber);text-decoration:none}
+
+  /* ==== Login ==== */
+  #loginScreen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:1000;padding:20px}
+  #loginScreen h1{font-family:"DM Serif Display",Georgia,serif;font-size:32px;margin:0 0 4px;color:var(--amber-bright);letter-spacing:.5px}
+  #loginScreen .sub{color:var(--text-dim);font-size:13px;margin-bottom:28px}
+  #loginScreen .ver{color:var(--text-muted);font-size:11px;margin-top:24px}
+  .btn-google{background:var(--amber);color:#1a1208;border:none;padding:12px 28px;border-radius:var(--radius);font-weight:600;font-size:15px;cursor:pointer;box-shadow:var(--shadow)}
+  .btn-google:hover{background:var(--amber-bright)}
+
+  /* ==== Header ==== */
+  header{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;z-index:100}
+  .logo{font-family:"DM Serif Display",Georgia,serif;font-size:20px;color:var(--amber-bright);cursor:pointer;letter-spacing:.3px;flex-shrink:0}
+  .logo small{color:var(--text-muted);font-size:11px;font-weight:normal;margin-left:4px;font-family:inherit}
+  .header-spacer{flex:1}
+  .header-search{flex:1;max-width:380px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:6px 14px;color:var(--text);font-size:13px}
+  .header-search:focus{border-color:var(--amber-dim)}
+  .user-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);font-size:12px;color:var(--text-dim)}
+  .user-pill img{width:20px;height:20px;border-radius:50%}
+  .icon-btn{padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:13px}
+  .icon-btn:hover{border-color:var(--amber-dim);color:var(--amber)}
+
+  /* ==== View tabs ==== */
+  .view-tabs{display:flex;gap:4px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .view-tab{padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);font-size:12px;color:var(--text-dim);white-space:nowrap}
+  .view-tab.active{background:var(--amber);color:#1a1208;border-color:var(--amber);font-weight:600}
+  .view-tab:not(.active):hover{border-color:var(--amber-dim);color:var(--amber)}
+
+  /* ==== Filter bar ==== */
+  .filter-bar{display:flex;gap:6px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:wrap}
+  .chip{padding:4px 12px;background:var(--surface2);border:1px solid var(--amber-dim);border-radius:var(--radius-pill);font-size:13px;color:var(--text-dim);white-space:nowrap;cursor:pointer}
+  .chip.active{background:var(--amber);color:#1a1208;border-color:var(--amber);font-weight:600}
+  .chip:not(.active):hover{color:var(--amber)}
+
+  /* ==== Main content ==== */
+  main{padding:14px;max-width:1400px;margin:0 auto}
+
+  /* ==== Customer cards (default browse view) ==== */
+  .customer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .customer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;cursor:pointer;transition:border-color .15s,transform .15s}
+  .customer-card:hover{border-color:var(--amber-dim);transform:translateY(-1px)}
+  .customer-card h3{margin:0 0 6px;font-size:15px;color:var(--amber-bright)}
+  .customer-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .stat-pill{display:inline-flex;flex-direction:column;align-items:center;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center}
+  .stat-pill .num{font-size:14px;font-weight:600;color:var(--amber-bright);line-height:1.1}
+  .stat-pill .lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+  /* ==== Kanban ==== */
+  .kanban{display:grid;grid-template-columns:repeat(4,minmax(260px,1fr));gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  @media (max-width:900px){.kanban{grid-template-columns:repeat(4,260px)}}
+  .kanban-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:200px}
+  .kanban-col h4{margin:0 0 10px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .kanban-col h4 .count{background:var(--surface3);color:var(--amber);padding:1px 8px;border-radius:var(--radius-pill);font-size:10px}
+  .pole-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;cursor:pointer;font-size:12px}
+  .pole-card:hover{border-color:var(--amber-dim)}
+  .pole-card .title{color:var(--amber-bright);font-weight:600;margin-bottom:4px;font-size:13px}
+  .pole-card .meta{color:var(--text-dim);font-size:11px;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .pole-card .meta span{background:var(--surface3);padding:1px 6px;border-radius:3px}
+
+  /* ==== List view ==== */
+  .list-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius);overflow:hidden}
+  .list-table th{background:var(--surface2);padding:10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border)}
+  .list-table td{padding:10px;border-bottom:1px solid var(--border);font-size:13px}
+  .list-table tr{cursor:pointer}
+  .list-table tr:hover td{background:var(--surface2)}
+  .status-badge{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .status-scheduled{background:#3a3520;color:var(--amber)}
+  .status-in_progress{background:#3a2a20;color:var(--amber-bright)}
+  .status-installed{background:#1f3a2a;color:var(--green)}
+  .status-verified{background:#1f2a3a;color:var(--blue)}
+
+  /* ==== Map ==== */
+  #mapContainer{height:calc(100vh - 180px);min-height:400px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+
+  /* ==== Modals ==== */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:20px;overflow-y:auto}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:680px;width:100%;margin:auto;box-shadow:var(--shadow);max-height:calc(100vh - 40px);overflow-y:auto}
+  .modal-header{position:sticky;top:0;background:var(--surface);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;z-index:1}
+  .modal-header h2{margin:0;font-size:17px;color:var(--amber-bright)}
+  .modal-body{padding:16px}
+  .modal-close{font-size:22px;color:var(--text-dim);background:none;border:none;padding:0 6px}
+  .modal-close:hover{color:var(--amber)}
+
+  /* ==== Forms ==== */
+  .form-row{margin-bottom:12px}
+  .form-row label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px}
+  .form-row input,.form-row select,.form-row textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text)}
+  .form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--amber-dim)}
+  .form-row textarea{min-height:60px;resize:vertical;font-family:inherit}
+  .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:500px){.form-grid-2{grid-template-columns:1fr}}
+  .btn{padding:8px 14px;background:var(--amber);color:#1a1208;border-radius:var(--radius-sm);font-weight:600;font-size:13px}
+  .btn:hover{background:var(--amber-bright)}
+  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+  .btn-secondary:hover{border-color:var(--amber-dim);color:var(--amber)}
+  .btn-danger{background:var(--red);color:#fff}
+  .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+
+  /* ==== Date wrapper (per 6.3.11) ==== */
+  .date-wrapper{display:inline-block;border:1px dashed var(--border-dashed);padding:5px 10px;border-radius:var(--radius-sm);cursor:pointer;background:var(--surface2);font-size:13px;color:var(--text-dim)}
+  .date-wrapper input[type="date"]{pointer-events:none;background:transparent;border:none;padding:0;color:var(--text);width:120px}
+
+  /* ==== Photo grid ==== */
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-top:6px}
+  .photo-thumb{position:relative;aspect-ratio:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;cursor:pointer}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover}
+  .photo-thumb .remove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .photo-add{aspect-ratio:1;border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--amber-dim);cursor:pointer;font-size:24px;background:var(--surface2)}
+  .photo-add:hover{color:var(--amber);border-color:var(--amber)}
+
+  /* ==== Chips ==== */
+  .chips-inline{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .data-chip{padding:3px 10px;background:var(--surface2);border:1px solid var(--amber-dim);border-radius:var(--radius-pill);font-size:12px;color:var(--text-dim)}
+
+  /* ==== Section headers ==== */
+  .section-h{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+  .breadcrumb{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);margin-bottom:10px;flex-wrap:wrap}
+  .breadcrumb a{color:var(--amber);cursor:pointer}
+  .breadcrumb .sep{color:var(--text-muted)}
+
+  /* ==== FAB ==== */
+  .fab{position:fixed;bottom:20px;right:20px;width:52px;height:52px;border-radius:50%;background:var(--amber);color:#1a1208;font-size:26px;font-weight:300;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;z-index:50;border:none}
+  .fab:hover{background:var(--amber-bright)}
+
+  /* ==== AI chat ==== */
+  #aiPanel{position:fixed;right:20px;bottom:84px;width:380px;max-width:calc(100vw - 40px);height:520px;max-height:calc(100vh - 120px);background:var(--surface);border:1px solid var(--amber-dim);border-radius:var(--radius);box-shadow:var(--shadow);display:none;flex-direction:column;z-index:60}
+  #aiPanel.open{display:flex}
+  .ai-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .ai-header h3{margin:0;font-size:14px;color:var(--amber-bright)}
+  .ai-msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+  .ai-msg{padding:8px 12px;border-radius:var(--radius-sm);max-width:85%;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+  .ai-msg.user{align-self:flex-end;background:var(--amber-dim);color:#fff}
+  .ai-msg.assistant{align-self:flex-start;background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+  .ai-input-row{padding:10px;border-top:1px solid var(--border);display:flex;gap:6px}
+  .ai-input-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px}
+  .ai-fab{position:fixed;bottom:20px;right:84px;width:52px;height:52px;border-radius:50%;background:var(--surface2);color:var(--amber);border:1px solid var(--amber-dim);font-size:22px;box-shadow:var(--shadow);z-index:50}
+  .ai-fab:hover{background:var(--amber-dim);color:#fff}
+
+  /* ==== Pole detail sections ==== */
+  .pole-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:10px 0}
+  .pole-detail-grid .field{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px}
+  .pole-detail-grid .field .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:3px}
+  .pole-detail-grid .field .val{font-size:13px;color:var(--text)}
+
+  /* Empty state */
+  .empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:13px}
+  .empty .hint{color:var(--amber);cursor:pointer;text-decoration:underline;margin-top:8px;display:inline-block}
+
+  /* Toast */
+  #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--amber-dim);color:var(--amber-bright);padding:8px 16px;border-radius:var(--radius-pill);font-size:13px;box-shadow:var(--shadow);z-index:300;display:none}
+  #toast.show{display:block}
+  #toast.error{border-color:var(--red);color:var(--red)}
+
+  footer{padding:20px;text-align:center;color:var(--text-muted);font-size:11px;border-top:1px solid var(--border);margin-top:40px}
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+</head>
+
+<body>
+
+<!-- ==== Login ==== -->
+<div id="loginScreen">
+  <h1>AutoFlag© Installs</h1>
+  <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
+  <button class="btn-google" onclick="signIn()">Sign in with Google</button>
+  <div class="ver">v1.1 · AutoFlag© stack</div>
+</div>
+
+<!-- ==== App shell ==== -->
+<div id="app" style="display:none">
+  <header>
+    <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
+    <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
+    <button class="icon-btn" onclick="exportJSON()" title="Export">⬇</button>
+    <button class="icon-btn" id="installersBtn" onclick="openInstallersModal()" title="Manage installers" style="display:none">👷</button>
+    <div class="user-pill" id="userPill"></div>
+  </header>
+
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="browse" onclick="switchView('browse')">📋 Browse</button>
+    <button class="view-tab" data-view="kanban" onclick="switchView('kanban')">📊 Kanban</button>
+    <button class="view-tab" data-view="list" onclick="switchView('list')">📑 List</button>
+    <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
+  </div>
+
+  <div class="filter-bar" id="filterBar"></div>
+
+  <main id="main"></main>
+
+  <button class="ai-fab" onclick="toggleAI()" title="Ask AI">✨</button>
+  <button class="fab" onclick="openAddMenu()" title="Add">+</button>
+
+  <div id="aiPanel">
+    <div class="ai-header">
+      <h3>✨ AutoFlag Assistant</h3>
+      <button class="modal-close" onclick="toggleAI()">×</button>
+    </div>
+    <div class="ai-msgs" id="aiMsgs"></div>
+    <div class="ai-input-row">
+      <input id="aiInput" placeholder="Ask anything or 'add pole #5 to ACME site 2...'" onkeydown="if(event.key==='Enter')sendAI()" />
+      <button class="btn" onclick="sendAI()">Send</button>
+    </div>
+  </div>
+
+  <footer>AutoFlag© Installs v1.1 · philinity-893d2 · Rev 1.1</footer>
+</div>
+
+<!-- ==== Modal: Customer ==== -->
+<div class="modal-overlay" id="modalCustomer">
+  <div class="modal">
+    <div class="modal-header"><h2 id="mc-title">Customer</h2><button class="modal-close" onclick="closeModal('modalCustomer')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row"><label>Customer name *</label><input id="mc-name" /></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Primary contact</label><input id="mc-contact" /></div>
+        <div class="form-row"><label>Phone / Email</label><input id="mc-phone" /></div>
+      </div>
+      <div class="form-row"><label>Notes</label><textarea id="mc-notes"></textarea></div>
+      <div class="form-row" id="mc-installer-row" style="display:none">
+        <label>Assigned installers (comma-separated UIDs)</label>
+        <input id="mc-installers" placeholder="uid1,uid2 — leave empty for Phil/Trinity only" />
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Only Phil/Trinity can edit this field.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary btn" id="mc-delete" onclick="deleteCustomer()">Delete</button>
+        <button class="btn-secondary btn" onclick="closeModal('modalCustomer')">Cancel</button>
+        <button class="btn" onclick="saveCustomer()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Site ==== -->
+<div class="modal-overlay" id="modalSite">
+  <div class="modal">
+    <div class="modal-header"><h2 id="ms-title">Site</h2><button class="modal-close" onclick="closeModal('modalSite')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row"><label>Site name *</label><input id="ms-name" /></div>
+      <div class="form-row"><label>Address</label><input id="ms-address" /></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Latitude</label><input id="ms-lat" type="number" step="0.000001" /></div>
+        <div class="form-row"><label>Longitude</label><input id="ms-lng" type="number" step="0.000001" /></div>
+      </div>
+      <div style="margin-bottom:10px"><button class="btn-secondary btn" onclick="geocodeSite()" type="button">📍 Geocode address</button></div>
+      <div class="form-row"><label>Site notes</label><textarea id="ms-notes"></textarea></div>
+      <div class="btn-row">
+        <button class="btn-secondary btn" id="ms-delete" onclick="deleteSite()">Delete</button>
+        <button class="btn-secondary btn" onclick="closeModal('modalSite')">Cancel</button>
+        <button class="btn" onclick="saveSite()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Pole ==== -->
+<div class="modal-overlay" id="modalPole">
+  <div class="modal">
+    <div class="modal-header"><h2 id="mp-title">Pole</h2><button class="modal-close" onclick="closeModal('modalPole')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-row"><label>Pole label *</label><input id="mp-label" placeholder="Pole 1, Lobby, Flagpole A..." /></div>
+        <div class="form-row"><label>Status</label><select id="mp-status">
+          <option value="scheduled">Scheduled</option>
+          <option value="in_progress">In Progress</option>
+          <option value="installed">Installed</option>
+          <option value="verified">Verified</option>
+        </select></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Pole serial</label><input id="mp-serial" /></div>
+        <div class="form-row"><label>SIM / ICCID</label><input id="mp-sim" /></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Firmware version</label><input id="mp-fw" /></div>
+        <div class="form-row"><label>SaaS plan</label><select id="mp-plan">
+          <option value="">—</option>
+          <option value="lte">LTE ($199/yr)</option>
+          <option value="wifi">Wi-Fi ($149/yr)</option>
+        </select></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Latitude</label><input id="mp-lat" type="number" step="0.000001" /></div>
+        <div class="form-row"><label>Longitude</label><input id="mp-lng" type="number" step="0.000001" /></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Warranty start</label><input id="mp-warranty" type="date" /></div>
+        <div class="form-row"><label>SaaS active</label><select id="mp-saas">
+          <option value="">—</option>
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="failed">Failed</option>
+        </select></div>
+      </div>
+
+      <div class="section-h">Pre-install survey</div>
+      <div class="form-row"><textarea id="mp-survey" placeholder="Mounting surface, power source, signal strength, obstructions..."></textarea></div>
+
+      <div class="section-h">Installer notes & issues</div>
+      <div class="form-row"><textarea id="mp-notes" placeholder="What happened on-site, blockers, follow-ups needed..."></textarea></div>
+
+      <div class="section-h">Photos</div>
+      <div class="photo-grid" id="mp-photos"></div>
+      <input type="file" id="mp-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoUpload(event)" multiple />
+
+      <div class="btn-row">
+        <button class="btn-secondary btn" id="mp-delete" onclick="deletePole()">Delete</button>
+        <button class="btn-secondary btn" onclick="closeModal('modalPole')">Cancel</button>
+        <button class="btn" onclick="savePole()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Installers Roster (admin only) ==== -->
+<div class="modal-overlay" id="modalInstallers">
+  <div class="modal">
+    <div class="modal-header"><h2>Installer Roster</h2><button class="modal-close" onclick="closeModal('modalInstallers')">×</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+        Installers must sign in once with Google before being added. Get their UID from Firebase Console → Authentication.
+      </div>
+
+      <div class="section-h" style="margin-top:0">Active installers</div>
+      <div id="installersList" style="margin-bottom:14px"></div>
+
+      <div class="section-h">Add installer</div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Google UID *</label><input id="ins-uid" placeholder="28-char UID from Firebase Auth" /></div>
+        <div class="form-row"><label>Display name</label><input id="ins-name" placeholder="Josh / Matt / etc." /></div>
+      </div>
+      <div class="form-row"><label>Email (optional)</label><input id="ins-email" /></div>
+
+      <div class="btn-row">
+        <button class="btn-secondary btn" onclick="closeModal('modalInstallers')">Close</button>
+        <button class="btn" onclick="addInstaller()">Add Installer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Add menu ==== -->
+<div class="modal-overlay" id="modalAddMenu">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header"><h2>Add</h2><button class="modal-close" onclick="closeModal('modalAddMenu')">×</button></div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn-secondary btn" id="add-customer-btn" onclick="closeModal('modalAddMenu');openCustomerModal()">+ New Customer</button>
+        <button class="btn-secondary btn" onclick="closeModal('modalAddMenu');openSiteModal()" id="add-site-btn">+ New Site</button>
+        <button class="btn-secondary btn" onclick="closeModal('modalAddMenu');openPoleModal()" id="add-pole-btn">+ New Pole</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ==== Firebase + App Logic ==== -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getDatabase, ref, onValue, set, update, remove, push, get, child }
+  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject }
+  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+// ==== Firebase config (AutoFlag© stack — shared philinity-893d2 project) ====
+const firebaseConfig = {
+  apiKey: "AIzaSyCrW9Lrf7fWVqRxKqsnuPK0tL6UYbd_qds",
+  authDomain: "philinity-893d2.firebaseapp.com",
+  databaseURL: "https://philinity-893d2-default-rtdb.firebaseio.com",
+  projectId: "philinity-893d2",
+  storageBucket: "philinity-893d2.firebasestorage.app",
+  messagingSenderId: "443020781676",
+  appId: "1:443020781676:web:614ec91c9ba33076eb9049"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+const storage = getStorage(app);
+
+// ==== Auth + role config ====
+const PHIL_UID    = "CuJigrzCbRfFFsM7uqe0mix46xH3";
+const TRINITY_UID = "g4stabGPKiWAE23NTw6oUsqawWf1";
+const ADMIN_UIDS  = [PHIL_UID, TRINITY_UID];
+// Installers are stored at /autoflag/installers/{uid} = { name, email, addedAt }
+// Admins manage them via the in-app roster (no rule edits, no redeploys).
+let installersRoster = {}; // uid -> { name, email, addedAt }
+
+const PROVIDER = new GoogleAuthProvider();
+const CLOUD_FN = "https://us-central1-philinity-893d2.cloudfunctions.net/askAI";
+
+// ==== State ====
+const state = {
+  user: null, isAdmin: false,
+  data: { customers: {} },           // { customerId: {name, sites:{siteId:{poles:{poleId:{...}}}}} }
+  view: "browse",                    // browse | kanban | list | map
+  drillCustomer: null, drillSite: null,
+  editing: { type:null, customerId:null, siteId:null, poleId:null },
+  poleTempPhotos: [],                // pending uploads for current pole modal
+  filter: { status:"all", customer:"all" },
+  search: "",
+  aiHistory: [],
+  mapInstance: null, mapMarkers: []
+};
+
+// ==== Sanitizer (per 8.5 + 6.3.14) ====
+const stripHTML = s => typeof s==="string" ? s.replace(/<[^>]*>/g,"").trim() : "";
+const num = v => { const n=parseFloat(v); return Number.isFinite(n)?n:null; };
+const STATUSES = ["scheduled","in_progress","installed","verified"];
+
+function sanitizePole(p, id){
+  if(!p||typeof p!=="object") p={};
+  return {
+    id, label: stripHTML(p.label||""),
+    status: STATUSES.includes(p.status) ? p.status : "scheduled",
+    serial: stripHTML(p.serial||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
+    plan: ["lte","wifi"].includes(p.plan) ? p.plan : "",
+    saas: ["pending","active","failed"].includes(p.saas) ? p.saas : "",
+    lat: num(p.lat), lng: num(p.lng),
+    warrantyStart: stripHTML(p.warrantyStart||""),
+    survey: stripHTML(p.survey||""), notes: stripHTML(p.notes||""),
+    photos: Array.isArray(p.photos) ? p.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
+    createdAt: p.createdAt || Date.now(), updatedAt: p.updatedAt || Date.now(),
+    createdBy: p.createdBy || null, updatedBy: p.updatedBy || null
+  };
+}
+function sanitizeSite(s, id){
+  if(!s||typeof s!=="object") s={};
+  const poles={};
+  if(s.poles && typeof s.poles==="object"){
+    Object.entries(s.poles).forEach(([pid,p])=>{ poles[pid]=sanitizePole(p,pid); });
+  }
+  return {
+    id, name: stripHTML(s.name||""),
+    address: stripHTML(s.address||""), lat: num(s.lat), lng: num(s.lng),
+    notes: stripHTML(s.notes||""),
+    poles, createdAt: s.createdAt||Date.now(), updatedAt: s.updatedAt||Date.now()
+  };
+}
+function sanitizeCustomer(c, id){
+  if(!c||typeof c!=="object") c={};
+  const sites={};
+  if(c.sites && typeof c.sites==="object"){
+    Object.entries(c.sites).forEach(([sid,s])=>{ sites[sid]=sanitizeSite(s,sid); });
+  }
+  return {
+    id, name: stripHTML(c.name||""),
+    contact: stripHTML(c.contact||""), phone: stripHTML(c.phone||""),
+    notes: stripHTML(c.notes||""),
+    installers: Array.isArray(c.installers) ? c.installers.filter(u=>typeof u==="string") : [],
+    sites, createdAt: c.createdAt||Date.now(), updatedAt: c.updatedAt||Date.now()
+  };
+}
+
+// ==== Auth flow ====
+window.signIn = async () => {
+  try { await signInWithPopup(auth, PROVIDER); }
+  catch(e){ toast("Sign-in failed: "+e.message, true); }
+};
+window.signOutNow = async () => { await signOut(auth); };
+
+onAuthStateChanged(auth, async user => {
+  if(!user){ showLogin(); return; }
+
+  // Admin shortcut — admins always allowed without RTDB read
+  const isAdmin = ADMIN_UIDS.includes(user.uid);
+  let allowed = isAdmin;
+
+  if(!isAdmin){
+    // Non-admin: must be in /autoflag/installers
+    try{
+      const snap = await get(ref(db, `autoflag/installers/${user.uid}`));
+      // Accept either bare `true` or an object with details
+      const v = snap.val();
+      allowed = v === true || (v && typeof v === "object");
+    }catch(e){
+      console.error("Installer check failed:", e);
+      allowed = false;
+    }
+  }
+
+  if(!allowed){
+    toast("Access denied for "+user.email, true);
+    await signOut(auth); showLogin(); return;
+  }
+
+  state.user = user;
+  state.isAdmin = isAdmin;
+  document.getElementById("loginScreen").style.display="none";
+  document.getElementById("app").style.display="";
+  document.getElementById("userPill").innerHTML =
+    `<img src="${user.photoURL||""}" alt=""><span>${user.displayName||user.email}</span>` +
+    (state.isAdmin ? ' <span style="color:var(--amber)">★</span>' : '');
+
+  // Admin-only UI bits
+  document.getElementById("mc-installer-row").style.display = state.isAdmin ? "" : "none";
+  document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
+  document.getElementById("installersBtn").style.display = state.isAdmin ? "" : "none";
+
+  // Subscribe to installers roster (admins only — installers don't need this)
+  if(state.isAdmin) subscribeInstallers();
+  subscribeData();
+});
+
+function showLogin(){
+  state.user=null;
+  document.getElementById("app").style.display="none";
+  document.getElementById("loginScreen").style.display="";
+}
+
+// ==== Data layer ====
+function subscribeData(){
+  const root = ref(db, "autoflag/installs/customers");
+  onValue(root, snap => {
+    const raw = snap.val() || {};
+    const customers = {};
+    Object.entries(raw).forEach(([cid, c]) => {
+      const sc = sanitizeCustomer(c, cid);
+      // Installer scoping (per Q1 answer: installers see assigned customers only)
+      if(!state.isAdmin && !sc.installers.includes(state.user.uid)) return;
+      customers[cid] = sc;
+    });
+    state.data.customers = customers;
+    renderActive();
+  }, err => toast("Read failed: "+err.message, true));
+}
+
+async function writeNode(path, value){
+  await set(ref(db, path), value);
+}
+async function patchNode(path, patch){  // update() preserves siblings, per 6.3.7
+  await update(ref(db, path), patch);
+}
+
+// ==== Installer roster (admin only) ====
+function subscribeInstallers(){
+  onValue(ref(db, "autoflag/installers"), snap => {
+    const raw = snap.val() || {};
+    const out = {};
+    Object.entries(raw).forEach(([uid,v]) => {
+      if(v === true) out[uid] = { name:"(no name)", email:"", addedAt:0 };
+      else if(v && typeof v === "object"){
+        out[uid] = {
+          name: stripHTML(v.name||"(no name)"),
+          email: stripHTML(v.email||""),
+          addedAt: v.addedAt || 0
+        };
+      }
+    });
+    installersRoster = out;
+    renderInstallersList();
+  });
+}
+
+window.openInstallersModal = () => {
+  if(!state.isAdmin) return;
+  document.getElementById("ins-uid").value = "";
+  document.getElementById("ins-name").value = "";
+  document.getElementById("ins-email").value = "";
+  renderInstallersList();
+  openModal("modalInstallers");
+};
+
+function renderInstallersList(){
+  const wrap = document.getElementById("installersList");
+  if(!wrap) return;
+  const entries = Object.entries(installersRoster);
+  if(entries.length === 0){
+    wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No installers yet.</div>`;
+    return;
+  }
+  wrap.innerHTML = entries.map(([uid,info]) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:13px;color:var(--text)"><strong>${info.name}</strong>${info.email?` <span style="color:var(--text-muted);font-size:11px">· ${info.email}</span>`:''}</div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${uid}</div>
+      </div>
+      <button class="btn-secondary btn" style="padding:4px 10px;font-size:11px" onclick="removeInstaller('${uid}')">Remove</button>
+    </div>
+  `).join("");
+}
+
+window.addInstaller = async () => {
+  if(!state.isAdmin) return;
+  const uid = document.getElementById("ins-uid").value.trim();
+  const name = document.getElementById("ins-name").value.trim();
+  const email = document.getElementById("ins-email").value.trim();
+  if(!uid) return toast("UID required", true);
+  if(uid.length < 20) return toast("UID looks too short — paste full Firebase UID", true);
+  if(ADMIN_UIDS.includes(uid)) return toast("That UID is already an admin", true);
+  try{
+    await patchNode(`autoflag/installers/${uid}`, {
+      name: name || "(unnamed)",
+      email,
+      addedAt: Date.now(),
+      addedBy: state.user.uid
+    });
+    document.getElementById("ins-uid").value = "";
+    document.getElementById("ins-name").value = "";
+    document.getElementById("ins-email").value = "";
+    toast("Installer added");
+  }catch(e){ toast("Failed: "+e.message, true); }
+};
+
+window.removeInstaller = async (uid) => {
+  if(!state.isAdmin) return;
+  const info = installersRoster[uid];
+  if(!confirm(`Remove ${info?.name||uid} from installers? They will lose access immediately.`)) return;
+  try{
+    await remove(ref(db, `autoflag/installers/${uid}`));
+    toast("Removed");
+  }catch(e){ toast("Failed: "+e.message, true); }
+};
+
+// ==== Search haystack (per 8.3) ====
+function matchesSearch(c, s, p){
+  if(!state.search) return true;
+  const q = state.search.toLowerCase();
+  const hay = [
+    c?.name, c?.contact, c?.phone, c?.notes,
+    s?.name, s?.address, s?.notes,
+    p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes
+  ].filter(Boolean).join(" ").toLowerCase();
+  return hay.includes(q);
+}
+
+// ==== Render dispatcher ====
+window.renderActive = () => {
+  state.search = document.getElementById("searchInput")?.value.trim() || "";
+  renderFilterBar();
+  const main = document.getElementById("main");
+  if(state.view === "browse")     main.innerHTML = renderBrowse();
+  else if(state.view === "kanban") main.innerHTML = renderKanban();
+  else if(state.view === "list")   main.innerHTML = renderList();
+  else if(state.view === "map"){ main.innerHTML = `<div id="mapContainer"></div>`; setTimeout(renderMap,50); }
+};
+
+function renderFilterBar(){
+  const bar = document.getElementById("filterBar");
+  const statuses = ["all", ...STATUSES];
+  const customers = Object.values(state.data.customers).sort((a,b)=>a.name.localeCompare(b.name));
+  let html = `<span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin-right:4px">Status:</span>`;
+  statuses.forEach(s => {
+    html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${s==='all'?'All':s.replace('_',' ')}</span>`;
+  });
+  if(customers.length > 1){
+    html += `<span style="width:8px"></span><span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin:0 4px">Customer:</span>`;
+    html += `<span class="chip ${state.filter.customer==='all'?'active':''}" onclick="setCustomerFilter('all')">All</span>`;
+    customers.forEach(c => {
+      html += `<span class="chip ${state.filter.customer===c.id?'active':''}" onclick="setCustomerFilter('${c.id}')">${c.name||'(unnamed)'}</span>`;
+    });
+  }
+  bar.innerHTML = html;
+}
+window.setStatusFilter = s => { state.filter.status=s; renderActive(); };
+window.setCustomerFilter = c => { state.filter.customer=c; renderActive(); };
+
+// ==== BROWSE: drill-down ====
+function renderBrowse(){
+  if(state.drillSite){
+    const c = state.data.customers[state.drillCustomer];
+    const s = c?.sites[state.drillSite];
+    if(!s) { state.drillSite=null; return renderBrowse(); }
+    return renderSiteDetail(c,s);
+  }
+  if(state.drillCustomer){
+    const c = state.data.customers[state.drillCustomer];
+    if(!c) { state.drillCustomer=null; return renderBrowse(); }
+    return renderCustomerDetail(c);
+  }
+  // Top: customer list
+  const list = Object.values(state.data.customers)
+    .filter(c => state.filter.customer==='all' || state.filter.customer===c.id)
+    .filter(c => state.search ? matchesSearch(c,null,null) || Object.values(c.sites).some(s => matchesSearch(c,s,null) || Object.values(s.poles).some(p => matchesSearch(c,s,p))) : true)
+    .sort((a,b)=> b.updatedAt - a.updatedAt);
+  if(list.length===0) return `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
+  let html = `<div class="customer-grid">`;
+  list.forEach(c => {
+    const sites = Object.values(c.sites);
+    const allPoles = sites.flatMap(s => Object.values(s.poles));
+    const filteredPoles = state.filter.status==='all' ? allPoles : allPoles.filter(p => p.status===state.filter.status);
+    const counts = { scheduled:0, in_progress:0, installed:0, verified:0 };
+    allPoles.forEach(p => counts[p.status] = (counts[p.status]||0)+1);
+    html += `<div class="customer-card" onclick="drillTo('${c.id}',null)">
+      <h3>${c.name||'(unnamed)'}</h3>
+      <div style="font-size:12px;color:var(--text-dim)">${c.contact||''}${c.contact&&c.phone?' · ':''}${c.phone||''}</div>
+      <div class="customer-meta">
+        <div class="stat-pill"><div class="num">${sites.length}</div><div class="lbl">Sites</div></div>
+        <div class="stat-pill"><div class="num">${allPoles.length}</div><div class="lbl">Poles</div></div>
+        <div class="stat-pill"><div class="num">${counts.installed+counts.verified}</div><div class="lbl">Done</div></div>
+        <div class="stat-pill"><div class="num">${counts.scheduled+counts.in_progress}</div><div class="lbl">Pending</div></div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderCustomerDetail(c){
+  const sites = Object.values(c.sites)
+    .filter(s => !state.search || matchesSearch(c,s,null) || Object.values(s.poles).some(p => matchesSearch(c,s,p)))
+    .sort((a,b)=> b.updatedAt - a.updatedAt);
+  let html = `<div class="breadcrumb">
+    <a onclick="drillTo(null,null)">All customers</a>
+    <span class="sep">›</span><strong>${c.name}</strong>
+    ${state.isAdmin?` <button class="icon-btn" style="margin-left:8px" onclick="openCustomerModal('${c.id}')">Edit</button>`:''}
+  </div>`;
+  if(c.contact || c.phone || c.notes){
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">`;
+    if(c.contact||c.phone) html += `<div><strong>${c.contact||''}</strong>${c.contact&&c.phone?' · ':''}${c.phone||''}</div>`;
+    if(c.notes) html += `<div style="color:var(--text-dim);margin-top:4px">${c.notes}</div>`;
+    html += `</div>`;
+  }
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="section-h" style="margin:0;border:none">Sites (${sites.length})</div>
+    <button class="btn-secondary btn" onclick="openSiteModal()">+ Add Site</button></div>`;
+  if(sites.length===0) return html + `<div class="empty">No sites yet for ${c.name}.</div>`;
+  html += `<div class="customer-grid">`;
+  sites.forEach(s => {
+    const poles = Object.values(s.poles);
+    const filteredPoles = state.filter.status==='all' ? poles : poles.filter(p => p.status===state.filter.status);
+    html += `<div class="customer-card" onclick="drillTo('${c.id}','${s.id}')">
+      <h3>${s.name||'(unnamed site)'}</h3>
+      <div style="font-size:12px;color:var(--text-dim)">${s.address||'No address'}</div>
+      <div class="customer-meta">
+        <div class="stat-pill"><div class="num">${poles.length}</div><div class="lbl">Poles</div></div>
+        <div class="stat-pill"><div class="num">${poles.filter(p=>p.status==='installed'||p.status==='verified').length}</div><div class="lbl">Done</div></div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderSiteDetail(c,s){
+  const poles = Object.values(s.poles)
+    .filter(p => state.filter.status==='all' || p.status===state.filter.status)
+    .filter(p => !state.search || matchesSearch(c,s,p))
+    .sort((a,b)=> b.updatedAt - a.updatedAt);
+  let html = `<div class="breadcrumb">
+    <a onclick="drillTo(null,null)">All customers</a>
+    <span class="sep">›</span><a onclick="drillTo('${c.id}',null)">${c.name}</a>
+    <span class="sep">›</span><strong>${s.name}</strong>
+    <button class="icon-btn" style="margin-left:8px" onclick="openSiteModal('${s.id}')">Edit</button>
+  </div>`;
+  if(s.address){
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">
+      <div>📍 ${s.address}</div>
+      ${s.lat&&s.lng?`<div style="color:var(--text-muted);font-size:11px;margin-top:3px">${s.lat}, ${s.lng}</div>`:''}
+      ${s.notes?`<div style="color:var(--text-dim);margin-top:4px">${s.notes}</div>`:''}
+    </div>`;
+  }
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="section-h" style="margin:0;border:none">Poles (${poles.length})</div>
+    <button class="btn-secondary btn" onclick="openPoleModal()">+ Add Pole</button></div>`;
+  if(poles.length===0) return html + `<div class="empty">No poles yet.</div>`;
+  html += `<div class="customer-grid">`;
+  poles.forEach(p => html += renderPoleCard(c,s,p,true));
+  html += `</div>`;
+  return html;
+}
+
+function renderPoleCard(c,s,p,big){
+  const statusLabel = p.status.replace('_',' ');
+  return `<div class="customer-card" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+      <h3 style="margin:0">${p.label||'(unlabeled)'}</h3>
+      <span class="status-badge status-${p.status}">${statusLabel}</span>
+    </div>
+    ${big?`<div style="font-size:12px;color:var(--text-dim);margin-top:6px">${c.name} · ${s.name}</div>`:''}
+    <div class="chips-inline" style="margin-top:8px">
+      ${p.serial?`<span class="data-chip">SN: ${p.serial}</span>`:''}
+      ${p.plan?`<span class="data-chip">${p.plan.toUpperCase()}</span>`:''}
+      ${p.saas?`<span class="data-chip">SaaS: ${p.saas}</span>`:''}
+      ${p.photos.length?`<span class="data-chip">📷 ${p.photos.length}</span>`:''}
+    </div>
+  </div>`;
+}
+
+window.drillTo = (customerId, siteId) => {
+  state.drillCustomer = customerId; state.drillSite = siteId;
+  renderActive();
+};
+window.goHome = () => {
+  state.drillCustomer=null; state.drillSite=null;
+  state.filter={status:"all",customer:"all"}; state.search="";
+  document.getElementById("searchInput").value="";
+  renderActive();
+};
+
+// ==== KANBAN ====
+function renderKanban(){
+  const allPoles = collectPoles();
+  const cols = STATUSES.map(s => ({
+    status:s, label:s.replace('_',' '),
+    poles: allPoles.filter(x => x.p.status===s)
+  }));
+  let html = `<div class="kanban">`;
+  cols.forEach(col => {
+    html += `<div class="kanban-col"><h4>${col.label} <span class="count">${col.poles.length}</span></h4>`;
+    col.poles.forEach(({c,s,p}) => {
+      html += `<div class="pole-card" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
+        <div class="title">${p.label||'(unlabeled)'}</div>
+        <div style="color:var(--text-dim);font-size:11px">${c.name} · ${s.name}</div>
+        <div class="meta">
+          ${p.serial?`<span>SN: ${p.serial}</span>`:''}
+          ${p.plan?`<span>${p.plan.toUpperCase()}</span>`:''}
+          ${p.photos.length?`<span>📷 ${p.photos.length}</span>`:''}
+        </div>
+      </div>`;
+    });
+    if(col.poles.length===0) html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0">—</div>`;
+    html += `</div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+// ==== LIST ====
+function renderList(){
+  const allPoles = collectPoles();
+  if(allPoles.length===0) return `<div class="empty">No poles match.</div>`;
+  let html = `<table class="list-table"><thead><tr>
+    <th>Pole</th><th>Customer</th><th>Site</th><th>Status</th><th>Serial</th><th>Plan</th><th>Updated</th>
+  </tr></thead><tbody>`;
+  allPoles.sort((a,b)=>b.p.updatedAt - a.p.updatedAt).forEach(({c,s,p}) => {
+    html += `<tr onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
+      <td><strong>${p.label||'—'}</strong></td>
+      <td>${c.name}</td><td>${s.name}</td>
+      <td><span class="status-badge status-${p.status}">${p.status.replace('_',' ')}</span></td>
+      <td>${p.serial||'—'}</td>
+      <td>${p.plan?p.plan.toUpperCase():'—'}</td>
+      <td>${new Date(p.updatedAt).toLocaleDateString()}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+}
+
+// ==== MAP ====
+function renderMap(){
+  if(typeof L === "undefined"){ toast("Map library not loaded yet"); return; }
+  const container = document.getElementById("mapContainer");
+  if(!container) return;
+  if(state.mapInstance){ state.mapInstance.remove(); state.mapInstance=null; }
+  const map = L.map(container).setView([43.6150, -116.2023], 4); // Boise default
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap', maxZoom:19
+  }).addTo(map);
+  const items = collectPoles().filter(({s,p}) => (p.lat&&p.lng) || (s.lat&&s.lng));
+  const bounds = [];
+  items.forEach(({c,s,p}) => {
+    const lat = p.lat ?? s.lat, lng = p.lng ?? s.lng;
+    if(lat==null || lng==null) return;
+    const color = p.status==='verified'?'#6ea3d9':p.status==='installed'?'#7fb069':p.status==='in_progress'?'#f3c489':'#e0a96d';
+    const m = L.circleMarker([lat,lng],{
+      radius:8, fillColor:color, color:'#0d0d0f', weight:2, fillOpacity:.9
+    }).addTo(map);
+    m.bindPopup(`<div style="font-family:sans-serif"><strong>${p.label||'(unlabeled)'}</strong><br>${c.name} · ${s.name}<br><em>${p.status.replace('_',' ')}</em></div>`);
+    m.on('click', () => openPoleModal(p.id, c.id, s.id));
+    bounds.push([lat,lng]);
+  });
+  if(bounds.length>0) map.fitBounds(bounds, {padding:[40,40], maxZoom:14});
+  state.mapInstance = map;
+}
+
+function collectPoles(){
+  const out = [];
+  Object.values(state.data.customers).forEach(c => {
+    if(state.filter.customer!=='all' && state.filter.customer!==c.id) return;
+    Object.values(c.sites).forEach(s => {
+      Object.values(s.poles).forEach(p => {
+        if(state.filter.status!=='all' && state.filter.status!==p.status) return;
+        if(state.search && !matchesSearch(c,s,p)) return;
+        out.push({c,s,p});
+      });
+    });
+  });
+  return out;
+}
+
+window.switchView = v => {
+  state.view = v;
+  document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view===v));
+  renderActive();
+};
+
+// ==== Modal helpers ====
+window.closeModal = id => document.getElementById(id).classList.remove("open");
+function openModal(id){ document.getElementById(id).classList.add("open"); }
+// Esc key (per 6.3.12: NO overlay-click-to-close)
+document.addEventListener("keydown", e => {
+  if(e.key !== "Escape") return;
+  document.querySelectorAll(".modal-overlay.open").forEach(m => m.classList.remove("open"));
+  if(document.getElementById("aiPanel")?.classList.contains("open")) toggleAI();
+});
+
+window.openAddMenu = () => {
+  // Hide invalid options based on context
+  document.getElementById("add-site-btn").style.display = state.drillCustomer ? "" : "none";
+  document.getElementById("add-pole-btn").style.display = (state.drillCustomer && state.drillSite) ? "" : "none";
+  if(!state.drillCustomer && !state.isAdmin){ toast("Pick a customer first"); return; }
+  openModal("modalAddMenu");
+};
+
+// ==== Customer CRUD ====
+window.openCustomerModal = (cid) => {
+  state.editing = { type:"customer", customerId: cid||null };
+  const c = cid ? state.data.customers[cid] : null;
+  document.getElementById("mc-title").textContent = c ? "Edit Customer" : "New Customer";
+  document.getElementById("mc-name").value = c?.name || "";
+  document.getElementById("mc-contact").value = c?.contact || "";
+  document.getElementById("mc-phone").value = c?.phone || "";
+  document.getElementById("mc-notes").value = c?.notes || "";
+  document.getElementById("mc-installers").value = (c?.installers||[]).join(",");
+  document.getElementById("mc-delete").style.display = c ? "" : "none";
+  openModal("modalCustomer");
+};
+window.saveCustomer = async () => {
+  const name = document.getElementById("mc-name").value.trim();
+  if(!name) return toast("Name required", true);
+  let id = state.editing.customerId;
+  if(!id) id = push(ref(db, "autoflag/installs/customers")).key;
+  const existing = state.data.customers[id] || {};
+  const installers = state.isAdmin
+    ? document.getElementById("mc-installers").value.split(",").map(x=>x.trim()).filter(Boolean)
+    : (existing.installers || []);
+  const patch = {
+    name, contact: document.getElementById("mc-contact").value.trim(),
+    phone: document.getElementById("mc-phone").value.trim(),
+    notes: document.getElementById("mc-notes").value.trim(),
+    installers, updatedAt: Date.now()
+  };
+  if(!state.editing.customerId) { patch.createdAt = Date.now(); patch.sites = {}; }
+  await patchNode(`autoflag/installs/customers/${id}`, patch);
+  toast("Customer saved");
+  closeModal("modalCustomer");
+};
+window.deleteCustomer = async () => {
+  const id = state.editing.customerId; if(!id) return;
+  const c = state.data.customers[id];
+  if(!confirm(`Delete customer "${c.name}" and all its sites/poles? This cannot be undone.`)) return;
+  await remove(ref(db, `autoflag/installs/customers/${id}`));
+  state.drillCustomer=null; state.drillSite=null;
+  toast("Deleted"); closeModal("modalCustomer");
+};
+
+// ==== Site CRUD ====
+window.openSiteModal = (sid) => {
+  if(!state.drillCustomer){ toast("Open a customer first"); return; }
+  state.editing = { type:"site", customerId: state.drillCustomer, siteId: sid||null };
+  const s = sid ? state.data.customers[state.drillCustomer]?.sites[sid] : null;
+  document.getElementById("ms-title").textContent = s ? "Edit Site" : "New Site";
+  document.getElementById("ms-name").value = s?.name || "";
+  document.getElementById("ms-address").value = s?.address || "";
+  document.getElementById("ms-lat").value = s?.lat ?? "";
+  document.getElementById("ms-lng").value = s?.lng ?? "";
+  document.getElementById("ms-notes").value = s?.notes || "";
+  document.getElementById("ms-delete").style.display = s ? "" : "none";
+  openModal("modalSite");
+};
+window.saveSite = async () => {
+  const name = document.getElementById("ms-name").value.trim();
+  if(!name) return toast("Name required", true);
+  const cid = state.editing.customerId;
+  let sid = state.editing.siteId;
+  if(!sid) sid = push(ref(db, `autoflag/installs/customers/${cid}/sites`)).key;
+  const existing = state.data.customers[cid]?.sites[sid] || {};
+  const patch = {
+    name,
+    address: document.getElementById("ms-address").value.trim(),
+    lat: num(document.getElementById("ms-lat").value),
+    lng: num(document.getElementById("ms-lng").value),
+    notes: document.getElementById("ms-notes").value.trim(),
+    updatedAt: Date.now()
+  };
+  if(!state.editing.siteId) { patch.createdAt = Date.now(); patch.poles = {}; }
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}`, patch);
+  await patchNode(`autoflag/installs/customers/${cid}`, {updatedAt: Date.now()});
+  toast("Site saved"); closeModal("modalSite");
+};
+window.deleteSite = async () => {
+  const cid = state.editing.customerId, sid = state.editing.siteId; if(!sid) return;
+  const s = state.data.customers[cid]?.sites[sid];
+  if(!confirm(`Delete site "${s.name}" and all its poles?`)) return;
+  await remove(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}`));
+  state.drillSite=null; toast("Deleted"); closeModal("modalSite");
+};
+window.geocodeSite = async () => {
+  const addr = document.getElementById("ms-address").value.trim();
+  if(!addr) return toast("Enter address first");
+  try{
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`);
+    const j = await r.json();
+    if(j[0]){
+      document.getElementById("ms-lat").value = parseFloat(j[0].lat).toFixed(6);
+      document.getElementById("ms-lng").value = parseFloat(j[0].lon).toFixed(6);
+      toast("Geocoded ✓");
+    } else toast("No match", true);
+  }catch(e){ toast("Geocode failed: "+e.message, true); }
+};
+
+// ==== Pole CRUD ====
+window.openPoleModal = (pid, cid, sid) => {
+  cid = cid || state.drillCustomer; sid = sid || state.drillSite;
+  if(!cid || !sid){ toast("Open a site first"); return; }
+  state.editing = { type:"pole", customerId:cid, siteId:sid, poleId:pid||null };
+  state.poleTempPhotos = [];
+  const p = pid ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
+  document.getElementById("mp-title").textContent = p ? `Edit Pole · ${p.label||''}` : "New Pole";
+  document.getElementById("mp-label").value = p?.label || "";
+  document.getElementById("mp-status").value = p?.status || "scheduled";
+  document.getElementById("mp-serial").value = p?.serial || "";
+  document.getElementById("mp-sim").value = p?.sim || "";
+  document.getElementById("mp-fw").value = p?.fw || "";
+  document.getElementById("mp-plan").value = p?.plan || "";
+  document.getElementById("mp-saas").value = p?.saas || "";
+  document.getElementById("mp-lat").value = p?.lat ?? "";
+  document.getElementById("mp-lng").value = p?.lng ?? "";
+  document.getElementById("mp-warranty").value = p?.warrantyStart || "";
+  document.getElementById("mp-survey").value = p?.survey || "";
+  document.getElementById("mp-notes").value = p?.notes || "";
+  document.getElementById("mp-delete").style.display = p ? "" : "none";
+  renderPolePhotos(p?.photos || []);
+  openModal("modalPole");
+};
+
+function renderPolePhotos(existing){
+  const grid = document.getElementById("mp-photos");
+  let html = "";
+  existing.forEach((url,i) => {
+    html += `<div class="photo-thumb" onclick="window.open('${url}','_blank')"><img src="${url}" /><div class="remove" onclick="event.stopPropagation();removeExistingPhoto(${i})">×</div></div>`;
+  });
+  state.poleTempPhotos.forEach((tp,i) => {
+    html += `<div class="photo-thumb"><img src="${tp.url}" /><div class="remove" onclick="event.stopPropagation();removeTempPhoto(${i})">×</div></div>`;
+  });
+  html += `<div class="photo-add" onclick="document.getElementById('mp-photo-input').click()">+</div>`;
+  grid.innerHTML = html;
+}
+window.removeExistingPhoto = (i) => {
+  const {customerId,siteId,poleId} = state.editing;
+  const p = state.data.customers[customerId]?.sites[siteId]?.poles[poleId];
+  if(!p) return;
+  const url = p.photos[i];
+  p.photos.splice(i,1);  // local mutation; will save on Save
+  // Best-effort delete from Storage
+  try{ const path = decodeURIComponent(url.split("/o/")[1].split("?")[0]); deleteObject(sref(storage, path)).catch(()=>{}); }catch(_){}
+  renderPolePhotos(p.photos);
+};
+window.removeTempPhoto = (i) => { state.poleTempPhotos.splice(i,1); renderPolePhotos(currentPhotos()); };
+function currentPhotos(){
+  const {customerId,siteId,poleId} = state.editing;
+  return poleId ? (state.data.customers[customerId]?.sites[siteId]?.poles[poleId]?.photos || []) : [];
+}
+
+window.handlePhotoUpload = async (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";
+  for(const f of files){
+    const reader = new FileReader();
+    const url = await new Promise(res => { reader.onload=()=>res(reader.result); reader.readAsDataURL(f); });
+    state.poleTempPhotos.push({ file:f, url });
+  }
+  renderPolePhotos(currentPhotos());
+};
+
+window.savePole = async () => {
+  const label = document.getElementById("mp-label").value.trim();
+  if(!label) return toast("Label required", true);
+  const {customerId:cid, siteId:sid} = state.editing;
+  let pid = state.editing.poleId;
+  if(!pid) pid = push(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}/poles`)).key;
+
+  // Upload pending photos
+  const existing = state.editing.poleId ? (state.data.customers[cid].sites[sid].poles[pid].photos || []) : [];
+  const uploaded = [];
+  for(const tp of state.poleTempPhotos){
+    try{
+      const path = `autoflag/installs/${cid}/${sid}/${pid}/${Date.now()}_${tp.file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+      const sr = sref(storage, path);
+      await uploadBytes(sr, tp.file);
+      const url = await getDownloadURL(sr);
+      uploaded.push(url);
+    }catch(e){ toast("Photo upload failed: "+e.message, true); }
+  }
+  const photos = [...existing, ...uploaded];
+
+  const patch = {
+    label,
+    status: document.getElementById("mp-status").value,
+    serial: document.getElementById("mp-serial").value.trim(),
+    sim: document.getElementById("mp-sim").value.trim(),
+    fw: document.getElementById("mp-fw").value.trim(),
+    plan: document.getElementById("mp-plan").value,
+    saas: document.getElementById("mp-saas").value,
+    lat: num(document.getElementById("mp-lat").value),
+    lng: num(document.getElementById("mp-lng").value),
+    warrantyStart: document.getElementById("mp-warranty").value,
+    survey: document.getElementById("mp-survey").value.trim(),
+    notes: document.getElementById("mp-notes").value.trim(),
+    photos,
+    updatedAt: Date.now(), updatedBy: state.user.uid
+  };
+  if(!state.editing.poleId){ patch.createdAt = Date.now(); patch.createdBy = state.user.uid; }
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, patch);
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}`, {updatedAt: Date.now()});
+  await patchNode(`autoflag/installs/customers/${cid}`, {updatedAt: Date.now()});
+  state.poleTempPhotos = [];
+  toast("Pole saved");
+  closeModal("modalPole");
+};
+window.deletePole = async () => {
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing; if(!pid) return;
+  if(!confirm("Delete this pole?")) return;
+  await remove(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`));
+  toast("Deleted"); closeModal("modalPole");
+};
+
+// ==== AI ====
+window.toggleAI = () => {
+  const p = document.getElementById("aiPanel");
+  p.classList.toggle("open");
+  if(p.classList.contains("open")){
+    if(state.aiHistory.length===0) addAIMsg("assistant", "Hi! I can add poles, update statuses, or summarize install history. Try:\n• \"Add pole 3 to ACME site 1, status scheduled\"\n• \"Show me everything pending for installer Josh\"\n• \"Generate a site report for Marriott Downtown\"");
+    document.getElementById("aiInput").focus();
+  }
+};
+function addAIMsg(role, text){
+  state.aiHistory.push({role, content: text});
+  const wrap = document.getElementById("aiMsgs");
+  const div = document.createElement("div");
+  div.className = `ai-msg ${role}`;
+  div.textContent = text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+window.sendAI = async () => {
+  const input = document.getElementById("aiInput");
+  const q = input.value.trim(); if(!q) return;
+  addAIMsg("user", q); input.value = "";
+
+  const ctx = buildAIContext();
+  const sys = `You are the AutoFlag Installs assistant. Today is ${new Date().toISOString().slice(0,10)}.
+The user is ${state.user.displayName || state.user.email}. Role: ${state.isAdmin?"admin":"installer"}.
+
+Current data (pruned snapshot):
+${JSON.stringify(ctx).slice(0, 12000)}
+
+You can perform actions by emitting a JSON block at the END of your response, wrapped in <ACTION>...</ACTION> tags.
+Supported actions:
+{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "scheduled|in_progress|installed|verified", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "survey":"", "notes":"" }
+{ "action": "update_pole", "customerId":"...", "siteId":"...", "poleId":"...", "patch": { ...fields to change... } }
+{ "action": "add_site", "customerId":"...", "name":"...", "address":"" }
+{ "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
+
+CRITICAL RULES (per Phil's defensive prompting standard):
+- NEVER guess customerId or siteId. If ambiguous, ASK the user to disambiguate (list candidates by name).
+- NEVER assume status values not in the enum.
+- For updates/deletes, confirm the target before acting.
+- Reject unknown IDs — do not invent them.
+- If user asks for a report, respond in plain text (no <ACTION>).
+- Be concise. Phil prefers short responses.`;
+
+  try{
+    const idToken = await auth.currentUser.getIdToken(true);
+    const res = await fetch(CLOUD_FN, {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+idToken},
+      body: JSON.stringify({ app:"autoflag", system: sys, messages: state.aiHistory.slice(-10) })
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const text = (data.content || []).map(b => b.type==="text" ? b.text : "").join("\n").trim();
+    addAIMsg("assistant", text || "(no response)");
+    // Parse actions
+    const m = text.match(/<ACTION>([\s\S]*?)<\/ACTION>/);
+    if(m){
+      try{
+        const action = JSON.parse(m[1].trim());
+        await executeAction(action);
+      }catch(e){ toast("Action parse failed: "+e.message, true); }
+    }
+  }catch(e){ addAIMsg("assistant", "Error: "+e.message); }
+};
+
+function buildAIContext(){
+  // Compact representation; respect installer scope (already applied to state.data)
+  const out = {};
+  Object.entries(state.data.customers).forEach(([cid,c]) => {
+    out[cid] = { id:cid, name:c.name, sites:{} };
+    Object.entries(c.sites).forEach(([sid,s]) => {
+      out[cid].sites[sid] = {
+        id:sid, name:s.name, address:s.address,
+        poles: Object.fromEntries(Object.entries(s.poles).map(([pid,p]) =>
+          [pid, {id:pid,label:p.label,status:p.status,serial:p.serial,plan:p.plan,saas:p.saas}]))
+      };
+    });
+  });
+  return out;
+}
+
+async function executeAction(a){
+  if(!a || !a.action) return;
+  const known = state.data.customers;
+  // Validate IDs (per 6.3.7: reject unknown IDs)
+  const validC = id => id && known[id];
+  const validS = (cid,sid) => validC(cid) && known[cid].sites[sid];
+  const validP = (cid,sid,pid) => validS(cid,sid) && known[cid].sites[sid].poles[pid];
+
+  if(a.action==="add_customer"){
+    if(!state.isAdmin) return toast("Admin only", true);
+    const id = push(ref(db,"autoflag/installs/customers")).key;
+    await patchNode(`autoflag/installs/customers/${id}`, {
+      name:a.name, contact:a.contact||"", phone:a.phone||"",
+      installers:[], sites:{}, createdAt:Date.now(), updatedAt:Date.now()
+    });
+    toast(`Created customer ${a.name}`);
+  }
+  else if(a.action==="add_site"){
+    if(!validC(a.customerId)) return toast("Unknown customer ID", true);
+    const sid = push(ref(db,`autoflag/installs/customers/${a.customerId}/sites`)).key;
+    await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${sid}`, {
+      name:a.name, address:a.address||"", poles:{}, createdAt:Date.now(), updatedAt:Date.now()
+    });
+    toast(`Added site ${a.name}`);
+  }
+  else if(a.action==="add_pole"){
+    if(!validS(a.customerId,a.siteId)) return toast("Unknown customer/site ID", true);
+    const pid = push(ref(db,`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles`)).key;
+    const patch = sanitizePole({...a, createdAt:Date.now(), updatedAt:Date.now(), createdBy:state.user.uid}, pid);
+    await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles/${pid}`, patch);
+    toast(`Added pole ${a.label}`);
+  }
+  else if(a.action==="update_pole"){
+    if(!validP(a.customerId,a.siteId,a.poleId)) return toast("Unknown pole ID", true);
+    const clean = sanitizePole({...known[a.customerId].sites[a.siteId].poles[a.poleId], ...a.patch}, a.poleId);
+    clean.updatedAt = Date.now(); clean.updatedBy = state.user.uid;
+    await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles/${a.poleId}`, clean);
+    toast(`Updated ${clean.label}`);
+  }
+}
+
+// ==== Export ====
+window.exportJSON = () => {
+  const blob = new Blob([JSON.stringify(state.data, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `autoflag_installs_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+};
+
+// ==== Toast ====
+function toast(msg, isErr){
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "show" + (isErr?" error":"");
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.classList.remove("show"), 2400);
+}
+window.toast = toast;
+
+</script>
+
+<!-- Leaflet for map view -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+</body>
+</html>
