@@ -108,8 +108,9 @@
   .status-in_review{background:#3a2a3a;color:#d8a8d8}
   .status-scheduled{background:#3a3520;color:var(--amber)}
   .status-in_progress{background:#3a2a20;color:var(--amber-bright)}
-  .status-done{background:#1f3a2a;color:var(--green)}
-  .status-installed{background:#1f3a2a;color:var(--green)}   /* legacy alias */
+  .status-completed{background:#1f3a2a;color:var(--green)}
+  .status-done{background:#1f3a2a;color:var(--green)}     /* legacy alias */
+  .status-installed{background:#1f3a2a;color:var(--green)}/* legacy alias */
   .status-verified{background:#1f2a3a;color:var(--blue)}
 
   /* ==== Map ==== */
@@ -191,6 +192,7 @@
   .tree-stat.status-in_review{background:#3a2a3a;color:#d8a8d8}
   .tree-stat.status-scheduled{background:#3a3520;color:var(--amber)}
   .tree-stat.status-in_progress{background:#3a2a20;color:var(--amber-bright)}
+  .tree-stat.status-completed{background:#1f3a2a;color:var(--green);font-weight:700}
   .tree-stat.status-done{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-installed{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
@@ -266,7 +268,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.7 · AutoFlag© stack</div>
+  <div class="ver">v1.9 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -333,7 +335,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.7</span>
+    AutoFlag© <span>Rev v1.9</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -377,6 +379,11 @@
       </div>
       <div style="margin-bottom:10px"><button class="btn-secondary btn" onclick="geocodeSite()" type="button">📍 Geocode address</button></div>
       <div class="form-row"><label>Site notes</label><textarea id="ms-notes"></textarea></div>
+
+      <div class="section-h">📷 Site Photos <span style="color:var(--text-muted);font-weight:normal;font-size:10px;margin-left:6px">context shots, sales material, scouting</span></div>
+      <div class="photo-grid" id="ms-photos"></div>
+      <input type="file" id="ms-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleSitePhotoUpload(event)" multiple />
+
       <div class="btn-row">
         <button class="btn-secondary btn" id="ms-delete" onclick="deleteSite()">Delete</button>
         <button class="btn-secondary btn" onclick="closeModal('modalSite')">Cancel</button>
@@ -397,7 +404,7 @@
           <option value="in_review">📝 In Review</option>
           <option value="scheduled">📅 Scheduled</option>
           <option value="in_progress">🔧 In Progress</option>
-          <option value="done">✅ Done</option>
+          <option value="completed">✅ Completed</option>
           <option value="verified" id="mp-status-verified">⭐ Verified (admin only)</option>
         </select></div>
       </div>
@@ -604,6 +611,7 @@ const state = {
   expanded: { customers: new Set(), sites: new Set() }, // accordion state
   editing: { type:null, customerId:null, siteId:null, poleId:null },
   poleTempPhotos: [],                // pending uploads for current pole modal
+  siteTempPhotos: [],                // pending uploads for current site modal
   filter: { status:"all", customer:"all", installType:"all" },
   search: "",
   aiHistory: [],
@@ -613,16 +621,16 @@ const state = {
 // ==== Sanitizer (per 8.5 + 6.3.14) ====
 const stripHTML = s => typeof s==="string" ? s.replace(/<[^>]*>/g,"").trim() : "";
 const num = v => { const n=parseFloat(v); return Number.isFinite(n)?n:null; };
-const STATUSES = ["in_review","scheduled","in_progress","done","verified"];
+const STATUSES = ["in_review","scheduled","in_progress","completed","verified"];
 const STATUS_LABELS = {
   in_review: "In Review",
   scheduled: "Scheduled",
   in_progress: "In Progress",
-  done: "Done",
+  completed: "Completed",
   verified: "Verified"
 };
 // Legacy → new mapping for backward compat
-const LEGACY_STATUS = { installed: "done" };
+const LEGACY_STATUS = { installed: "completed", done: "completed" };
 
 function migrateStatus(s){
   if(LEGACY_STATUS[s]) return LEGACY_STATUS[s];
@@ -657,6 +665,7 @@ function sanitizeSite(s, id){
     id, name: stripHTML(s.name||""),
     address: stripHTML(s.address||""), lat: num(s.lat), lng: num(s.lng),
     notes: stripHTML(s.notes||""),
+    photos: Array.isArray(s.photos) ? s.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
     poles, createdAt: s.createdAt||Date.now(), updatedAt: s.updatedAt||Date.now()
   };
 }
@@ -998,7 +1007,7 @@ function renderBrowse(){
     const cExpanded = state.expanded.customers.has(c.id);
     const sites = Object.values(c.sites).sort((a,b)=>a.name.localeCompare(b.name));
     const allPoles = sites.flatMap(s => Object.values(s.poles));
-    const counts = { in_review:0, scheduled:0, in_progress:0, done:0, verified:0 };
+    const counts = { in_review:0, scheduled:0, in_progress:0, completed:0, verified:0 };
     const typeCounts = { external:0, internal:0, cylinder:0 };
     allPoles.forEach(p => {
       counts[p.status] = (counts[p.status]||0)+1;
@@ -1012,13 +1021,13 @@ function renderBrowse(){
         <div class="tree-stats">
           <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
-          ${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 ${typeCounts.external}</span>`:''}
-          ${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 ${typeCounts.internal}</span>`:''}
-          ${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 ${typeCounts.cylinder}</span>`:''}
+          ${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}
+          ${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}
+          ${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}
           ${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}
           ${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}
           ${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}
-          ${counts.done?`<span class="tree-stat tree-stat-clickable status-done ${state.filter.status==='done'?'active':''}" onclick="event.stopPropagation();filterByStatus('done','${c.id}')" title="Filter to Done">${counts.done} done</span>`:''}
+          ${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}
           ${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
@@ -1046,6 +1055,7 @@ function renderBrowse(){
             <div class="tree-name">${s.name||'(unnamed site)'}</div>
             <div class="tree-stats">
               <span class="tree-stat">${poles.length} pole${poles.length===1?'':'s'}</span>
+              ${(s.photos && s.photos.length)?`<span class="tree-stat">📷 ${s.photos.length}</span>`:''}
               ${s.address?`<span class="tree-stat" style="color:var(--text-muted);font-style:italic">${s.address}</span>`:''}
             </div>
             <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="Open">↗</button>
@@ -1141,6 +1151,7 @@ function renderCustomerDetail(c){
 function renderSiteDetail(c,s){
   const poles = Object.values(s.poles)
     .filter(p => state.filter.status==='all' || p.status===state.filter.status)
+    .filter(p => state.filter.installType==='all' || p.installType===state.filter.installType)
     .filter(p => !state.search || matchesSearch(c,s,p))
     .sort((a,b)=> b.updatedAt - a.updatedAt);
   let html = `<div class="breadcrumb">
@@ -1149,12 +1160,20 @@ function renderSiteDetail(c,s){
     <span class="sep">›</span><strong>${s.name}</strong>
     <button class="icon-btn" style="margin-left:8px" onclick="openSiteModal('${s.id}')">Edit</button>
   </div>`;
-  if(s.address){
-    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">
-      <div>📍 ${s.address}</div>
-      ${s.lat&&s.lng?`<div style="color:var(--text-muted);font-size:11px;margin-top:3px">${s.lat}, ${s.lng}</div>`:''}
-      ${s.notes?`<div style="color:var(--text-dim);margin-top:4px">${s.notes}</div>`:''}
-    </div>`;
+  if(s.address || s.notes || (s.photos && s.photos.length)){
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">`;
+    if(s.address) html += `<div>📍 ${s.address}</div>`;
+    if(s.lat && s.lng) html += `<div style="color:var(--text-muted);font-size:11px;margin-top:3px">${s.lat}, ${s.lng}</div>`;
+    if(s.notes) html += `<div style="color:var(--text-dim);margin-top:6px">${s.notes}</div>`;
+    if(s.photos && s.photos.length){
+      html += `<div style="margin-top:10px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📷 Site Photos (${s.photos.length})</div>`;
+      html += `<div style="display:flex;gap:6px;flex-wrap:wrap">`;
+      s.photos.forEach(url => {
+        html += `<div onclick="window.open('${url}','_blank')" style="width:120px;height:90px;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;border:1px solid var(--border)"><img src="${url}" style="width:100%;height:100%;object-fit:cover" /></div>`;
+      });
+      html += `</div></div>`;
+    }
+    html += `</div>`;
   }
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="section-h" style="margin:0;border:none">Poles (${poles.length})</div>
     <button class="btn-secondary btn" onclick="openPoleModal()">+ Add Pole</button></div>`;
@@ -1196,7 +1215,7 @@ window.drillTo = (customerId, siteId) => {
 };
 window.goHome = () => {
   state.drillCustomer=null; state.drillSite=null;
-  state.filter={status:"all",customer:"all"}; state.search="";
+  state.filter={status:"all",customer:"all",installType:"all"}; state.search="";
   document.getElementById("searchInput").value="";
   renderActive();
 };
@@ -1365,6 +1384,7 @@ window.deleteCustomer = async () => {
 window.openSiteModal = (sid) => {
   if(!state.drillCustomer){ toast("Open a customer first"); return; }
   state.editing = { type:"site", customerId: state.drillCustomer, siteId: sid||null };
+  state.siteTempPhotos = [];
   const s = sid ? state.data.customers[state.drillCustomer]?.sites[sid] : null;
   document.getElementById("ms-title").textContent = s ? "Edit Site" : "New Site";
   document.getElementById("ms-name").value = s?.name || "";
@@ -1373,26 +1393,83 @@ window.openSiteModal = (sid) => {
   document.getElementById("ms-lng").value = s?.lng ?? "";
   document.getElementById("ms-notes").value = s?.notes || "";
   document.getElementById("ms-delete").style.display = s ? "" : "none";
+  renderSitePhotos(s?.photos || []);
   openModal("modalSite");
+};
+
+function renderSitePhotos(existing){
+  const grid = document.getElementById("ms-photos");
+  if(!grid) return;
+  let html = "";
+  existing.forEach((url,i) => {
+    html += `<div class="photo-thumb" onclick="window.open('${url}','_blank')"><img src="${url}" /><div class="remove" onclick="event.stopPropagation();removeExistingSitePhoto(${i})">×</div></div>`;
+  });
+  state.siteTempPhotos.forEach((tp,i) => {
+    html += `<div class="photo-thumb"><img src="${tp.url}" /><div class="remove" onclick="event.stopPropagation();removeTempSitePhoto(${i})">×</div></div>`;
+  });
+  html += `<div class="photo-add" onclick="document.getElementById('ms-photo-input').click()">+</div>`;
+  grid.innerHTML = html;
+}
+
+window.removeExistingSitePhoto = (i) => {
+  const {customerId,siteId} = state.editing;
+  const s = state.data.customers[customerId]?.sites[siteId];
+  if(!s) return;
+  const url = s.photos[i];
+  s.photos.splice(i,1);
+  try{ const path = decodeURIComponent(url.split("/o/")[1].split("?")[0]); deleteObject(sref(storage, path)).catch(()=>{}); }catch(_){}
+  renderSitePhotos(s.photos);
+};
+window.removeTempSitePhoto = (i) => { state.siteTempPhotos.splice(i,1); renderSitePhotos(currentSitePhotos()); };
+function currentSitePhotos(){
+  const {customerId,siteId} = state.editing;
+  return siteId ? (state.data.customers[customerId]?.sites[siteId]?.photos || []) : [];
+}
+
+window.handleSitePhotoUpload = async (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";
+  for(const f of files){
+    const reader = new FileReader();
+    const url = await new Promise(res => { reader.onload=()=>res(reader.result); reader.readAsDataURL(f); });
+    state.siteTempPhotos.push({ file:f, url });
+  }
+  renderSitePhotos(currentSitePhotos());
 };
 window.saveSite = async () => {
   const name = document.getElementById("ms-name").value.trim();
   if(!name) return toast("Name required", true);
   const cid = state.editing.customerId;
   let sid = state.editing.siteId;
+  const isNewSite = !sid;
   if(!sid) sid = push(ref(db, `autoflag/installs/customers/${cid}/sites`)).key;
-  const existing = state.data.customers[cid]?.sites[sid] || {};
+  const existingPhotos = isNewSite ? [] : (state.data.customers[cid]?.sites[sid]?.photos || []);
+
+  // Upload pending site photos
+  const uploaded = [];
+  for(const tp of state.siteTempPhotos){
+    try{
+      const path = `autoflag/installs/${cid}/${sid}/_site/${Date.now()}_${tp.file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+      const sr = sref(storage, path);
+      await uploadBytes(sr, tp.file);
+      const url = await getDownloadURL(sr);
+      uploaded.push(url);
+    }catch(e){ toast("Site photo upload failed: "+e.message, true); }
+  }
+
   const patch = {
     name,
     address: document.getElementById("ms-address").value.trim(),
     lat: num(document.getElementById("ms-lat").value),
     lng: num(document.getElementById("ms-lng").value),
     notes: document.getElementById("ms-notes").value.trim(),
+    photos: [...existingPhotos, ...uploaded],
     updatedAt: Date.now()
   };
-  if(!state.editing.siteId) { patch.createdAt = Date.now(); patch.poles = {}; }
+  if(isNewSite) { patch.createdAt = Date.now(); patch.poles = {}; }
   await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}`, patch);
   await patchNode(`autoflag/installs/customers/${cid}`, {updatedAt: Date.now()});
+  state.siteTempPhotos = [];
   toast("Site saved"); closeModal("modalSite");
 };
 window.deleteSite = async () => {
@@ -1627,18 +1704,45 @@ window.handleAIPhotoDrop = (ev) => {
   files.forEach(addAIPhoto);
 };
 
-// Ctrl+V paste handler (when photo panel is open)
+// Ctrl+V paste handler — works for AI photo panel, Site modal photos, Pole modal photos
 document.addEventListener("paste", ev => {
-  const panel = document.getElementById("aiPhotoPanel");
-  if(!panel || panel.style.display === "none") return;
+  const aiPanel = document.getElementById("aiPhotoPanel");
+  const siteModal = document.getElementById("modalSite");
+  const poleModal = document.getElementById("modalPole");
+
+  let target = null;
+  if(aiPanel && aiPanel.style.display !== "none") target = "ai";
+  else if(siteModal && siteModal.classList.contains("open")) target = "site";
+  else if(poleModal && poleModal.classList.contains("open")) target = "pole";
+  if(!target) return;
+
   const items = Array.from(ev.clipboardData?.items || []);
   items.forEach(item => {
-    if(item.type.startsWith("image/")){
-      const f = item.getAsFile();
-      if(f) addAIPhoto(f);
-    }
+    if(!item.type.startsWith("image/")) return;
+    const f = item.getAsFile();
+    if(!f) return;
+    if(target === "ai")    addAIPhoto(f);
+    if(target === "site")  addSitePhotoFromFile(f);
+    if(target === "pole")  addPolePhotoFromFile(f);
   });
 });
+
+function addSitePhotoFromFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.siteTempPhotos.push({ file, url: reader.result });
+    renderSitePhotos(currentSitePhotos());
+  };
+  reader.readAsDataURL(file);
+}
+function addPolePhotoFromFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.poleTempPhotos.push({ file, url: reader.result });
+    renderPolePhotos(currentPhotos());
+  };
+  reader.readAsDataURL(file);
+}
 
 function addAIPhoto(file){
   if(aiPendingPhotos.length >= 4){ toast("Max 4 photos", true); return; }
