@@ -164,6 +164,38 @@
   .fab{position:fixed;bottom:20px;right:20px;width:52px;height:52px;border-radius:50%;background:var(--amber);color:#1a1208;font-size:26px;font-weight:300;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;z-index:50;border:none}
   .fab:hover{background:var(--amber-bright)}
 
+  /* ==== Tree (accordion Browse) ==== */
+  .tree{display:flex;flex-direction:column;gap:4px}
+  .tree-customer,.tree-site{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .tree-row{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .15s}
+  .tree-row:hover{background:var(--surface2)}
+  .tree-row-customer{border-left:3px solid var(--amber)}
+  .tree-row-customer .tree-name{font-size:15px;color:var(--amber-bright);font-weight:600}
+  .tree-row-site{background:var(--surface2);border-bottom:1px solid var(--border)}
+  .tree-row-site .tree-name{font-size:13px;color:var(--text);font-weight:500}
+  .tree-children{padding:4px 8px 8px 28px}
+  .tree-children .tree-site{margin-top:4px}
+  .tree-pole{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:4px;cursor:pointer;transition:border-color .15s}
+  .tree-pole:hover{border-color:var(--amber-dim)}
+  .tree-caret{display:inline-block;width:12px;color:var(--text-muted);font-size:10px;transition:transform .15s;flex-shrink:0}
+  .tree-caret.open{transform:rotate(90deg)}
+  .tree-caret-spacer{width:12px;flex-shrink:0}
+  .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+  .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
+  .tree-stat.status-scheduled{background:#3a3520;color:var(--amber)}
+  .tree-stat.status-in_progress{background:#3a2a20;color:var(--amber-bright)}
+  .tree-stat.status-installed{background:#1f3a2a;color:var(--green)}
+  .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
+  .tree-action{padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:12px;cursor:pointer;flex-shrink:0}
+  .tree-action:hover{border-color:var(--amber-dim);color:var(--amber)}
+  .tree-empty{padding:8px 12px;color:var(--text-muted);font-size:12px;font-style:italic}
+  .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
+  @media (max-width:600px){
+    .tree-row{flex-wrap:wrap}
+    .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
+  }
+
   /* ==== AI BAR (top, persistent — Eats pattern) ==== */
   .ai-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px}
   .ai-bar-inner{display:flex;align-items:center;gap:8px;max-width:1400px;margin:0 auto}
@@ -227,7 +259,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.3 · AutoFlag© stack</div>
+  <div class="ver">v1.4 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -294,7 +326,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.3</span>
+    AutoFlag© <span>Rev v1.4</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -361,6 +393,12 @@
           <option value="verified">Verified</option>
         </select></div>
       </div>
+      <div class="form-row"><label>Install type *</label><select id="mp-installType">
+        <option value="">— Select install type —</option>
+        <option value="external">External halyard (rope-on-outside)</option>
+        <option value="internal">Internal halyard (rope-inside)</option>
+        <option value="cylinder">Cylinder (ornamental/architectural)</option>
+      </select></div>
       <div class="form-grid-2">
         <div class="form-row"><label>Pole serial</label><input id="mp-serial" /></div>
         <div class="form-row"><label>SIM / ICCID</label><input id="mp-sim" /></div>
@@ -471,10 +509,22 @@
         </div>
 
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
-          <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px">♻️ Restore from Backup</div>
-          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Select an autoflag-installs-backup-*.json file to restore</div>
+          <div style="font-size:14px;font-weight:500;color:var(--green);margin-bottom:3px">➕ Merge / Import</div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Add new customers/sites/poles from a backup or seed file. Existing records (matching by ID) are preserved unchanged. Safe — does not overwrite.</div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <label class="btn" style="cursor:pointer">
+            <label class="btn" style="cursor:pointer;background:var(--green);color:#0d0d0f">
+              📥 Choose File to Merge
+              <input type="file" accept=".json" style="display:none" onchange="mergeJSON(event)">
+            </label>
+            <span id="merge-filename" style="font-size:11px;color:var(--text-muted);font-family:monospace">No file selected</span>
+          </div>
+        </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+          <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px">♻️ Restore from Backup <span style="color:var(--red);font-size:11px">⚠ destructive</span></div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Select an autoflag-installs-backup-*.json file to restore. <strong>Overwrites all existing data.</strong></div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label class="btn-secondary btn" style="cursor:pointer">
               📂 Choose Backup File
               <input type="file" accept=".json" style="display:none" onchange="restoreJSON(event)">
             </label>
@@ -537,6 +587,7 @@ const state = {
   data: { customers: {} },           // { customerId: {name, sites:{siteId:{poles:{poleId:{...}}}}} }
   view: "browse",                    // browse | kanban | list | map
   drillCustomer: null, drillSite: null,
+  expanded: { customers: new Set(), sites: new Set() }, // accordion state
   editing: { type:null, customerId:null, siteId:null, poleId:null },
   poleTempPhotos: [],                // pending uploads for current pole modal
   filter: { status:"all", customer:"all" },
@@ -555,6 +606,7 @@ function sanitizePole(p, id){
   return {
     id, label: stripHTML(p.label||""),
     status: STATUSES.includes(p.status) ? p.status : "scheduled",
+    installType: ["external","internal","cylinder"].includes(p.installType) ? p.installType : "",
     serial: stripHTML(p.serial||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
     plan: ["lte","wifi"].includes(p.plan) ? p.plan : "",
     saas: ["pending","active","failed"].includes(p.saas) ? p.saas : "",
@@ -797,8 +849,9 @@ function renderFilterBar(){
 window.setStatusFilter = s => { state.filter.status=s; renderActive(); };
 window.setCustomerFilter = c => { state.filter.customer=c; renderActive(); };
 
-// ==== BROWSE: drill-down ====
+// ==== BROWSE: accordion tree (Customer → Sites → Poles inline) ====
 function renderBrowse(){
+  // If user has drilled into a specific site/customer, keep the drill-down view
   if(state.drillSite){
     const c = state.data.customers[state.drillCustomer];
     const s = c?.sites[state.drillSite];
@@ -810,33 +863,122 @@ function renderBrowse(){
     if(!c) { state.drillCustomer=null; return renderBrowse(); }
     return renderCustomerDetail(c);
   }
-  // Top: customer list
+
+  // Top-level: accordion tree
   const list = Object.values(state.data.customers)
     .filter(c => state.filter.customer==='all' || state.filter.customer===c.id)
-    .filter(c => state.search ? matchesSearch(c,null,null) || Object.values(c.sites).some(s => matchesSearch(c,s,null) || Object.values(s.poles).some(p => matchesSearch(c,s,p))) : true)
-    .sort((a,b)=> b.updatedAt - a.updatedAt);
+    .filter(c => {
+      if(!state.search) return true;
+      return matchesSearch(c,null,null) || Object.values(c.sites).some(s =>
+        matchesSearch(c,s,null) || Object.values(s.poles).some(p => matchesSearch(c,s,p))
+      );
+    })
+    .sort((a,b)=> a.name.localeCompare(b.name));
   if(list.length===0) return `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
-  let html = `<div class="customer-grid">`;
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="expandAll()">Expand All</button>
+      <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="collapseAll()">Collapse All</button>
+    </div>
+  </div>`;
+
+  html += `<div class="tree">`;
   list.forEach(c => {
-    const sites = Object.values(c.sites);
+    const cExpanded = state.expanded.customers.has(c.id);
+    const sites = Object.values(c.sites).sort((a,b)=>a.name.localeCompare(b.name));
     const allPoles = sites.flatMap(s => Object.values(s.poles));
-    const filteredPoles = state.filter.status==='all' ? allPoles : allPoles.filter(p => p.status===state.filter.status);
     const counts = { scheduled:0, in_progress:0, installed:0, verified:0 };
     allPoles.forEach(p => counts[p.status] = (counts[p.status]||0)+1);
-    html += `<div class="customer-card" onclick="drillTo('${c.id}',null)">
-      <h3>${c.name||'(unnamed)'}</h3>
-      <div style="font-size:12px;color:var(--text-dim)">${c.contact||''}${c.contact&&c.phone?' · ':''}${c.phone||''}</div>
-      <div class="customer-meta">
-        <div class="stat-pill"><div class="num">${sites.length}</div><div class="lbl">Sites</div></div>
-        <div class="stat-pill"><div class="num">${allPoles.length}</div><div class="lbl">Poles</div></div>
-        <div class="stat-pill"><div class="num">${counts.installed+counts.verified}</div><div class="lbl">Done</div></div>
-        <div class="stat-pill"><div class="num">${counts.scheduled+counts.in_progress}</div><div class="lbl">Pending</div></div>
-      </div>
-    </div>`;
+
+    html += `<div class="tree-customer">
+      <div class="tree-row tree-row-customer" onclick="toggleCustomer('${c.id}')">
+        <span class="tree-caret ${cExpanded?'open':''}">▶</span>
+        <div class="tree-name">${c.name||'(unnamed)'}</div>
+        <div class="tree-stats">
+          <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
+          <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
+          ${counts.scheduled?`<span class="tree-stat status-scheduled">${counts.scheduled} scheduled</span>`:''}
+          ${counts.in_progress?`<span class="tree-stat status-in_progress">${counts.in_progress} in progress</span>`:''}
+          ${counts.installed?`<span class="tree-stat status-installed">${counts.installed} installed</span>`:''}
+          ${counts.verified?`<span class="tree-stat status-verified">${counts.verified} verified</span>`:''}
+        </div>
+        <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
+      </div>`;
+
+    if(cExpanded){
+      html += `<div class="tree-children">`;
+      if(sites.length === 0){
+        html += `<div class="tree-empty">No sites yet. <span class="tree-link" onclick="event.stopPropagation();drillTo('${c.id}',null);openSiteModal()">+ Add Site</span></div>`;
+      }
+      sites.forEach(s => {
+        const sExpanded = state.expanded.sites.has(s.id);
+        const poles = Object.values(s.poles)
+          .filter(p => state.filter.status==='all' || p.status===state.filter.status)
+          .sort((a,b)=>a.label.localeCompare(b.label));
+        html += `<div class="tree-site">
+          <div class="tree-row tree-row-site" onclick="toggleSite('${s.id}')">
+            <span class="tree-caret ${sExpanded?'open':''}">▶</span>
+            <div class="tree-name">${s.name||'(unnamed site)'}</div>
+            <div class="tree-stats">
+              <span class="tree-stat">${poles.length} pole${poles.length===1?'':'s'}</span>
+              ${s.address?`<span class="tree-stat" style="color:var(--text-muted);font-style:italic">${s.address}</span>`:''}
+            </div>
+            <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="Open">↗</button>
+          </div>`;
+
+        if(sExpanded){
+          html += `<div class="tree-children">`;
+          if(poles.length === 0){
+            html += `<div class="tree-empty">No poles yet. <span class="tree-link" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}');openPoleModal()">+ Add Pole</span></div>`;
+          }
+          poles.forEach(p => {
+            html += `<div class="tree-pole" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
+              <span class="tree-caret-spacer"></span>
+              <div class="tree-name"><strong>${p.label||'(unlabeled)'}</strong></div>
+              <div class="tree-stats">
+                <span class="status-badge status-${p.status}">${p.status.replace('_',' ')}</span>
+                ${p.installType?`<span class="data-chip" style="font-size:10px;padding:1px 8px">${formatInstallType(p.installType)}</span>`:''}
+                ${p.serial?`<span class="tree-stat" style="font-family:monospace;font-size:10px">SN: ${p.serial}</span>`:''}
+                ${p.photos.length?`<span class="tree-stat">📷 ${p.photos.length}</span>`:''}
+              </div>
+            </div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
   });
   html += `</div>`;
   return html;
 }
+
+window.toggleCustomer = (cid) => {
+  if(state.expanded.customers.has(cid)) state.expanded.customers.delete(cid);
+  else state.expanded.customers.add(cid);
+  renderActive();
+};
+window.toggleSite = (sid) => {
+  if(state.expanded.sites.has(sid)) state.expanded.sites.delete(sid);
+  else state.expanded.sites.add(sid);
+  renderActive();
+};
+window.expandAll = () => {
+  Object.values(state.data.customers).forEach(c => {
+    state.expanded.customers.add(c.id);
+    Object.values(c.sites).forEach(s => state.expanded.sites.add(s.id));
+  });
+  renderActive();
+};
+window.collapseAll = () => {
+  state.expanded.customers.clear();
+  state.expanded.sites.clear();
+  renderActive();
+};
 
 function renderCustomerDetail(c){
   const sites = Object.values(c.sites)
@@ -909,12 +1051,20 @@ function renderPoleCard(c,s,p,big){
     </div>
     ${big?`<div style="font-size:12px;color:var(--text-dim);margin-top:6px">${c.name} · ${s.name}</div>`:''}
     <div class="chips-inline" style="margin-top:8px">
+      ${p.installType?`<span class="data-chip" style="border-color:var(--amber);color:var(--amber-bright)">${formatInstallType(p.installType)}</span>`:''}
       ${p.serial?`<span class="data-chip">SN: ${p.serial}</span>`:''}
       ${p.plan?`<span class="data-chip">${p.plan.toUpperCase()}</span>`:''}
       ${p.saas?`<span class="data-chip">SaaS: ${p.saas}</span>`:''}
       ${p.photos.length?`<span class="data-chip">📷 ${p.photos.length}</span>`:''}
     </div>
   </div>`;
+}
+
+function formatInstallType(t){
+  if(t==="external") return "🪢 External";
+  if(t==="internal") return "🧵 Internal";
+  if(t==="cylinder") return "🛢 Cylinder";
+  return "";
 }
 
 window.drillTo = (customerId, siteId) => {
@@ -943,6 +1093,7 @@ function renderKanban(){
         <div class="title">${p.label||'(unlabeled)'}</div>
         <div style="color:var(--text-dim);font-size:11px">${c.name} · ${s.name}</div>
         <div class="meta">
+          ${p.installType?`<span style="background:var(--amber-dim);color:#fff">${formatInstallType(p.installType)}</span>`:''}
           ${p.serial?`<span>SN: ${p.serial}</span>`:''}
           ${p.plan?`<span>${p.plan.toUpperCase()}</span>`:''}
           ${p.photos.length?`<span>📷 ${p.photos.length}</span>`:''}
@@ -961,12 +1112,13 @@ function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return `<div class="empty">No poles match.</div>`;
   let html = `<table class="list-table"><thead><tr>
-    <th>Pole</th><th>Customer</th><th>Site</th><th>Status</th><th>Serial</th><th>Plan</th><th>Updated</th>
+    <th>Pole</th><th>Customer</th><th>Site</th><th>Type</th><th>Status</th><th>Serial</th><th>Plan</th><th>Updated</th>
   </tr></thead><tbody>`;
   allPoles.sort((a,b)=>b.p.updatedAt - a.p.updatedAt).forEach(({c,s,p}) => {
     html += `<tr onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
       <td><strong>${p.label||'—'}</strong></td>
       <td>${c.name}</td><td>${s.name}</td>
+      <td>${p.installType?formatInstallType(p.installType):'—'}</td>
       <td><span class="status-badge status-${p.status}">${p.status.replace('_',' ')}</span></td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
@@ -1150,6 +1302,7 @@ window.openPoleModal = (pid, cid, sid) => {
   document.getElementById("mp-title").textContent = p ? `Edit Pole · ${p.label||''}` : "New Pole";
   document.getElementById("mp-label").value = p?.label || "";
   document.getElementById("mp-status").value = p?.status || "scheduled";
+  document.getElementById("mp-installType").value = p?.installType || "";
   document.getElementById("mp-serial").value = p?.serial || "";
   document.getElementById("mp-sim").value = p?.sim || "";
   document.getElementById("mp-fw").value = p?.fw || "";
@@ -1228,6 +1381,7 @@ window.savePole = async () => {
   const patch = {
     label,
     status: document.getElementById("mp-status").value,
+    installType: document.getElementById("mp-installType").value,
     serial: document.getElementById("mp-serial").value.trim(),
     sim: document.getElementById("mp-sim").value.trim(),
     fw: document.getElementById("mp-fw").value.trim(),
@@ -1387,19 +1541,20 @@ You can perform actions by emitting JSON action blocks at the END of your respon
 Emit each action as raw JSON on its own line (NO markdown code fences).
 
 Supported actions:
-{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "scheduled|in_progress|installed|verified", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "survey":"", "notes":"", "photos":["https://..."] }
+{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "scheduled|in_progress|installed|verified", "installType": "external|internal|cylinder", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "survey":"", "notes":"", "photos":["https://..."] }
 { "action": "update_pole", "customerId":"...", "siteId":"...", "poleId":"...", "patch": { ...fields to change... } }
 { "action": "add_site", "customerId":"...", "name":"...", "address":"" }
 { "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
 
 CRITICAL RULES:
 - NEVER guess customerId or siteId. If ambiguous, ASK the user to disambiguate (list candidates by name).
-- NEVER assume status values not in the enum.
+- NEVER assume status or installType values not in the enum.
 - For updates, confirm the target before acting.
 - Reject unknown IDs — do not invent them.
 - For reports, respond in plain text only (no JSON).
 - Be concise. Phil prefers short responses.
-- When the user attaches photos, include the URLs in the photos array of add_pole or update_pole. For update_pole, MERGE with existing photos.`;
+- When the user attaches photos, include the URLs in the photos array of add_pole or update_pole. For update_pole, MERGE with existing photos.
+- Install types: "external" = rope-on-outside halyard, "internal" = rope-inside halyard, "cylinder" = ornamental/architectural pole. If user mentions a halyard type or the pole appearance, infer the installType. Otherwise ask.`;
 
   try{
     const idToken = await auth.currentUser.getIdToken(true);
@@ -1496,7 +1651,73 @@ async function executeAction(a){
 window.openDataModal = () => {
   document.getElementById("data-modal-status").textContent = "";
   document.getElementById("restore-filename").textContent = "No file selected";
+  const mf = document.getElementById("merge-filename");
+  if(mf) mf.textContent = "No file selected";
   openModal("modalData");
+};
+
+window.mergeJSON = (ev) => {
+  const f = ev.target.files?.[0];
+  if(!f) return;
+  document.getElementById("merge-filename").textContent = f.name;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed.customers) throw new Error("Invalid file format — missing customers");
+      const stats = { addedCustomers:0, addedSites:0, addedPoles:0, skipped:0 };
+      const current = state.data.customers;
+      const updates = {};
+
+      Object.entries(parsed.customers).forEach(([cid, incomingC]) => {
+        if(!current[cid]){
+          // New customer — add whole subtree
+          updates[`autoflag/installs/customers/${cid}`] = sanitizeCustomer(incomingC, cid);
+          stats.addedCustomers++;
+          Object.values(incomingC.sites||{}).forEach(s => {
+            stats.addedSites++;
+            stats.addedPoles += Object.keys(s.poles||{}).length;
+          });
+          return;
+        }
+        // Customer exists — merge sites
+        Object.entries(incomingC.sites||{}).forEach(([sid, incomingS]) => {
+          if(!current[cid].sites[sid]){
+            updates[`autoflag/installs/customers/${cid}/sites/${sid}`] = sanitizeSite(incomingS, sid);
+            stats.addedSites++;
+            stats.addedPoles += Object.keys(incomingS.poles||{}).length;
+            return;
+          }
+          // Site exists — merge poles
+          Object.entries(incomingS.poles||{}).forEach(([pid, incomingP]) => {
+            if(!current[cid].sites[sid].poles[pid]){
+              updates[`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`] = sanitizePole(incomingP, pid);
+              stats.addedPoles++;
+            } else {
+              stats.skipped++;
+            }
+          });
+        });
+      });
+
+      if(Object.keys(updates).length === 0){
+        setStatus("Nothing new to import — all records already exist");
+        toast("Nothing new imported");
+        return;
+      }
+
+      if(!confirm(`Merge from ${f.name}?\n\n+ ${stats.addedCustomers} customers\n+ ${stats.addedSites} sites\n+ ${stats.addedPoles} poles\nSkipped (already exist): ${stats.skipped}`)){
+        ev.target.value = "";
+        document.getElementById("merge-filename").textContent = "No file selected";
+        return;
+      }
+
+      await update(ref(db), updates);
+      setStatus(`✓ Merge complete — added ${stats.addedCustomers}c / ${stats.addedSites}s / ${stats.addedPoles}p, skipped ${stats.skipped}`);
+      toast("Merge complete");
+    }catch(e){ setStatus("✗ Merge failed: " + e.message); toast("Merge failed: " + e.message, true); }
+  };
+  reader.readAsText(f);
 };
 
 window.exportJSON = () => {
@@ -1509,12 +1730,12 @@ window.exportJSON = () => {
 };
 
 window.exportCSV = () => {
-  const rows = [["Customer","Site","Pole","Status","Serial","SIM","Firmware","Plan","SaaS","Lat","Lng","Warranty Start","Survey","Notes","Photos","Updated"]];
+  const rows = [["Customer","Site","Pole","Install Type","Status","Serial","SIM","Firmware","Plan","SaaS","Lat","Lng","Warranty Start","Survey","Notes","Photos","Updated"]];
   Object.values(state.data.customers).forEach(c => {
     Object.values(c.sites).forEach(s => {
       Object.values(s.poles).forEach(p => {
         rows.push([
-          c.name, s.name, p.label, p.status, p.serial, p.sim, p.fw, p.plan, p.saas,
+          c.name, s.name, p.label, p.installType, p.status, p.serial, p.sim, p.fw, p.plan, p.saas,
           p.lat ?? "", p.lng ?? "", p.warrantyStart || "",
           (p.survey||"").replace(/"/g,'""'),
           (p.notes||"").replace(/"/g,'""'),
