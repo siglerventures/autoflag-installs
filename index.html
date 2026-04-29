@@ -87,8 +87,8 @@
   .stat-pill .lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
 
   /* ==== Kanban ==== */
-  .kanban{display:grid;grid-template-columns:repeat(4,minmax(260px,1fr));gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  @media (max-width:900px){.kanban{grid-template-columns:repeat(4,260px)}}
+  .kanban{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  @media (max-width:1100px){.kanban{grid-template-columns:repeat(5,220px)}}
   .kanban-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:200px}
   .kanban-col h4{margin:0 0 10px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:1px solid var(--border)}
   .kanban-col h4 .count{background:var(--surface3);color:var(--amber);padding:1px 8px;border-radius:var(--radius-pill);font-size:10px}
@@ -105,9 +105,11 @@
   .list-table tr{cursor:pointer}
   .list-table tr:hover td{background:var(--surface2)}
   .status-badge{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .status-in_review{background:#3a2a3a;color:#d8a8d8}
   .status-scheduled{background:#3a3520;color:var(--amber)}
   .status-in_progress{background:#3a2a20;color:var(--amber-bright)}
-  .status-installed{background:#1f3a2a;color:var(--green)}
+  .status-done{background:#1f3a2a;color:var(--green)}
+  .status-installed{background:#1f3a2a;color:var(--green)}   /* legacy alias */
   .status-verified{background:#1f2a3a;color:var(--blue)}
 
   /* ==== Map ==== */
@@ -183,8 +185,10 @@
   .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
+  .tree-stat.status-in_review{background:#3a2a3a;color:#d8a8d8}
   .tree-stat.status-scheduled{background:#3a3520;color:var(--amber)}
   .tree-stat.status-in_progress{background:#3a2a20;color:var(--amber-bright)}
+  .tree-stat.status-done{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-installed{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
   .tree-action{padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:12px;cursor:pointer;flex-shrink:0}
@@ -259,7 +263,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.5 · AutoFlag© stack</div>
+  <div class="ver">v1.6 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -326,7 +330,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.5</span>
+    AutoFlag© <span>Rev v1.6</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -387,10 +391,11 @@
       <div class="form-grid-2">
         <div class="form-row"><label>Pole label *</label><input id="mp-label" placeholder="Pole 1, Lobby, Flagpole A..." /></div>
         <div class="form-row"><label>Status</label><select id="mp-status">
-          <option value="scheduled">Scheduled</option>
-          <option value="in_progress">In Progress</option>
-          <option value="installed">Installed</option>
-          <option value="verified">Verified</option>
+          <option value="in_review">📝 In Review</option>
+          <option value="scheduled">📅 Scheduled</option>
+          <option value="in_progress">🔧 In Progress</option>
+          <option value="done">✅ Done</option>
+          <option value="verified" id="mp-status-verified">⭐ Verified (admin only)</option>
         </select></div>
       </div>
       <div class="form-row"><label>Install type *</label><select id="mp-installType">
@@ -434,6 +439,12 @@
       <div class="section-h">Photos</div>
       <div class="photo-grid" id="mp-photos"></div>
       <input type="file" id="mp-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoUpload(event)" multiple />
+
+      <div class="section-h" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleHistory()">
+        <span>📜 History <span id="mp-history-count" style="color:var(--text-muted);font-weight:normal;font-size:10px;margin-left:6px"></span></span>
+        <span id="mp-history-caret" style="color:var(--text-muted);font-size:11px">▶</span>
+      </div>
+      <div id="mp-history" style="display:none;max-height:300px;overflow-y:auto;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:6px"></div>
 
       <div class="btn-row">
         <button class="btn-secondary btn" id="mp-delete" onclick="deletePole()">Delete</button>
@@ -599,13 +610,27 @@ const state = {
 // ==== Sanitizer (per 8.5 + 6.3.14) ====
 const stripHTML = s => typeof s==="string" ? s.replace(/<[^>]*>/g,"").trim() : "";
 const num = v => { const n=parseFloat(v); return Number.isFinite(n)?n:null; };
-const STATUSES = ["scheduled","in_progress","installed","verified"];
+const STATUSES = ["in_review","scheduled","in_progress","done","verified"];
+const STATUS_LABELS = {
+  in_review: "In Review",
+  scheduled: "Scheduled",
+  in_progress: "In Progress",
+  done: "Done",
+  verified: "Verified"
+};
+// Legacy → new mapping for backward compat
+const LEGACY_STATUS = { installed: "done" };
+
+function migrateStatus(s){
+  if(LEGACY_STATUS[s]) return LEGACY_STATUS[s];
+  return STATUSES.includes(s) ? s : "in_review";
+}
 
 function sanitizePole(p, id){
   if(!p||typeof p!=="object") p={};
   return {
     id, label: stripHTML(p.label||""),
-    status: STATUSES.includes(p.status) ? p.status : "scheduled",
+    status: migrateStatus(p.status),
     installType: ["external","internal","cylinder"].includes(p.installType) ? p.installType : "",
     serial: stripHTML(p.serial||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
     plan: ["lte","wifi"].includes(p.plan) ? p.plan : "",
@@ -614,6 +639,7 @@ function sanitizePole(p, id){
     warrantyStart: stripHTML(p.warrantyStart||""),
     survey: stripHTML(p.survey||""), notes: stripHTML(p.notes||""),
     photos: Array.isArray(p.photos) ? p.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
+    history: Array.isArray(p.history) ? p.history.slice(-100) : [],   // cap at 100 entries
     createdAt: p.createdAt || Date.now(), updatedAt: p.updatedAt || Date.now(),
     createdBy: p.createdBy || null, updatedBy: p.updatedBy || null
   };
@@ -726,6 +752,57 @@ async function patchNode(path, patch){  // update() preserves siblings, per 6.3.
   await update(ref(db, path), patch);
 }
 
+// ==== Audit log helpers ====
+const TRACKED_FIELDS = ["label","status","installType","serial","sim","fw","plan","saas","lat","lng","warrantyStart","survey","notes"];
+
+function diffPole(before, after){
+  const changes = [];
+  if(!before){
+    changes.push({ field: "_created", from: null, to: after.label || "(new pole)" });
+    return changes;
+  }
+  TRACKED_FIELDS.forEach(f => {
+    const a = before[f] ?? "";
+    const b = after[f] ?? "";
+    if(a !== b) changes.push({ field: f, from: a, to: b });
+  });
+  // Photos: track adds + removes by URL
+  const beforePhotos = new Set(before.photos || []);
+  const afterPhotos = new Set(after.photos || []);
+  let added = 0, removed = 0;
+  afterPhotos.forEach(u => { if(!beforePhotos.has(u)) added++; });
+  beforePhotos.forEach(u => { if(!afterPhotos.has(u)) removed++; });
+  if(added)   changes.push({ field: "photos", from: null, to: `+${added} added` });
+  if(removed) changes.push({ field: "photos", from: `-${removed} removed`, to: null });
+  return changes;
+}
+
+function buildHistoryEntry(changes){
+  return {
+    at: Date.now(),
+    by: state.user.uid,
+    byName: state.user.displayName || state.user.email || "(unknown)",
+    role: state.isAdmin ? "admin" : "installer",
+    changes
+  };
+}
+
+function fmtHistoryValue(v){
+  if(v === null || v === undefined || v === "") return "—";
+  if(typeof v === "string" && v.length > 60) return v.slice(0,57) + "…";
+  return String(v);
+}
+
+function fmtHistoryField(f){
+  const labels = {
+    label:"Label", status:"Status", installType:"Install Type",
+    serial:"Serial", sim:"SIM", fw:"Firmware", plan:"Plan", saas:"SaaS",
+    lat:"Latitude", lng:"Longitude", warrantyStart:"Warranty Start",
+    survey:"Survey", notes:"Notes", photos:"Photos", _created:"Created"
+  };
+  return labels[f] || f;
+}
+
 // ==== Installer roster (admin only) ====
 function subscribeInstallers(){
   onValue(ref(db, "autoflag/installers"), snap => {
@@ -831,11 +908,11 @@ window.renderActive = () => {
 
 function renderFilterBar(){
   const bar = document.getElementById("filterBar");
-  const statuses = ["all", ...STATUSES];
   const customers = Object.values(state.data.customers).sort((a,b)=>a.name.localeCompare(b.name));
   let html = `<span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin-right:4px">Status:</span>`;
-  statuses.forEach(s => {
-    html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${s==='all'?'All':s.replace('_',' ')}</span>`;
+  html += `<span class="chip ${state.filter.status==='all'?'active':''}" onclick="setStatusFilter('all')">All</span>`;
+  STATUSES.forEach(s => {
+    html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${STATUS_LABELS[s]}</span>`;
   });
   if(customers.length > 1){
     html += `<span style="width:8px"></span><span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin:0 4px">Customer:</span>`;
@@ -889,7 +966,7 @@ function renderBrowse(){
     const cExpanded = state.expanded.customers.has(c.id);
     const sites = Object.values(c.sites).sort((a,b)=>a.name.localeCompare(b.name));
     const allPoles = sites.flatMap(s => Object.values(s.poles));
-    const counts = { scheduled:0, in_progress:0, installed:0, verified:0 };
+    const counts = { in_review:0, scheduled:0, in_progress:0, done:0, verified:0 };
     const typeCounts = { external:0, internal:0, cylinder:0 };
     allPoles.forEach(p => {
       counts[p.status] = (counts[p.status]||0)+1;
@@ -906,9 +983,10 @@ function renderBrowse(){
           ${typeCounts.external?`<span class="tree-stat" style="background:#2a2520;color:var(--amber-bright)">🪢 ${typeCounts.external}</span>`:''}
           ${typeCounts.internal?`<span class="tree-stat" style="background:#252a30;color:#a8c5e6">🧵 ${typeCounts.internal}</span>`:''}
           ${typeCounts.cylinder?`<span class="tree-stat" style="background:#2a2030;color:#c8a8e8">🛢 ${typeCounts.cylinder}</span>`:''}
+          ${counts.in_review?`<span class="tree-stat status-in_review">${counts.in_review} in review</span>`:''}
           ${counts.scheduled?`<span class="tree-stat status-scheduled">${counts.scheduled} scheduled</span>`:''}
           ${counts.in_progress?`<span class="tree-stat status-in_progress">${counts.in_progress} in progress</span>`:''}
-          ${counts.installed?`<span class="tree-stat status-installed">${counts.installed} installed</span>`:''}
+          ${counts.done?`<span class="tree-stat status-done">${counts.done} done</span>`:''}
           ${counts.verified?`<span class="tree-stat status-verified">${counts.verified} verified</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
@@ -945,7 +1023,7 @@ function renderBrowse(){
               <span class="tree-caret-spacer"></span>
               <div class="tree-name"><strong>${p.label||'(unlabeled)'}</strong></div>
               <div class="tree-stats">
-                <span class="status-badge status-${p.status}">${p.status.replace('_',' ')}</span>
+                <span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span>
                 ${p.installType?`<span class="data-chip" style="font-size:10px;padding:1px 8px">${formatInstallType(p.installType)}</span>`:''}
                 ${p.serial?`<span class="tree-stat" style="font-family:monospace;font-size:10px">SN: ${p.serial}</span>`:''}
                 ${p.photos.length?`<span class="tree-stat">📷 ${p.photos.length}</span>`:''}
@@ -1050,7 +1128,7 @@ function renderSiteDetail(c,s){
 }
 
 function renderPoleCard(c,s,p,big){
-  const statusLabel = p.status.replace('_',' ');
+  const statusLabel = STATUS_LABELS[p.status]||p.status;
   return `<div class="customer-card" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
       <h3 style="margin:0">${p.label||'(unlabeled)'}</h3>
@@ -1089,7 +1167,7 @@ window.goHome = () => {
 function renderKanban(){
   const allPoles = collectPoles();
   const cols = STATUSES.map(s => ({
-    status:s, label:s.replace('_',' '),
+    status:s, label:STATUS_LABELS[s],
     poles: allPoles.filter(x => x.p.status===s)
   }));
   let html = `<div class="kanban">`;
@@ -1126,7 +1204,7 @@ function renderList(){
       <td><strong>${p.label||'—'}</strong></td>
       <td>${c.name}</td><td>${s.name}</td>
       <td>${p.installType?formatInstallType(p.installType):'—'}</td>
-      <td><span class="status-badge status-${p.status}">${p.status.replace('_',' ')}</span></td>
+      <td><span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
       <td>${new Date(p.updatedAt).toLocaleDateString()}</td>
@@ -1155,7 +1233,7 @@ function renderMap(){
     const m = L.circleMarker([lat,lng],{
       radius:8, fillColor:color, color:'#0d0d0f', weight:2, fillOpacity:.9
     }).addTo(map);
-    m.bindPopup(`<div style="font-family:sans-serif"><strong>${p.label||'(unlabeled)'}</strong><br>${c.name} · ${s.name}<br><em>${p.status.replace('_',' ')}</em></div>`);
+    m.bindPopup(`<div style="font-family:sans-serif"><strong>${p.label||'(unlabeled)'}</strong><br>${c.name} · ${s.name}<br><em>${STATUS_LABELS[p.status]||p.status}</em></div>`);
     m.on('click', () => openPoleModal(p.id, c.id, s.id));
     bounds.push([lat,lng]);
   });
@@ -1308,7 +1386,10 @@ window.openPoleModal = (pid, cid, sid) => {
   const p = pid ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
   document.getElementById("mp-title").textContent = p ? `Edit Pole · ${p.label||''}` : "New Pole";
   document.getElementById("mp-label").value = p?.label || "";
-  document.getElementById("mp-status").value = p?.status || "scheduled";
+  document.getElementById("mp-status").value = p?.status || "in_review";
+  // Verified option is admin-only — hide it for installers
+  const verifiedOpt = document.getElementById("mp-status-verified");
+  if(verifiedOpt) verifiedOpt.style.display = state.isAdmin ? "" : "none";
   document.getElementById("mp-installType").value = p?.installType || "";
   document.getElementById("mp-serial").value = p?.serial || "";
   document.getElementById("mp-sim").value = p?.sim || "";
@@ -1322,7 +1403,56 @@ window.openPoleModal = (pid, cid, sid) => {
   document.getElementById("mp-notes").value = p?.notes || "";
   document.getElementById("mp-delete").style.display = p ? "" : "none";
   renderPolePhotos(p?.photos || []);
+  renderPoleHistory(p?.history || []);
+  // Reset history collapsed state on every open
+  document.getElementById("mp-history").style.display = "none";
+  document.getElementById("mp-history-caret").textContent = "▶";
   openModal("modalPole");
+};
+
+function renderPoleHistory(history){
+  const wrap = document.getElementById("mp-history");
+  const countEl = document.getElementById("mp-history-count");
+  if(!wrap) return;
+  countEl.textContent = history.length === 0 ? "(no edits yet)" : `(${history.length} ${history.length === 1 ? 'entry' : 'entries'})`;
+  if(history.length === 0){
+    wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:12px">No history yet — changes will be tracked here.</div>`;
+    return;
+  }
+  // Newest first
+  const sorted = [...history].sort((a,b) => b.at - a.at);
+  wrap.innerHTML = sorted.map(entry => {
+    const dt = new Date(entry.at);
+    const ts = dt.toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+    const roleColor = entry.role === "admin" ? "var(--amber-bright)" : "var(--blue)";
+    const roleEmoji = entry.role === "admin" ? "★" : "👷";
+    let changeHtml = "";
+    (entry.changes || []).forEach(ch => {
+      if(ch.field === "_created"){
+        changeHtml += `<div style="font-size:11px;color:var(--green)">✨ Created: ${fmtHistoryValue(ch.to)}</div>`;
+      } else if(ch.field === "photos"){
+        changeHtml += `<div style="font-size:11px;color:var(--text-dim)">📷 Photos: ${ch.to || ch.from}</div>`;
+      } else if(ch.field === "status"){
+        changeHtml += `<div style="font-size:11px"><span style="color:var(--text-muted)">Status:</span> <span class="status-badge status-${ch.from}" style="font-size:9px;padding:1px 6px">${STATUS_LABELS[ch.from]||ch.from||'—'}</span> → <span class="status-badge status-${ch.to}" style="font-size:9px;padding:1px 6px">${STATUS_LABELS[ch.to]||ch.to||'—'}</span></div>`;
+      } else {
+        changeHtml += `<div style="font-size:11px;color:var(--text-dim)"><span style="color:var(--text-muted)">${fmtHistoryField(ch.field)}:</span> ${fmtHistoryValue(ch.from)} → <span style="color:var(--text)">${fmtHistoryValue(ch.to)}</span></div>`;
+      }
+    });
+    return `<div style="border-left:2px solid ${roleColor};padding:6px 10px;margin-bottom:6px;background:var(--surface3);border-radius:var(--radius-sm)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;color:${roleColor};font-weight:600">${roleEmoji} ${entry.byName}</span>
+        <span style="font-size:10px;color:var(--text-muted);font-family:monospace">${ts}</span>
+      </div>
+      ${changeHtml}
+    </div>`;
+  }).join("");
+}
+
+window.toggleHistory = () => {
+  const w = document.getElementById("mp-history");
+  const c = document.getElementById("mp-history-caret");
+  if(w.style.display === "none"){ w.style.display = ""; c.textContent = "▼"; }
+  else { w.style.display = "none"; c.textContent = "▶"; }
 };
 
 function renderPolePhotos(existing){
@@ -1369,10 +1499,20 @@ window.savePole = async () => {
   if(!label) return toast("Label required", true);
   const {customerId:cid, siteId:sid} = state.editing;
   let pid = state.editing.poleId;
+  const isNewPole = !pid;
   if(!pid) pid = push(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}/poles`)).key;
 
+  // Guard: non-admins cannot set status=verified
+  const requestedStatus = document.getElementById("mp-status").value;
+  if(requestedStatus === "verified" && !state.isAdmin){
+    return toast("Only admins can mark a pole as Verified", true);
+  }
+
+  // Snapshot the previous state for diffing (null if new pole)
+  const before = isNewPole ? null : state.data.customers[cid]?.sites[sid]?.poles[pid];
+
   // Upload pending photos
-  const existing = state.editing.poleId ? (state.data.customers[cid].sites[sid].poles[pid].photos || []) : [];
+  const existingPhotos = before?.photos || [];
   const uploaded = [];
   for(const tp of state.poleTempPhotos){
     try{
@@ -1383,11 +1523,11 @@ window.savePole = async () => {
       uploaded.push(url);
     }catch(e){ toast("Photo upload failed: "+e.message, true); }
   }
-  const photos = [...existing, ...uploaded];
+  const photos = [...existingPhotos, ...uploaded];
 
   const patch = {
     label,
-    status: document.getElementById("mp-status").value,
+    status: requestedStatus,
     installType: document.getElementById("mp-installType").value,
     serial: document.getElementById("mp-serial").value.trim(),
     sim: document.getElementById("mp-sim").value.trim(),
@@ -1402,7 +1542,16 @@ window.savePole = async () => {
     photos,
     updatedAt: Date.now(), updatedBy: state.user.uid
   };
-  if(!state.editing.poleId){ patch.createdAt = Date.now(); patch.createdBy = state.user.uid; }
+  if(isNewPole){ patch.createdAt = Date.now(); patch.createdBy = state.user.uid; }
+
+  // Build audit log entry
+  const changes = diffPole(before, patch);
+  if(changes.length > 0){
+    const newEntry = buildHistoryEntry(changes);
+    const prevHistory = before?.history || [];
+    patch.history = [...prevHistory, newEntry].slice(-100); // cap at 100
+  }
+
   await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, patch);
   await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}`, {updatedAt: Date.now()});
   await patchNode(`autoflag/installs/customers/${cid}`, {updatedAt: Date.now()});
@@ -1548,7 +1697,7 @@ You can perform actions by emitting JSON action blocks at the END of your respon
 Emit each action as raw JSON on its own line (NO markdown code fences).
 
 Supported actions:
-{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "scheduled|in_progress|installed|verified", "installType": "external|internal|cylinder", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "survey":"", "notes":"", "photos":["https://..."] }
+{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "in_review|scheduled|in_progress|done|verified", "installType": "external|internal|cylinder", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "survey":"", "notes":"", "photos":["https://..."] }
 { "action": "update_pole", "customerId":"...", "siteId":"...", "poleId":"...", "patch": { ...fields to change... } }
 { "action": "add_site", "customerId":"...", "name":"...", "address":"" }
 { "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
@@ -1561,7 +1710,9 @@ CRITICAL RULES:
 - For reports, respond in plain text only (no JSON).
 - Be concise. Phil prefers short responses.
 - When the user attaches photos, include the URLs in the photos array of add_pole or update_pole. For update_pole, MERGE with existing photos.
-- Install types: "external" = rope-on-outside halyard, "internal" = rope-inside halyard, "cylinder" = ornamental/architectural pole. If user mentions a halyard type or the pole appearance, infer the installType. Otherwise ask.`;
+- Install types: "external" = rope-on-outside halyard, "internal" = rope-inside halyard, "cylinder" = ornamental/architectural pole. If user mentions a halyard type or the pole appearance, infer the installType. Otherwise ask.
+- Status workflow: in_review (specs incomplete) → scheduled (date set) → in_progress (installer on site) → done (installer marked complete) → verified (admin QA-checked).
+- Status "verified" can ONLY be set by admins. If the current user is not admin and asks to verify a pole, refuse and explain that an admin must verify.`;
 
   try{
     const idToken = await auth.currentUser.getIdToken(true);
@@ -1640,17 +1791,26 @@ async function executeAction(a){
   }
   else if(a.action==="add_pole"){
     if(!validS(a.customerId,a.siteId)) return toast("Unknown customer/site ID", true);
+    if(a.status === "verified" && !state.isAdmin) return toast("Only admins can mark verified", true);
     const pid = push(ref(db,`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles`)).key;
     const patch = sanitizePole({...a, createdAt:Date.now(), updatedAt:Date.now(), createdBy:state.user.uid}, pid);
+    patch.history = [buildHistoryEntry(diffPole(null, patch))];
     await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles/${pid}`, patch);
     toast(`Added pole ${a.label}`);
   }
   else if(a.action==="update_pole"){
     if(!validP(a.customerId,a.siteId,a.poleId)) return toast("Unknown pole ID", true);
-    const clean = sanitizePole({...known[a.customerId].sites[a.siteId].poles[a.poleId], ...a.patch}, a.poleId);
-    clean.updatedAt = Date.now(); clean.updatedBy = state.user.uid;
-    await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles/${a.poleId}`, clean);
-    toast(`Updated ${clean.label}`);
+    const before = known[a.customerId].sites[a.siteId].poles[a.poleId];
+    if(a.patch?.status === "verified" && !state.isAdmin) return toast("Only admins can mark verified", true);
+    const merged = sanitizePole({...before, ...a.patch}, a.poleId);
+    merged.updatedAt = Date.now(); merged.updatedBy = state.user.uid;
+    const changes = diffPole(before, merged);
+    if(changes.length > 0){
+      const prevHistory = before.history || [];
+      merged.history = [...prevHistory, buildHistoryEntry(changes)].slice(-100);
+    }
+    await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles/${a.poleId}`, merged);
+    toast(`Updated ${merged.label}`);
   }
 }
 
