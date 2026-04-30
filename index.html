@@ -213,6 +213,9 @@
   .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
   .tree-details-btn:hover{background:var(--amber);color:#0d0d0f;border-color:var(--amber)}
   .tree-site-status{display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:flex-end;flex-shrink:1;min-width:0}
+  .tree-stat-remaining{padding:3px 10px;background:linear-gradient(135deg,#3a2a14,#4a3520);border:1px solid var(--amber);border-radius:var(--radius-pill);font-size:10px;font-weight:700;color:var(--amber-bright);cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.4px;transition:background .15s,transform .1s}
+  .tree-stat-remaining:hover{background:linear-gradient(135deg,#4a3520,#5a4530);transform:scale(1.04)}
+  .tree-stat-remaining.active{background:var(--amber);color:#0d0d0f;border-color:var(--amber-bright)}
   .tree-empty{padding:8px 12px;color:var(--text-muted);font-size:12px;font-style:italic}
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
@@ -318,7 +321,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.24 · AutoFlag© stack</div>
+  <div class="ver">v1.25 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -386,7 +389,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.24</span>
+    AutoFlag© <span>Rev v1.25</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -1425,6 +1428,18 @@ window.filterByStatus = (status, customerId) => {
   }
   renderActive();
 };
+
+// "Remaining" = in_review + scheduled + in_progress (active install work, not yet done)
+const REMAINING_STATUSES = ["in_review", "scheduled", "in_progress"];
+
+// Single source of truth for whether a pole matches the current status filter.
+// Recognizes the "remaining" pseudo-status as a multi-status match.
+function matchesStatusFilter(p){
+  const f = state.filter.status;
+  if(f === "all") return true;
+  if(f === "remaining") return REMAINING_STATUSES.includes(p.status);
+  return p.status === f;
+}
 window.filterByType = (installType, customerId) => {
   if(state.filter.installType === installType) state.filter.installType = "all";
   else state.filter.installType = installType;
@@ -1482,6 +1497,7 @@ function renderBrowse(){
       counts[p.status] = (counts[p.status]||0)+1;
       if(p.installType) typeCounts[p.installType] = (typeCounts[p.installType]||0)+1;
     });
+    const remaining = (counts.in_review||0) + (counts.scheduled||0) + (counts.in_progress||0);
 
     html += `<div class="tree-customer">
       <div class="tree-row tree-row-customer" onclick="toggleCustomer('${c.id}')">
@@ -1499,6 +1515,7 @@ function renderBrowse(){
           ${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}
           ${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}
           ${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}
+          ${remaining > 0?`<span class="tree-stat-remaining ${state.filter.status==='remaining'?'active':''}" onclick="event.stopPropagation();filterByStatus('remaining','${c.id}')" title="Show only poles still needing install (in review + scheduled + in progress)">${remaining} remaining</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
       </div>`;
@@ -1513,7 +1530,7 @@ function renderBrowse(){
         const customerMatches = state.search ? matchesSearch(c,null,null) : false;
         const siteMatches = state.search ? matchesSearch(c,s,null) : false;
         let poles = Object.values(s.poles)
-          .filter(p => state.filter.status==='all' || p.status===state.filter.status)
+          .filter(matchesStatusFilter)
           .filter(p => state.filter.installType==='all' || p.installType===state.filter.installType)
           .sort((a,b)=>a.label.localeCompare(b.label));
 
@@ -1659,7 +1676,7 @@ function renderCustomerDetail(c){
   html += `<div class="customer-grid">`;
   sites.forEach(s => {
     const poles = Object.values(s.poles);
-    const filteredPoles = state.filter.status==='all' ? poles : poles.filter(p => p.status===state.filter.status);
+    const filteredPoles = poles.filter(matchesStatusFilter);
     html += `<div class="customer-card" onclick="drillTo('${c.id}','${s.id}')">
       <h3>${s.name||'(unnamed site)'}</h3>
       <div style="font-size:12px;color:var(--text-dim)">${s.address||'No address'}</div>
@@ -1675,7 +1692,7 @@ function renderCustomerDetail(c){
 
 function renderSiteDetail(c,s){
   const poles = Object.values(s.poles)
-    .filter(p => state.filter.status==='all' || p.status===state.filter.status)
+    .filter(matchesStatusFilter)
     .filter(p => state.filter.installType==='all' || p.installType===state.filter.installType)
     .filter(p => !state.search || matchesSearch(c,s,p))
     .sort((a,b)=> b.updatedAt - a.updatedAt);
