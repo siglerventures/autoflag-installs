@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.31 · AutoFlag© stack</div>
+  <div class="ver">v1.32 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.31</span>
+    AutoFlag© <span>Rev v1.32</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -1219,6 +1219,18 @@ function showLogin(){
 function subscribeData(){
   console.log("[DATADIAG] subscribeData() called", { isAdmin: state.isAdmin, uid: state.user?.uid });
   const root = ref(db, "autoflag/installs/customers");
+
+  // Diagnostic one-shot read: tests whether RTDB reads work AT ALL on this device
+  // independent of the realtime listener. If this resolves but onValue never
+  // fires, the WebSocket is broken; if neither resolves, the connection is dead.
+  console.log("[DATADIAG] firing diagnostic get()...");
+  get(root).then(snap => {
+    const v = snap.val() || {};
+    console.log("[DATADIAG] get() RESOLVED", { customerCount: Object.keys(v).length, hasData: !!snap.val() });
+  }).catch(e => {
+    console.error("[DATADIAG] get() REJECTED:", e?.code, e?.message);
+  });
+
   onValue(root, snap => {
     const raw = snap.val() || {};
     console.log("[DATADIAG] onValue FIRE", { rawCustomerCount: Object.keys(raw).length, hasData: !!snap.val() });
