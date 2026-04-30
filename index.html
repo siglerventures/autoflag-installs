@@ -212,6 +212,7 @@
   .tree-action:hover{border-color:var(--amber-dim);color:var(--amber)}
   .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
   .tree-details-btn:hover{background:var(--amber);color:#0d0d0f;border-color:var(--amber)}
+  .tree-site-status{display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:flex-end;flex-shrink:1;min-width:0}
   .tree-empty{padding:8px 12px;color:var(--text-muted);font-size:12px;font-style:italic}
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
@@ -317,7 +318,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.22 · AutoFlag© stack</div>
+  <div class="ver">v1.23 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -385,7 +386,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.22</span>
+    AutoFlag© <span>Rev v1.23</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -1529,10 +1530,27 @@ function renderBrowse(){
         const filtersActive = state.filter.status !== 'all' || state.filter.installType !== 'all';
         if(filtersActive && poles.length === 0) return;
 
+        // Compute status breakdown across this site's poles
+        const siteStatusCounts = { in_review:0, scheduled:0, in_progress:0, completed:0, verified:0 };
+        Object.values(s.poles).forEach(p => { siteStatusCounts[p.status] = (siteStatusCounts[p.status]||0)+1; });
+        const activeStatuses = STATUSES.filter(st => siteStatusCounts[st] > 0);
+        let statusPillsHtml = "";
+        if(activeStatuses.length === 1){
+          // Unified status across all poles — single pill, no count needed
+          const st = activeStatuses[0];
+          statusPillsHtml = `<span class="status-badge status-${st}">${STATUS_LABELS[st]}</span>`;
+        } else if(activeStatuses.length > 1){
+          // Mixed statuses — show each with its count
+          statusPillsHtml = activeStatuses.map(st =>
+            `<span class="status-badge status-${st}" style="font-size:9px;padding:1px 6px">${siteStatusCounts[st]} ${STATUS_LABELS[st]}</span>`
+          ).join(" ");
+        }
+
         html += `<div class="tree-site">
           <div class="tree-row tree-row-site" onclick="toggleSite('${s.id}')">
             <span class="tree-caret ${sExpanded?'open':''}">▶</span>
             <div class="tree-name">${s.name||'(unnamed site)'}</div>
+            <div class="tree-site-status">${statusPillsHtml}</div>
             <button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="View site details">Details</button>
             <div class="tree-stats">
               <span class="tree-stat">${poles.length} pole${poles.length===1?'':'s'}</span>
