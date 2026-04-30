@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.40 · AutoFlag© stack</div>
+  <div class="ver">v1.41 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.40</span>
+    AutoFlag© <span>Rev v1.41</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -803,19 +803,15 @@ const PROVIDER = provider;
 // ==== Manual RTDB reconnect (emergency button) ====
 // Manual override exposed in footer for any case where the lifecycle handlers
 // (visibilitychange / focus / online — see data layer below) don't fire or
-// don't recover. Tap "🔄 Reconnect" in the footer to force a fresh connection.
+// don't recover. Tap "🔄 Reconnect" in the footer to force a fresh page load.
+// PHIL FIX (1.40): logo click (location.reload) brings data back when the bug
+// hits; goOffline+goOnline doesn't. The bug lives in JavaScript state, not the
+// RTDB transport. So Reconnect now does what the logo does — a full reload.
+// Cheaper than figuring out exactly which piece of state is corrupting.
 function forceRTDBReconnect(reason){
-  console.log("[RTDB] manual reconnect:", reason);
-  try { goOffline(db); } catch(e){ console.warn("[RTDB] goOffline threw:", e?.message); }
-  setTimeout(() => {
-    try { goOnline(db); console.log("[RTDB] goOnline re-issued"); }
-    catch(e){ console.warn("[RTDB] goOnline threw:", e?.message); }
-    // After bouncing connection, also re-fetch + re-subscribe so the user
-    // sees data refresh immediately
-    if(typeof state !== "undefined" && state?.user && typeof loadDataOnce === "function"){
-      loadDataOnce().then(() => subscribeRealtime());
-    }
-  }, 250);
+  console.log("[RTDB] manual reconnect →", reason, "(reloading page)");
+  if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+  location.reload();
 }
 window.forceRTDBReconnect = forceRTDBReconnect;
 
@@ -1315,8 +1311,29 @@ async function subscribeData(){
 // On return: refresh token (may have expired) → re-fetch via get()
 // (works even if the listener is dead) → re-subscribe with a fresh listener.
 // Guarded by state.user so they don't fire pre-login.
+// Track when user was last active so we can detect long-away returns
+let _lastActiveAt = Date.now();
+const LONG_AWAY_MS = 10 * 60 * 1000; // 10 minutes
+
 async function recoverDataAfterLifecycleEvent(reason){
   if(typeof state === "undefined" || !state?.user) return;
+  const awayMs = Date.now() - _lastActiveAt;
+  _lastActiveAt = Date.now();
+
+  // PHIL FIX (1.40): the cold-start data-missing bug returns within ~20 min on
+  // Android Chrome. goOffline/goOnline doesn't fix it; only location.reload()
+  // does (verified via logo-click recovery vs Reconnect-button no-op). So:
+  // if we've been away for >10 min OR we returned to an empty data state,
+  // force a full reload instead of trying soft recovery that we know fails.
+  const dataIsEmpty = !state.data?.customers || Object.keys(state.data.customers).length === 0;
+  if(awayMs > LONG_AWAY_MS || dataIsEmpty){
+    console.log(`[RTDB] lifecycle ${reason}: away ${Math.round(awayMs/1000)}s, dataEmpty=${dataIsEmpty} → reloading`);
+    if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+    location.reload();
+    return;
+  }
+
+  // Short away or data still present → soft recover (cheaper, no UX disruption)
   try { await auth.currentUser.getIdToken(true); }
   catch(e){ console.warn(`token refresh on ${reason} failed:`, e?.message); }
   await loadDataOnce();
