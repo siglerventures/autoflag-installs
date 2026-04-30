@@ -317,7 +317,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.17 · AutoFlag© stack</div>
+  <div class="ver">v1.20 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -325,7 +325,7 @@
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
-    <button class="icon-btn" id="installersBtn" onclick="openInstallersModal()" title="Manage installers" style="display:none">👷</button>
+    <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people (admins, installers, customers)" style="display:none">👥</button>
     <button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none">📋</button>
     <div class="user-pill" id="userPill"></div>
   </header>
@@ -385,7 +385,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.17</span>
+    AutoFlag© <span>Rev v1.20</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -486,12 +486,18 @@
         <span id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic"></span>
       </div>
       <div class="form-grid-2">
-        <div class="form-row"><label id="mp-warranty-label">Install / Warranty Date</label><input id="mp-warranty" type="date" /></div>
+        <div class="form-row"><label>Expected Install Date</label><input id="mp-expected-date" type="date" /></div>
         <div class="form-row"><label>SaaS active</label><select id="mp-saas">
           <option value="">—</option>
           <option value="pending">Pending</option>
           <option value="active">Active</option>
           <option value="failed">Failed</option>
+        </select></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Completed Date</label><input id="mp-completed-date" type="date" /></div>
+        <div class="form-row"><label>Completed By</label><select id="mp-completed-by">
+          <option value="">—</option>
         </select></div>
       </div>
 
@@ -585,28 +591,37 @@
   </div>
 </div>
 
-<!-- ==== Modal: Installers Roster (admin only) ==== -->
-<div class="modal-overlay" id="modalInstallers">
+<!-- ==== Modal: People (admin only) — manage admins, installers, customers ==== -->
+<div class="modal-overlay" id="modalPeople">
   <div class="modal">
-    <div class="modal-header"><h2>Installer Roster</h2><button class="modal-close" onclick="closeModal('modalInstallers')">×</button></div>
+    <div class="modal-header"><h2>👥 People</h2><button class="modal-close" onclick="closeModal('modalPeople')">×</button></div>
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
-        Installers must sign in once with Google before being added. Get their UID from Firebase Console → Authentication.
+        Add people by email and assign a role. They sign in with that exact email and the app grants them the right access automatically.
+        <strong>No Firebase Console steps required.</strong>
       </div>
 
-      <div class="section-h" style="margin-top:0">Active installers</div>
-      <div id="installersList" style="margin-bottom:14px"></div>
+      <div class="section-h" style="margin-top:0">Current people</div>
+      <div id="peopleList" style="margin-bottom:14px"></div>
 
-      <div class="section-h">Add installer</div>
+      <div class="section-h">Add person</div>
       <div class="form-grid-2">
-        <div class="form-row"><label>Google UID *</label><input id="ins-uid" placeholder="28-char UID from Firebase Auth" /></div>
-        <div class="form-row"><label>Display name</label><input id="ins-name" placeholder="Josh / Matt / etc." /></div>
+        <div class="form-row"><label>Email *</label><input id="ppl-email" type="email" placeholder="lucas@example.com" /></div>
+        <div class="form-row"><label>Display name</label><input id="ppl-name" placeholder="Lucas" /></div>
       </div>
-      <div class="form-row"><label>Email (optional)</label><input id="ins-email" /></div>
+      <div class="form-row"><label>Role *</label><select id="ppl-role" onchange="onPeopleRoleChange()">
+        <option value="admin">★ Admin (full access, can mark Verified, manage People)</option>
+        <option value="installer" selected>👷 Installer (field worker, can edit poles, no Verified)</option>
+        <option value="customer">🏢 Customer (scoped to their own company only)</option>
+      </select></div>
+      <div class="form-row" id="ppl-customer-row" style="display:none">
+        <label>Which customer? *</label>
+        <select id="ppl-customer"></select>
+      </div>
 
       <div class="btn-row">
-        <button class="btn-secondary btn" onclick="closeModal('modalInstallers')">Close</button>
-        <button class="btn" onclick="addInstaller()">Add Installer</button>
+        <button class="btn-secondary btn" onclick="closeModal('modalPeople')">Close</button>
+        <button class="btn" onclick="addPerson()">+ Add Person</button>
       </div>
     </div>
   </div>
@@ -688,7 +703,7 @@
 <!-- ==== Firebase + App Logic ==== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getDatabase, ref, onValue, set, update, remove, push, get, child }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -712,12 +727,25 @@ const db = getDatabase(app);
 const storage = getStorage(app);
 
 // ==== Auth + role config ====
-const PHIL_UID    = "CuJigrzCbRfFFsM7uqe0mix46xH3";
-const TRINITY_UID = "g4stabGPKiWAE23NTw6oUsqawWf1";
-const ADMIN_UIDS  = [PHIL_UID, TRINITY_UID];
-// Installers are stored at /autoflag/installers/{uid} = { name, email, addedAt }
-// Admins manage them via the in-app roster (no rule edits, no redeploys).
-let installersRoster = {}; // uid -> { name, email, addedAt }
+// Phil's UID is the only hardcoded "root admin" — guarantees lockout safety.
+// Everyone else (Trinity, Jake, installers, customers) is managed via the People modal,
+// stored at /autoflag/people/{emailKey} where emailKey = email with . replaced by _
+const PHIL_UID = "CuJigrzCbRfFFsM7uqe0mix46xH3";
+const ROOT_ADMIN_UIDS = [PHIL_UID];
+
+// Email → emailKey conversion (RTDB keys can't contain ".", "#", "$", "[", "]", "/")
+function emailToKey(email){
+  if(!email) return "";
+  return email.toLowerCase().trim()
+    .replace(/\./g, "_")
+    .replace(/#/g, "_HASH_")
+    .replace(/\$/g, "_DOL_")
+    .replace(/\[/g, "_OB_")
+    .replace(/\]/g, "_CB_")
+    .replace(/\//g, "_FS_");
+}
+
+let peopleRoster = {}; // emailKey -> { email, role, customerId?, name, addedAt, addedBy }
 
 const PROVIDER = new GoogleAuthProvider();
 const CLOUD_FN = "https://us-central1-philinity-893d2.cloudfunctions.net/askAI";
@@ -725,6 +753,8 @@ const CLOUD_FN = "https://us-central1-philinity-893d2.cloudfunctions.net/askAI";
 // ==== State ====
 const state = {
   user: null, isAdmin: false,
+  userRole: null,            // "admin" | "installer" | "customer" | null
+  userPersonRecord: null,    // entry from autoflag/people, if any
   data: { customers: {} },           // { customerId: {name, sites:{siteId:{poles:{poleId:{...}}}}} }
   view: "browse",                    // browse | kanban | list | map
   drillCustomer: null, drillSite: null,
@@ -760,15 +790,31 @@ function migrateStatus(s){
 
 function sanitizePole(p, id){
   if(!p||typeof p!=="object") p={};
+  // Smart migration of legacy warrantyStart based on status:
+  //   - completed/verified poles: warrantyStart was actually completion date → completedDate
+  //   - scheduled/in_progress: warrantyStart was the planned date → expectedInstallDate
+  //   - in_review/no status: assume expected
+  const status = migrateStatus(p.status);
+  let expectedInstallDate = p.expectedInstallDate || "";
+  let completedDate = p.completedDate || "";
+  if(p.warrantyStart && !expectedInstallDate && !completedDate){
+    if(status === "completed" || status === "verified"){
+      completedDate = p.warrantyStart;
+    } else {
+      expectedInstallDate = p.warrantyStart;
+    }
+  }
   return {
     id, label: stripHTML(p.label||""),
-    status: migrateStatus(p.status),
+    status,
     installType: ["external","internal","cylinder"].includes(p.installType) ? p.installType : "",
     serial: stripHTML(p.serial||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
     plan: ["lte","wifi"].includes(p.plan) ? p.plan : "",
     saas: ["pending","active","failed"].includes(p.saas) ? p.saas : "",
     lat: num(p.lat), lng: num(p.lng),
-    warrantyStart: stripHTML(p.warrantyStart||""),
+    expectedInstallDate: stripHTML(expectedInstallDate),
+    completedDate: stripHTML(completedDate),
+    completedBy: stripHTML(p.completedBy||""),
     survey: stripHTML(p.survey||""), notes: stripHTML(p.notes||""),
     photos: Array.isArray(p.photos) ? p.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
     checklist: (p.checklist && typeof p.checklist === "object") ? p.checklist : {},
@@ -808,39 +854,92 @@ function sanitizeCustomer(c, id){
 }
 
 // ==== Auth flow ====
+// Detect mobile devices — they should use redirect (popups are flaky/blocked on mobile)
+function isMobileDevice(){
+  return /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || "");
+}
+
 window.signIn = async () => {
-  try { await signInWithPopup(auth, PROVIDER); }
-  catch(e){ toast("Sign-in failed: "+e.message, true); }
+  try {
+    if(isMobileDevice()){
+      // Mobile: use redirect (reliable, no popup blocker issues)
+      await signInWithRedirect(auth, PROVIDER);
+      // Page will redirect to Google, then back; getRedirectResult on load handles the rest
+    } else {
+      // Desktop: try popup first; fall back to redirect if it fails
+      await signInWithPopup(auth, PROVIDER);
+    }
+  } catch(e){
+    // Popup blocked or closed → fall back to redirect
+    if(e.code === "auth/popup-blocked" || e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request"){
+      try { await signInWithRedirect(auth, PROVIDER); }
+      catch(e2){ toast("Sign-in failed: "+e2.message, true); }
+    } else {
+      toast("Sign-in failed: "+e.message, true);
+    }
+  }
 };
 window.signOutNow = async () => { await signOut(auth); };
+
+// On page load, check if we're returning from a redirect-based sign-in
+getRedirectResult(auth).catch(e => {
+  // Errors here are non-fatal — onAuthStateChanged handles the actual auth state
+  if(e?.code && e.code !== "auth/no-auth-event"){
+    console.warn("Redirect sign-in result error:", e.code, e.message);
+  }
+});
 
 onAuthStateChanged(auth, async user => {
   if(!user){ showLogin(); return; }
 
-  // Admin shortcut — admins always allowed without RTDB read
-  const isAdmin = ADMIN_UIDS.includes(user.uid);
-  let allowed = isAdmin;
+  // Phil (root admin) — always allowed without RTDB read
+  const isRootAdmin = ROOT_ADMIN_UIDS.includes(user.uid);
 
-  if(!isAdmin){
-    // Non-admin: must be in /autoflag/installers
+  let role = null;
+  let personRecord = null;
+
+  if(isRootAdmin){
+    role = "admin";
+  } else {
+    // Look up the user by email in /autoflag/people/{emailKey}
+    const key = emailToKey(user.email || "");
+    if(!key){
+      toast("No email on this account", true);
+      await signOut(auth); showLogin(); return;
+    }
     try{
-      const snap = await get(ref(db, `autoflag/installers/${user.uid}`));
-      // Accept either bare `true` or an object with details
+      const snap = await get(ref(db, `autoflag/people/${key}`));
       const v = snap.val();
-      allowed = v === true || (v && typeof v === "object");
+      if(v && typeof v === "object" && ["admin","installer","customer"].includes(v.role)){
+        role = v.role;
+        personRecord = v;
+      }
     }catch(e){
-      console.error("Installer check failed:", e);
-      allowed = false;
+      console.error("People lookup failed:", e);
+    }
+
+    // Backward compat: legacy /autoflag/installers/{uid} entries still grant installer role
+    if(!role){
+      try{
+        const legacySnap = await get(ref(db, `autoflag/installers/${user.uid}`));
+        const lv = legacySnap.val();
+        if(lv === true || (lv && typeof lv === "object")){
+          role = "installer";
+          personRecord = { ...(lv || {}), email: user.email, role: "installer", legacy: true };
+        }
+      }catch(e){ /* ignore */ }
     }
   }
 
-  if(!allowed){
+  if(!role){
     toast("Access denied for "+user.email, true);
     await signOut(auth); showLogin(); return;
   }
 
   state.user = user;
-  state.isAdmin = isAdmin;
+  state.userRole = role;
+  state.userPersonRecord = personRecord;
+  state.isAdmin = (role === "admin");
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("app").style.display="";
   document.getElementById("userPill").innerHTML =
@@ -850,12 +949,29 @@ onAuthStateChanged(auth, async user => {
   // Admin-only UI bits
   document.getElementById("mc-installer-row").style.display = state.isAdmin ? "" : "none";
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
-  document.getElementById("installersBtn").style.display = state.isAdmin ? "" : "none";
+  document.getElementById("peopleBtn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
 
-  // Subscribe to installers roster (admins only — installers don't need this)
-  if(state.isAdmin) subscribeInstallers();
+  // Admins subscribe to people roster for the management UI; everyone reads procedures + data
+  if(state.isAdmin) subscribePeople();
   subscribeProcedures();
+
+  // Customer role: portal not yet implemented. Show a "coming soon" message and sign out.
+  // (Their email is whitelisted, but the customer-facing UI is a future rev.)
+  if(state.userRole === "customer"){
+    document.getElementById("app").style.display = "none";
+    document.getElementById("loginScreen").style.display = "";
+    const loginScreen = document.getElementById("loginScreen");
+    if(loginScreen){
+      loginScreen.innerHTML = `<div style="text-align:center;max-width:420px">
+        <h1 style="color:var(--amber);margin-bottom:14px">AutoFlag Installs</h1>
+        <p style="color:var(--text-dim);margin-bottom:20px">Hi ${user.displayName||user.email}! Your customer portal isn't ready yet — we're building it. We'll email you when it's available.</p>
+        <button class="btn-secondary btn" onclick="signOutNow()">Sign Out</button>
+      </div>`;
+    }
+    return;
+  }
+
   subscribeData();
 });
 
@@ -890,7 +1006,7 @@ async function patchNode(path, patch){  // update() preserves siblings, per 6.3.
 }
 
 // ==== Audit log helpers ====
-const TRACKED_FIELDS = ["label","status","installType","serial","sim","fw","plan","saas","lat","lng","warrantyStart","survey","notes"];
+const TRACKED_FIELDS = ["label","status","installType","serial","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
 
 function diffPole(before, after){
   const changes = [];
@@ -934,7 +1050,10 @@ function fmtHistoryField(f){
   const labels = {
     label:"Label", status:"Status", installType:"Install Type",
     serial:"Serial", sim:"SIM", fw:"Firmware", plan:"Plan", saas:"SaaS",
-    lat:"Latitude", lng:"Longitude", warrantyStart:"Warranty Start",
+    lat:"Latitude", lng:"Longitude",
+    expectedInstallDate:"Expected Install Date",
+    completedDate:"Completed Date",
+    completedBy:"Completed By",
     survey:"Survey", notes:"Notes", photos:"Photos", _created:"Created"
   };
   return labels[f] || f;
@@ -960,82 +1079,129 @@ function subscribeProcedures(){
   });
 }
 
-// ==== Installer roster (admin only) ====
-function subscribeInstallers(){
-  onValue(ref(db, "autoflag/installers"), snap => {
+// ==== People management (admin only) ====
+// Replaces old installer roster. People are keyed by emailKey, not UID.
+// Roles: admin, installer, customer (customers also have a customerId scope).
+function subscribePeople(){
+  onValue(ref(db, "autoflag/people"), snap => {
     const raw = snap.val() || {};
     const out = {};
-    Object.entries(raw).forEach(([uid,v]) => {
-      if(v === true) out[uid] = { name:"(no name)", email:"", addedAt:0 };
-      else if(v && typeof v === "object"){
-        out[uid] = {
-          name: stripHTML(v.name||"(no name)"),
-          email: stripHTML(v.email||""),
-          addedAt: v.addedAt || 0
-        };
-      }
+    Object.entries(raw).forEach(([key, v]) => {
+      if(!v || typeof v !== "object") return;
+      out[key] = {
+        email: stripHTML(v.email || ""),
+        name: stripHTML(v.name || "(unnamed)"),
+        role: ["admin","installer","customer"].includes(v.role) ? v.role : "installer",
+        customerId: stripHTML(v.customerId || ""),
+        addedAt: v.addedAt || 0,
+        addedBy: stripHTML(v.addedBy || "")
+      };
     });
-    installersRoster = out;
-    renderInstallersList();
+    peopleRoster = out;
+    renderPeopleList();
   });
 }
 
-window.openInstallersModal = () => {
+window.openPeopleModal = () => {
   if(!state.isAdmin) return;
-  document.getElementById("ins-uid").value = "";
-  document.getElementById("ins-name").value = "";
-  document.getElementById("ins-email").value = "";
-  renderInstallersList();
-  openModal("modalInstallers");
+  document.getElementById("ppl-email").value = "";
+  document.getElementById("ppl-name").value = "";
+  document.getElementById("ppl-role").value = "installer";
+  document.getElementById("ppl-customer-row").style.display = "none";
+  document.getElementById("ppl-customer").value = "";
+  populatePeopleCustomerDropdown();
+  renderPeopleList();
+  openModal("modalPeople");
 };
 
-function renderInstallersList(){
-  const wrap = document.getElementById("installersList");
-  if(!wrap) return;
-  const entries = Object.entries(installersRoster);
-  if(entries.length === 0){
-    wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No installers yet.</div>`;
-    return;
-  }
-  wrap.innerHTML = entries.map(([uid,info]) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px">
-      <div style="min-width:0;flex:1">
-        <div style="font-size:13px;color:var(--text)"><strong>${info.name}</strong>${info.email?` <span style="color:var(--text-muted);font-size:11px">· ${info.email}</span>`:''}</div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${uid}</div>
-      </div>
-      <button class="btn-secondary btn" style="padding:4px 10px;font-size:11px" onclick="removeInstaller('${uid}')">Remove</button>
-    </div>
-  `).join("");
+function populatePeopleCustomerDropdown(){
+  const sel = document.getElementById("ppl-customer");
+  if(!sel) return;
+  const customers = Object.values(state.data.customers).sort((a,b) => a.name.localeCompare(b.name));
+  sel.innerHTML = `<option value="">— Select customer —</option>` +
+    customers.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
 }
 
-window.addInstaller = async () => {
+function renderPeopleList(){
+  const wrap = document.getElementById("peopleList");
+  if(!wrap) return;
+  const entries = Object.entries(peopleRoster);
+  if(entries.length === 0){
+    wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No people yet. Add someone below.</div>`;
+    return;
+  }
+  // Group by role for clarity
+  const groups = { admin: [], installer: [], customer: [] };
+  entries.forEach(([key, info]) => {
+    if(groups[info.role]) groups[info.role].push([key, info]);
+  });
+  let html = "";
+  ["admin","installer","customer"].forEach(role => {
+    const list = groups[role];
+    if(list.length === 0) return;
+    const roleEmoji = role === "admin" ? "★" : role === "installer" ? "👷" : "🏢";
+    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1) + (list.length > 1 ? "s" : "");
+    html += `<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px">${roleEmoji} ${roleLabel} (${list.length})</div>`;
+    list.forEach(([key, info]) => {
+      const customerName = info.customerId ? (state.data.customers[info.customerId]?.name || `(${info.customerId})`) : "";
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:13px;color:var(--text)"><strong>${info.name}</strong> <span style="color:var(--text-muted);font-size:11px">${info.email}</span></div>
+          ${customerName ? `<div style="font-size:11px;color:var(--text-dim)">→ ${customerName}</div>` : ''}
+        </div>
+        <button class="btn-secondary btn" style="padding:4px 10px;font-size:11px" onclick="removePerson('${key}')">Remove</button>
+      </div>`;
+    });
+  });
+  wrap.innerHTML = html;
+}
+
+window.onPeopleRoleChange = () => {
+  const role = document.getElementById("ppl-role").value;
+  document.getElementById("ppl-customer-row").style.display = (role === "customer") ? "" : "none";
+};
+
+window.addPerson = async () => {
   if(!state.isAdmin) return;
-  const uid = document.getElementById("ins-uid").value.trim();
-  const name = document.getElementById("ins-name").value.trim();
-  const email = document.getElementById("ins-email").value.trim();
-  if(!uid) return toast("UID required", true);
-  if(uid.length < 20) return toast("UID looks too short — paste full Firebase UID", true);
-  if(ADMIN_UIDS.includes(uid)) return toast("That UID is already an admin", true);
+  const email = document.getElementById("ppl-email").value.trim().toLowerCase();
+  const name = document.getElementById("ppl-name").value.trim();
+  const role = document.getElementById("ppl-role").value;
+  const customerId = document.getElementById("ppl-customer").value;
+  if(!email) return toast("Email required", true);
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Invalid email format", true);
+  if(!["admin","installer","customer"].includes(role)) return toast("Invalid role", true);
+  if(role === "customer" && !customerId) return toast("Pick a customer for the customer role", true);
+  const key = emailToKey(email);
+  if(!key) return toast("Email could not be encoded", true);
   try{
-    await patchNode(`autoflag/installers/${uid}`, {
-      name: name || "(unnamed)",
+    await patchNode(`autoflag/people/${key}`, {
       email,
+      name: name || "(unnamed)",
+      role,
+      customerId: role === "customer" ? customerId : "",
       addedAt: Date.now(),
       addedBy: state.user.uid
     });
-    document.getElementById("ins-uid").value = "";
-    document.getElementById("ins-name").value = "";
-    document.getElementById("ins-email").value = "";
-    toast("Installer added");
+    document.getElementById("ppl-email").value = "";
+    document.getElementById("ppl-name").value = "";
+    document.getElementById("ppl-role").value = "installer";
+    document.getElementById("ppl-customer-row").style.display = "none";
+    document.getElementById("ppl-customer").value = "";
+    toast("Person added — they'll be granted "+role+" role on next sign-in");
   }catch(e){ toast("Failed: "+e.message, true); }
 };
 
-window.removeInstaller = async (uid) => {
+window.removePerson = async (key) => {
   if(!state.isAdmin) return;
-  const info = installersRoster[uid];
-  if(!confirm(`Remove ${info?.name||uid} from installers? They will lose access immediately.`)) return;
+  const info = peopleRoster[key];
+  if(!info) return;
+  // Block removing yourself by accident
+  if(state.user?.email && emailToKey(state.user.email) === key){
+    return toast("You can't remove yourself. Ask another admin.", true);
+  }
+  if(!confirm(`Remove ${info.name} (${info.email})? They will lose access immediately.`)) return;
   try{
-    await remove(ref(db, `autoflag/installers/${uid}`));
+    await remove(ref(db, `autoflag/people/${key}`));
     toast("Removed");
   }catch(e){ toast("Failed: "+e.message, true); }
 };
@@ -1354,7 +1520,7 @@ function renderBrowse(){
               <div class="tree-name"><strong>${p.label||'(unlabeled)'}</strong></div>
               <div class="tree-stats">
                 <span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span>
-                ${(shouldShowDate(p.status) && p.warrantyStart)?`<span class="tree-stat-date">${fmtShortDate(p.warrantyStart)}</span>`:''}
+                ${getDisplayDate(p)?`<span class="tree-stat-date" title="${getDisplayDateLabel(p)}">${fmtShortDate(getDisplayDate(p))}</span>`:''}
                 ${p.installType?`<span class="data-chip" style="font-size:10px;padding:1px 8px">${formatInstallType(p.installType)}</span>`:''}
                 ${p.serial?`<span class="tree-stat" style="font-family:monospace;font-size:10px">SN: ${p.serial}</span>`:''}
                 ${p.photos.length?`<span class="tree-stat">📷 ${p.photos.length}</span>`:''}
@@ -1499,7 +1665,7 @@ function renderPoleCard(c,s,p,big){
       <h3 style="margin:0">${p.label||'(unlabeled)'}</h3>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
         <span class="status-badge status-${p.status}">${statusLabel}</span>
-        ${(shouldShowDate(p.status) && p.warrantyStart)?`<span class="tree-stat-date">${fmtShortDate(p.warrantyStart)}</span>`:''}
+        ${getDisplayDate(p)?`<span class="tree-stat-date" title="${getDisplayDateLabel(p)}">${fmtShortDate(getDisplayDate(p))}</span>`:''}
       </div>
     </div>
     ${big?`<div style="font-size:12px;color:var(--text-dim);margin-top:6px">${c.name} · ${s.name}</div>`:''}
@@ -1520,9 +1686,20 @@ function formatInstallType(t){
   return "";
 }
 
-// Show the install/warranty date inline next to the status badge for these statuses only
-function shouldShowDate(status){
-  return status === "scheduled" || status === "in_progress" || status === "completed";
+// Returns the relevant date string for the pole's current status, or empty if none applies
+function getDisplayDate(p){
+  if(!p) return "";
+  if(p.status === "scheduled" || p.status === "in_progress") return p.expectedInstallDate || "";
+  if(p.status === "completed" || p.status === "verified") return p.completedDate || p.expectedInstallDate || "";
+  return ""; // in_review: no date shown
+}
+
+// Returns a label hint for what the date represents, used in tooltips
+function getDisplayDateLabel(p){
+  if(!p) return "";
+  if(p.status === "scheduled" || p.status === "in_progress") return "Expected install";
+  if(p.status === "completed" || p.status === "verified") return "Completed";
+  return "";
 }
 
 // Compact date format (M/D/YY) for inline display next to status badges
@@ -1585,7 +1762,7 @@ function renderKanban(){
         <div class="title">${p.label||'(unlabeled)'}</div>
         <div style="color:var(--text-dim);font-size:11px">${c.name} · ${s.name}</div>
         <div class="meta">
-          ${(shouldShowDate(p.status) && p.warrantyStart)?`<span style="background:#1a2a3a;color:#a8c5e6;font-weight:600">📅 ${fmtShortDate(p.warrantyStart)}</span>`:''}
+          ${getDisplayDate(p)?`<span style="background:#1a2a3a;color:#a8c5e6;font-weight:600" title="${getDisplayDateLabel(p)}">📅 ${fmtShortDate(getDisplayDate(p))}</span>`:''}
           ${p.installType?`<span style="background:var(--amber-dim);color:#fff">${formatInstallType(p.installType)}</span>`:''}
           ${p.serial?`<span>SN: ${p.serial}</span>`:''}
           ${p.plan?`<span>${p.plan.toUpperCase()}</span>`:''}
@@ -1862,7 +2039,7 @@ function renderList(){
       <td>${c.name}</td><td>${s.name}</td>
       <td>${p.installType?formatInstallType(p.installType):'—'}</td>
       <td><span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
-      <td>${(shouldShowDate(p.status) && p.warrantyStart)?fmtShortDate(p.warrantyStart):'—'}</td>
+      <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
       <td>${new Date(p.updatedAt).toLocaleDateString()}</td>
@@ -2174,8 +2351,9 @@ window.openPoleModal = (pid, cid, sid) => {
     document.getElementById("mp-lng").value = site?.lng ?? "";
   }
   document.getElementById("mp-gps-status").textContent = "";
-  document.getElementById("mp-warranty").value = p?.warrantyStart || "";
-  updateWarrantyLabel(p?.status || "in_review");
+  document.getElementById("mp-expected-date").value = p?.expectedInstallDate || "";
+  document.getElementById("mp-completed-date").value = p?.completedDate || "";
+  populateCompletedByDropdown(p?.completedBy || "");
   document.getElementById("mp-survey").value = p?.survey || "";
   document.getElementById("mp-notes").value = p?.notes || "";
   document.getElementById("mp-delete").style.display = p ? "" : "none";
@@ -2409,9 +2587,35 @@ document.addEventListener("change", e => {
     renderPoleChecklist(p);
   }
   if(e.target?.id === "mp-status"){
-    updateWarrantyLabel(e.target.value);
+    handleStatusChangeInModal(e.target.value);
   }
 });
+
+// When status flips to 'completed' in the modal, prompt to auto-fill the completed date
+function handleStatusChangeInModal(newStatus){
+  if(newStatus !== "completed") return;
+  const completedDateEl = document.getElementById("mp-completed-date");
+  if(!completedDateEl) return;
+  // Only prompt if the field is empty
+  if(completedDateEl.value) return;
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,'0');
+  const dd = String(today.getDate()).padStart(2,'0');
+  const todayIso = `${yyyy}-${mm}-${dd}`;
+  const todayDisplay = `${today.getMonth()+1}/${today.getDate()}/${String(yyyy).slice(-2)}`;
+  if(confirm(`Mark completed today (${todayDisplay})?`)){
+    completedDateEl.value = todayIso;
+    // Auto-fill Completed By with the current user, using whichever key matches their identity
+    const completedByEl = document.getElementById("mp-completed-by");
+    if(completedByEl && !completedByEl.value && state.user){
+      // Phil = his UID; everyone else = emailKey
+      const myKey = ROOT_ADMIN_UIDS.includes(state.user.uid) ? state.user.uid : emailToKey(state.user.email || "");
+      const opt = Array.from(completedByEl.options).find(o => o.value === myKey);
+      if(opt) completedByEl.value = myKey;
+    }
+  }
+}
 
 function renderPolePhotos(existing){
   const grid = document.getElementById("mp-photos");
@@ -2460,16 +2664,27 @@ window.handlePolePhotoDrop = (ev) => {
 };
 
 // ==== GPS helpers for pole location ====
-// Dynamic label for the date field — switches between "Expected Install Date" and "Warranty Start Date" based on status
-function updateWarrantyLabel(status){
-  const label = document.getElementById("mp-warranty-label");
-  if(!label) return;
-  if(status === "scheduled" || status === "in_progress"){
-    label.textContent = "Expected Install Date";
-  } else if(status === "completed" || status === "verified"){
-    label.textContent = "Warranty Start Date";
-  } else {
-    label.textContent = "Install / Warranty Date";
+// Populate the Completed By dropdown with admins + installer roster
+function populateCompletedByDropdown(currentValue){
+  const sel = document.getElementById("mp-completed-by");
+  if(!sel) return;
+  // Source of truth: peopleRoster (email-keyed) + Phil hardcoded as root
+  const options = [];
+  // Phil is always available even if not yet in peopleRoster (root admin)
+  options.push({ key: PHIL_UID, name: "Phil Sigler", role: "admin" });
+  // Add everyone from peopleRoster (admins + installers; customers can't complete poles)
+  if(typeof peopleRoster === "object" && peopleRoster){
+    Object.entries(peopleRoster).forEach(([key, info]) => {
+      if(info.role === "admin" || info.role === "installer"){
+        options.push({ key, name: info.name || info.email || key, role: info.role });
+      }
+    });
+  }
+  sel.innerHTML = `<option value="">—</option>` +
+    options.map(o => `<option value="${o.key}" ${o.key===currentValue?'selected':''}>${o.name}${o.role==='admin'?' ★':''}</option>`).join("");
+  // Stale value (person was removed, or it's an old UID-based entry) — preserve it as selected
+  if(currentValue && !options.find(o => o.key === currentValue)){
+    sel.innerHTML += `<option value="${currentValue}" selected>(former: ${currentValue.slice(0,12)}...)</option>`;
   }
 }
 
@@ -2558,7 +2773,9 @@ window.savePole = async () => {
     saas: document.getElementById("mp-saas").value,
     lat: num(document.getElementById("mp-lat").value),
     lng: num(document.getElementById("mp-lng").value),
-    warrantyStart: document.getElementById("mp-warranty").value,
+    expectedInstallDate: document.getElementById("mp-expected-date").value,
+    completedDate: document.getElementById("mp-completed-date").value,
+    completedBy: document.getElementById("mp-completed-by").value,
     survey: document.getElementById("mp-survey").value.trim(),
     notes: document.getElementById("mp-notes").value.trim(),
     photos,
@@ -2753,7 +2970,7 @@ You can perform actions by emitting JSON action blocks at the END of your respon
 Emit each action as raw JSON on its own line (NO markdown code fences).
 
 Supported actions:
-{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "in_review|scheduled|in_progress|done|verified", "installType": "external|internal|cylinder", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "survey":"", "notes":"", "photos":["https://..."] }
+{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "in_review|scheduled|in_progress|completed|verified", "installType": "external|internal|cylinder", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "expectedInstallDate":"YYYY-MM-DD", "completedDate":"YYYY-MM-DD", "completedBy":"<uid>", "survey":"", "notes":"", "photos":["https://..."] }
 { "action": "update_pole", "customerId":"...", "siteId":"...", "poleId":"...", "patch": { ...fields to change... } }
 { "action": "add_site", "customerId":"...", "name":"...", "address":"" }
 { "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
@@ -2767,6 +2984,7 @@ CRITICAL RULES:
 - Be concise. Phil prefers short responses.
 - When the user attaches photos, include the URLs in the photos array of add_pole or update_pole. For update_pole, MERGE with existing photos.
 - Install types: "external" = rope-on-outside halyard, "internal" = rope-inside halyard, "cylinder" = ornamental/architectural pole. If user mentions a halyard type or the pole appearance, infer the installType. Otherwise ask.
+- Date fields: expectedInstallDate is the planned install date (set during scheduled phase). completedDate is the actual completion date. completedBy is the UID of the person who completed it (admins or installers).
 - Status workflow: in_review (specs incomplete) → scheduled (date set) → in_progress (installer on site) → completed (installer marked complete) → verified (admin QA-checked).
 - Status "verified" can ONLY be set by admins. If the current user is not admin and asks to verify a pole, refuse and explain that an admin must verify.
 - Install procedures: The data context includes _procedures with the step-by-step install templates for each installType (external/internal/cylinder). When an installer asks "what's next on Pole X" or "I'm stuck on step N" or "how do I install this", look up the pole's installType, find the matching procedure template, and reference the specific step. Also use the per-pole "progress" field to know which step they're likely on.`;
@@ -3002,13 +3220,23 @@ window.exportJSON = () => {
 };
 
 window.exportCSV = () => {
-  const rows = [["Customer","Site","Pole","Install Type","Status","Serial","SIM","Firmware","Plan","SaaS","Lat","Lng","Warranty Start","Survey","Notes","Photos","Updated"]];
+  const rows = [["Customer","Site","Pole","Install Type","Status","Serial","SIM","Firmware","Plan","SaaS","Lat","Lng","Expected Install","Completed Date","Completed By","Survey","Notes","Photos","Updated"]];
   Object.values(state.data.customers).forEach(c => {
     Object.values(c.sites).forEach(s => {
       Object.values(s.poles).forEach(p => {
+        // Resolve completedBy → display name for CSV readability
+        let completedByName = "";
+        if(p.completedBy){
+          if(p.completedBy === PHIL_UID) completedByName = "Phil Sigler";
+          else if(typeof peopleRoster === "object" && peopleRoster?.[p.completedBy]){
+            completedByName = peopleRoster[p.completedBy].name || peopleRoster[p.completedBy].email || p.completedBy;
+          } else {
+            completedByName = p.completedBy;
+          }
+        }
         rows.push([
           c.name, s.name, p.label, p.installType, p.status, p.serial, p.sim, p.fw, p.plan, p.saas,
-          p.lat ?? "", p.lng ?? "", p.warrantyStart || "",
+          p.lat ?? "", p.lng ?? "", p.expectedInstallDate || "", p.completedDate || "", completedByName,
           (p.survey||"").replace(/"/g,'""'),
           (p.notes||"").replace(/"/g,'""'),
           p.photos.length, new Date(p.updatedAt).toISOString()
