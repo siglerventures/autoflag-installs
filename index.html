@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.34 · AutoFlag© stack</div>
+  <div class="ver">v1.35 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.34</span>
+    AutoFlag© <span>Rev v1.35</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -751,34 +751,24 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const storage = getStorage(app);
 
-// ==== Mobile RTDB connection recovery ====
-// Pattern: WebSocket connection silently dies on mobile after a period of
-// inactivity / tab backgrounding / token refresh. SDK doesn't auto-recover.
-// Fix: detect visibility changes and force a reconnect. Also expose a manual
-// "Reconnect" affordance for emergencies.
+// ==== Manual RTDB reconnect (emergency button) ====
+// Manual override exposed in footer for any case where the lifecycle handlers
+// (visibilitychange / focus / online — see data layer below) don't fire or
+// don't recover. Tap "🔄 Reconnect" in the footer to force a fresh connection.
 function forceRTDBReconnect(reason){
-  console.log("[RTDB] forcing reconnect:", reason);
+  console.log("[RTDB] manual reconnect:", reason);
   try { goOffline(db); } catch(e){ console.warn("[RTDB] goOffline threw:", e?.message); }
   setTimeout(() => {
     try { goOnline(db); console.log("[RTDB] goOnline re-issued"); }
     catch(e){ console.warn("[RTDB] goOnline threw:", e?.message); }
+    // After bouncing connection, also re-fetch + re-subscribe so the user
+    // sees data refresh immediately
+    if(typeof state !== "undefined" && state?.user && typeof loadDataOnce === "function"){
+      loadDataOnce().then(() => subscribeRealtime());
+    }
   }, 250);
 }
 window.forceRTDBReconnect = forceRTDBReconnect;
-
-// On tab visibility change (e.g., user backgrounded the app then came back),
-// kick the connection. This catches the common Android "freeze on background"
-// case where RTDB's persistent connection is killed but the SDK doesn't notice.
-document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "visible" && typeof state !== "undefined" && state?.user){
-    forceRTDBReconnect("tab visible");
-  }
-});
-
-// On window focus (similar idea but covers desktop tab-switching too)
-window.addEventListener("focus", () => {
-  if(typeof state !== "undefined" && state?.user) forceRTDBReconnect("window focus");
-});
 
 // ==== Auth + role config ====
 // Phil's UID is the only hardcoded "root admin" — guarantees lockout safety.
@@ -1235,7 +1225,7 @@ onAuthStateChanged(auth, async user => {
     await signOut(auth); showLogin(); return;
   }
 
-  subscribeData();
+  await subscribeData();
 });
 
 function showLogin(){
@@ -1261,44 +1251,113 @@ function showLogin(){
 }
 
 // ==== Data layer ====
-function subscribeData(){
-  console.log("[DATADIAG] subscribeData() called", { isAdmin: state.isAdmin, uid: state.user?.uid });
-  const root = ref(db, "autoflag/installs/customers");
+// Pattern from Eats v11.12: mobile Chrome kills onValue listener when the app
+// is backgrounded. When user returns, listener is dead and data appears empty.
+// Fix: get-first for initial load (works even if listener is dead), then layer
+// onValue on top for real-time updates. On lifecycle events (visibility/focus/
+// online), refresh token + re-fetch + re-subscribe. Guard against null/empty
+// snapshots that arrive during reconnect — keep existing data instead of clearing.
+let currentDataUnsubscribe = null;
 
-  // Diagnostic one-shot read: tests whether RTDB reads work AT ALL on this device
-  // independent of the realtime listener. If this resolves but onValue never
-  // fires, the WebSocket is broken; if neither resolves, the connection is dead.
-  console.log("[DATADIAG] firing diagnostic get()...");
-  get(root).then(snap => {
-    const v = snap.val() || {};
-    console.log("[DATADIAG] get() RESOLVED", { customerCount: Object.keys(v).length, hasData: !!snap.val() });
-  }).catch(e => {
-    console.error("[DATADIAG] get() REJECTED:", e?.code, e?.message);
+function applyCustomerSnapshot(raw, source){
+  if(raw === null || raw === undefined){
+    console.warn(`[Data] ${source} got null — keeping existing ${Object.keys(state.data.customers||{}).length} customers`);
+    return false;
+  }
+  const keys = Object.keys(raw);
+  const existingCount = Object.keys(state.data.customers||{}).length;
+  if(keys.length === 0 && existingCount > 0){
+    console.warn(`[Data] ${source} got 0 keys but had ${existingCount} — keeping existing`);
+    return false;
+  }
+  const customers = {};
+  Object.entries(raw).forEach(([cid, c]) => {
+    const sc = sanitizeCustomer(c, cid);
+    // Installer scoping (per Q1: installers see assigned customers only)
+    if(!state.isAdmin && !sc.installers.includes(state.user.uid)) return;
+    customers[cid] = sc;
   });
+  state.data.customers = customers;
+  try {
+    renderActive();
+  } catch(e){
+    console.error(`[Data] renderActive THREW after ${source}:`, e?.message, e?.stack);
+  }
+  return true;
+}
 
-  onValue(root, snap => {
-    const raw = snap.val() || {};
-    console.log("[DATADIAG] onValue FIRE", { rawCustomerCount: Object.keys(raw).length, hasData: !!snap.val() });
-    const customers = {};
-    Object.entries(raw).forEach(([cid, c]) => {
-      const sc = sanitizeCustomer(c, cid);
-      // Installer scoping (per Q1 answer: installers see assigned customers only)
-      if(!state.isAdmin && !sc.installers.includes(state.user.uid)) return;
-      customers[cid] = sc;
-    });
-    state.data.customers = customers;
-    console.log("[DATADIAG] customers populated", { count: Object.keys(customers).length, view: state.view });
-    try {
-      renderActive();
-      console.log("[DATADIAG] renderActive() completed");
-    } catch(e){
-      console.error("[DATADIAG] renderActive THREW:", e?.message, e?.stack);
-    }
+async function loadDataOnce(){
+  console.log("[Data] loadDataOnce() firing get()");
+  try {
+    const snap = await get(ref(db, "autoflag/installs/customers"));
+    const ok = applyCustomerSnapshot(snap.val(), "loadDataOnce");
+    console.log(`[Data] loadDataOnce ${ok ? "applied" : "skipped"}`, { count: Object.keys(state.data.customers||{}).length });
+    return ok;
+  } catch(e){
+    console.error("[Data] loadDataOnce failed:", e?.code, e?.message);
+    return false;
+  }
+}
+
+function subscribeRealtime(){
+  // Tear down any existing listener before re-subscribing — prevents listener
+  // accumulation and unhooks any zombie listener from a previous session.
+  if(currentDataUnsubscribe){
+    try { currentDataUnsubscribe(); } catch(_){}
+    currentDataUnsubscribe = null;
+  }
+  const root = ref(db, "autoflag/installs/customers");
+  // onValue's modular SDK signature returns an unsubscribe function
+  currentDataUnsubscribe = onValue(root, snap => {
+    applyCustomerSnapshot(snap.val(), "onValue");
   }, err => {
-    console.error("[DATADIAG] onValue ERROR:", err?.code, err?.message);
+    console.error("[Data] onValue ERROR:", err?.code, err?.message);
     toast("Read failed: "+err.message, true);
   });
+  console.log("[Data] subscribeRealtime() listener attached");
 }
+
+async function subscribeData(){
+  console.log("[Data] subscribeData() — initial load + subscribe", { isAdmin: state.isAdmin, uid: state.user?.uid });
+  // Initial one-shot load happens even if the listener is dead; we already
+  // refreshed the token above in onAuthStateChanged so this WILL succeed.
+  await loadDataOnce();
+  subscribeRealtime();
+}
+
+// ==== Lifecycle handlers — recover from mobile listener-death ====
+// Mobile Chrome kills onValue listeners when the tab is backgrounded.
+// On return: refresh token (may have expired) → re-fetch via get()
+// (works even if the listener is dead) → re-subscribe with a fresh listener.
+// Guarded by state.user so they don't fire pre-login.
+async function recoverDataAfterLifecycleEvent(reason){
+  if(typeof state === "undefined" || !state?.user) return;
+  console.log(`[Data] lifecycle event: ${reason} — refreshing token + reloading data`);
+  try { await auth.currentUser.getIdToken(true); }
+  catch(e){ console.warn(`[Data] token refresh on ${reason} failed:`, e?.message); }
+  await loadDataOnce();
+  subscribeRealtime();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible"){
+    recoverDataAfterLifecycleEvent("visibilitychange");
+  }
+});
+
+window.addEventListener("online", () => {
+  recoverDataAfterLifecycleEvent("online");
+});
+
+// Page focus (some mobile browsers don't fire visibilitychange reliably).
+// Debounced 5s so rapid focus events don't thrash the data path.
+window.addEventListener("focus", () => {
+  const now = Date.now();
+  if(!window._lastFocusRefresh || now - window._lastFocusRefresh > 5000){
+    window._lastFocusRefresh = now;
+    recoverDataAfterLifecycleEvent("focus");
+  }
+});
 
 async function writeNode(path, value){
   await set(ref(db, path), value);
