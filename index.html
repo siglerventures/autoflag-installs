@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.37 · AutoFlag© stack</div>
+  <div class="ver">v1.38 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.37</span>
+    AutoFlag© <span>Rev v1.38</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -723,15 +723,11 @@
 
 <!-- ==== Firebase + App Logic ==== -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getDatabase, ref, onValue, set, update, remove, push, get, child, goOnline, goOffline }
-  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject }
-  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getDatabase, ref, get, set, update, remove, onValue, push, child, goOnline, goOffline } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getStorage, ref as storageRef, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
-// ==== Firebase config (AutoFlag© stack — shared philinity-893d2 project) ====
 const firebaseConfig = {
   apiKey: "AIzaSyCrW9Lrf7fWVqRxKqsnuPK0tL6UYbd_qds",
   authDomain: "philinity-893d2.firebaseapp.com",
@@ -743,13 +739,24 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// Init order matches Eats v11.12 (line 1661-1664): db before auth.
-// The reverse order (auth first) was triggering an SDK quirk on Android Chrome
-// where RTDB's lazy-init never completed — auth network calls fired but no
-// RTDB request was ever sent (verified via Eruda Network tab in Rev 1.36).
 const db = getDatabase(app);
 const storage = getStorage(app);
 const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
+
+// ── DB HELPERS (modular v10) ──────────────────────────────
+const dbRef = (path) => ref(db, path);
+const dbGet = (path) => get(dbRef(path));
+const dbSet = (path, val) => set(dbRef(path), val);
+const dbUpdate = (updates) => update(ref(db, '/'), updates);
+const dbRemove = (path) => remove(dbRef(path));
+const dbOn = (path, cb) => onValue(dbRef(path), cb);
+
+// ── AutoFlag-specific aliases for backward compatibility with existing code ──
+// (These let the rest of the file keep using sref/uploadBytes/PROVIDER without rewrites.)
+const sref = storageRef;
+const PROVIDER = provider;
 
 // ==== Manual RTDB reconnect (emergency button) ====
 // Manual override exposed in footer for any case where the lifecycle handlers
@@ -791,7 +798,6 @@ function emailToKey(email){
 
 let peopleRoster = {}; // emailKey -> { email, role, customerId?, name, addedAt, addedBy }
 
-const PROVIDER = new GoogleAuthProvider();
 const CLOUD_FN = "https://us-central1-philinity-893d2.cloudfunctions.net/askAI";
 
 // ==== State ====
