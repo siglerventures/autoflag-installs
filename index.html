@@ -16,10 +16,10 @@
   img-src     'self' data: blob: https: https://*.googleusercontent.com https://*.tile.openstreetmap.org;
   connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com
               https://*.firebasedatabase.app wss://*.firebasedatabase.app
-              https://identitytoolkit.googleapis.com
-              https://securetoken.googleapis.com
-              https://firebasestorage.googleapis.com
+              https://*.googleapis.com
+              https://*.firebaseapp.com
               https://*.firebasestorage.app
+              https://www.gstatic.com
               https://us-central1-philinity-893d2.cloudfunctions.net
               https://nominatim.openstreetmap.org;
   frame-src   https://philinity-893d2.firebaseapp.com;
@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.35 · AutoFlag© stack</div>
+  <div class="ver">v1.36 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.35</span>
+    AutoFlag© <span>Rev v1.36</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -706,18 +706,14 @@
 
 <div id="toast"></div>
 
-<!-- ==== DIAG (Rev 1.28): Eruda on-page console — remove after auth bug is fixed ==== -->
+<!-- ==== DIAG (Rev 1.28): Eruda on-page console — kept for one more cycle to verify Rev 1.36 CSP fix on phone; strip in 1.37 ==== -->
 <script src="https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js"></script>
 <script>
-  // Auto-init Eruda. Floating "EE" button bottom-right opens the console panel.
-  // Logs from before this loads are still captured (Eruda hooks console after init,
-  // but our [AUTHDIAG] logs fire after Firebase modules load, which is after Eruda).
   if(typeof eruda !== "undefined"){
     eruda.init({
       tool: ["console", "elements", "network", "info"],
       defaults: { displaySize: 50, transparency: 0.95, theme: "Material Darker" }
     });
-    // Pre-open the console panel so the EE button is unmissable on phones
     setTimeout(() => { try { eruda.show("console"); } catch(_){} }, 200);
     console.log("[ERUDA] on-page console ready — tap the floating EE button to toggle");
   } else {
@@ -952,23 +948,8 @@ const isRedirectReturn = looksLikeRedirectReturn();
 getRedirectResult(auth)
   .then(result => {
     redirectHasUser = !!(result && result.user);
-    console.log("[AUTHDIAG] getRedirectResult RESOLVED", {
-      hasResult: !!result,
-      hasUser: redirectHasUser,
-      uid: result?.user?.uid || null,
-      email: result?.user?.email || null,
-      providerId: result?.providerId || null,
-      operationType: result?.operationType || null,
-    });
-    if(redirectHasUser){
-      console.log("[auth] getRedirectResult: user restored from redirect");
-    }
   })
   .catch(e => {
-    console.log("[AUTHDIAG] getRedirectResult REJECTED", {
-      code: e?.code,
-      message: e?.message,
-    });
     if(e?.code && e.code !== "auth/no-auth-event"){
       console.warn("[auth] redirect result error:", e.code, e.message);
     }
@@ -977,16 +958,14 @@ getRedirectResult(auth)
     redirectResolved = true;
     // Clear our redirect-pending flag — we're done with this redirect cycle
     try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
-    authDiag("getRedirectResult finally — redirectResolved set to true");
-    // If we were holding the UI for a redirect return that didn't pan out,
+        // If we were holding the UI for a redirect return that didn't pan out,
     // and onAuthStateChanged hasn't fired with a user, drop to login now.
     if(isRedirectReturn && !state.user){
       const loginEl = document.getElementById("loginScreen");
       // Only show login if we're still in the "checking..." state
       if(loginEl && loginEl.dataset.pending === "1"){
         loginEl.dataset.pending = "";
-        authDiag("redirect didn't pan out — dropping to login");
-        // Clear any "signing you in" message that was shown during the wait
+                // Clear any "signing you in" message that was shown during the wait
         showLogin();
       }
     }
@@ -1042,16 +1021,14 @@ window.signOutNow = async () => {
   finally { signOutInProgress = false; }
 };
 
-// === DIAG (Rev 1.27): comprehensive auth flow logging — remove after bug fix ===
+// === DIAG (Rev 1.36): minimal auth flow logging — strip in 1.37 once CSP fix verified ===
 function authDiag(label, extra){
   const snapshot = {
     when: new Date().toISOString().slice(11,23),
     isRedirectReturn,
     redirectResolved,
-    redirectHasUser,
     signOutInProgress,
     stateUserUid: state.user?.uid || null,
-    stateUserEmail: state.user?.email || null,
     stateUserRole: state.userRole,
   };
   if(extra) Object.assign(snapshot, extra);
@@ -1060,19 +1037,15 @@ function authDiag(label, extra){
 authDiag("module loaded");
 
 onAuthStateChanged(auth, async user => {
-  authDiag("onAuthStateChanged FIRE", {
-    incomingUserUid: user?.uid || null,
-    incomingUserEmail: user?.email || null,
-    incomingDisplayName: user?.displayName || null,
-  });
+  authDiag("onAuthStateChanged FIRE", { incomingUid: user?.uid || null });
   if(!user){
     // Three cases:
     // 1. Explicit sign-out → log out cleanly
     // 2. Mid-redirect (page just loaded, redirect not yet resolved) → wait
     // 3. Transient token-refresh null with active session → ignore
     if(signOutInProgress){
-      authDiag("DECISION: explicit sign-out path");
-      state.user = null;
+      authDiag("DECISION: sign-out");
+            state.user = null;
       state.userRole = null;
       state.userPersonRecord = null;
       state.isAdmin = false;
@@ -1084,12 +1057,9 @@ onAuthStateChanged(auth, async user => {
       // If we're still waiting on getRedirectResult AND it looks like we just came
       // back from a redirect, hold the UI. Otherwise, no session — show login.
       if(isRedirectReturn && !redirectResolved){
-        authDiag("DECISION: holding for redirect resolution");
-        console.log("[auth] null fire during redirect resolution — holding login UI");
         return;
       }
-      authDiag("DECISION: true no-session, showing login");
-      // True no-session state
+            // True no-session state
       state.user = null;
       state.userRole = null;
       state.userPersonRecord = null;
@@ -1097,8 +1067,7 @@ onAuthStateChanged(auth, async user => {
       showLogin();
       return;
     }
-    authDiag("DECISION: ignoring transient null (active session)");
-    // Otherwise this is a transient token-refresh null with an active session — ignore
+        // Otherwise this is a transient token-refresh null with an active session — ignore
     console.warn("[auth] onAuthStateChanged(null) ignored as transient (active session)");
     return;
   }
@@ -1106,13 +1075,11 @@ onAuthStateChanged(auth, async user => {
   // If we already resolved this user's role earlier in the session, skip the lookup.
   // Token refresh fires onAuthStateChanged again — re-checking would silently sign out on RTDB hiccups.
   if(state.user && state.user.uid === user.uid && state.userRole){
-    authDiag("DECISION: same user, role cached, refreshing token only");
-    state.user = user; // keep token reference fresh
+        state.user = user; // keep token reference fresh
     return;
   }
 
-  authDiag("DECISION: new user session, starting role lookup");
-
+  
   // New session for this user — reset stale role state from any previous user
   state.userRole = null;
   state.userPersonRecord = null;
@@ -1120,34 +1087,28 @@ onAuthStateChanged(auth, async user => {
 
   // Phil (root admin) — always allowed without RTDB read
   const isRootAdmin = ROOT_ADMIN_UIDS.includes(user.uid);
-  authDiag("role lookup start", { isRootAdmin, lookupEmail: user.email });
-
+  
   let role = null;
   let personRecord = null;
 
   if(isRootAdmin){
     role = "admin";
-    authDiag("role resolved: root admin");
-  } else {
+      } else {
     // Look up the user by email in /autoflag/people/{emailKey}
     const key = emailToKey(user.email || "");
     if(!key){
-      authDiag("FAIL: no email on account", { userEmail: user.email });
-      toast("No email on this account", true);
+            toast("No email on this account", true);
       await signOut(auth); showLogin(); return;
     }
-    authDiag("emailKey computed", { emailKey: key });
-    try{
+        try{
       const snap = await get(ref(db, `autoflag/people/${key}`));
       const v = snap.val();
-      authDiag("/autoflag/people lookup result", { exists: !!v, value: v });
-      if(v && typeof v === "object" && ["admin","installer","customer"].includes(v.role)){
+            if(v && typeof v === "object" && ["admin","installer","customer"].includes(v.role)){
         role = v.role;
         personRecord = v;
       }
     }catch(e){
-      authDiag("/autoflag/people lookup THREW", { code: e?.code, message: e?.message });
-      console.error("People lookup failed:", e);
+            console.error("People lookup failed:", e);
     }
 
     // Backward compat: legacy /autoflag/installers/{uid} entries still grant installer role
@@ -1155,25 +1116,21 @@ onAuthStateChanged(auth, async user => {
       try{
         const legacySnap = await get(ref(db, `autoflag/installers/${user.uid}`));
         const lv = legacySnap.val();
-        authDiag("legacy /autoflag/installers lookup", { exists: !!lv, value: lv });
-        if(lv === true || (lv && typeof lv === "object")){
+                if(lv === true || (lv && typeof lv === "object")){
           role = "installer";
           personRecord = { ...(lv || {}), email: user.email, role: "installer", legacy: true };
         }
       }catch(e){
-        authDiag("legacy installers lookup THREW", { code: e?.code, message: e?.message });
-      }
+              }
     }
   }
 
   if(!role){
-    authDiag("FAIL: no role resolved — signing out", { userEmail: user.email });
-    toast("Access denied for "+user.email, true);
+        toast("Access denied for "+user.email, true);
     await signOut(auth); showLogin(); return;
   }
 
   authDiag("SUCCESS: role resolved, entering app", { role });
-
   state.user = user;
   state.userRole = role;
   state.userPersonRecord = personRecord;
@@ -1218,9 +1175,8 @@ onAuthStateChanged(auth, async user => {
   // Same pattern as Eats Rev 10.55 / Mobile Auth Token Race fix.
   try {
     await user.getIdToken(true);
-    console.log("[DATADIAG] Token refreshed — safe to subscribeData");
   } catch(e){
-    console.error("[DATADIAG] Token refresh failed:", e?.code, e?.message);
+    console.error("Token refresh failed:", e?.code, e?.message);
     toast("Auth token refresh failed — please sign in again", true);
     await signOut(auth); showLogin(); return;
   }
@@ -1261,13 +1217,13 @@ let currentDataUnsubscribe = null;
 
 function applyCustomerSnapshot(raw, source){
   if(raw === null || raw === undefined){
-    console.warn(`[Data] ${source} got null — keeping existing ${Object.keys(state.data.customers||{}).length} customers`);
+    console.warn(`AutoFlag data: ${source} got null — keeping existing ${Object.keys(state.data.customers||{}).length} customers`);
     return false;
   }
   const keys = Object.keys(raw);
   const existingCount = Object.keys(state.data.customers||{}).length;
   if(keys.length === 0 && existingCount > 0){
-    console.warn(`[Data] ${source} got 0 keys but had ${existingCount} — keeping existing`);
+    console.warn(`AutoFlag data: ${source} got 0 keys but had ${existingCount} — keeping existing`);
     return false;
   }
   const customers = {};
@@ -1281,20 +1237,20 @@ function applyCustomerSnapshot(raw, source){
   try {
     renderActive();
   } catch(e){
-    console.error(`[Data] renderActive THREW after ${source}:`, e?.message, e?.stack);
+    console.error(`renderActive THREW after ${source}:`, e?.message, e?.stack);
   }
   return true;
 }
 
 async function loadDataOnce(){
-  console.log("[Data] loadDataOnce() firing get()");
+  console.log("[DATADIAG] loadDataOnce() firing get()");
   try {
     const snap = await get(ref(db, "autoflag/installs/customers"));
     const ok = applyCustomerSnapshot(snap.val(), "loadDataOnce");
-    console.log(`[Data] loadDataOnce ${ok ? "applied" : "skipped"}`, { count: Object.keys(state.data.customers||{}).length });
+    console.log(`[DATADIAG] loadDataOnce ${ok ? "applied" : "skipped"}`, { count: Object.keys(state.data.customers||{}).length });
     return ok;
   } catch(e){
-    console.error("[Data] loadDataOnce failed:", e?.code, e?.message);
+    console.error("[DATADIAG] loadDataOnce failed:", e?.code, e?.message);
     return false;
   }
 }
@@ -1311,14 +1267,12 @@ function subscribeRealtime(){
   currentDataUnsubscribe = onValue(root, snap => {
     applyCustomerSnapshot(snap.val(), "onValue");
   }, err => {
-    console.error("[Data] onValue ERROR:", err?.code, err?.message);
+    console.error("onValue error:", err?.code, err?.message);
     toast("Read failed: "+err.message, true);
   });
-  console.log("[Data] subscribeRealtime() listener attached");
 }
 
 async function subscribeData(){
-  console.log("[Data] subscribeData() — initial load + subscribe", { isAdmin: state.isAdmin, uid: state.user?.uid });
   // Initial one-shot load happens even if the listener is dead; we already
   // refreshed the token above in onAuthStateChanged so this WILL succeed.
   await loadDataOnce();
@@ -1332,9 +1286,8 @@ async function subscribeData(){
 // Guarded by state.user so they don't fire pre-login.
 async function recoverDataAfterLifecycleEvent(reason){
   if(typeof state === "undefined" || !state?.user) return;
-  console.log(`[Data] lifecycle event: ${reason} — refreshing token + reloading data`);
   try { await auth.currentUser.getIdToken(true); }
-  catch(e){ console.warn(`[Data] token refresh on ${reason} failed:`, e?.message); }
+  catch(e){ console.warn(`token refresh on ${reason} failed:`, e?.message); }
   await loadDataOnce();
   subscribeRealtime();
 }
