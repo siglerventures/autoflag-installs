@@ -209,6 +209,8 @@
   .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
   .tree-action{padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:12px;cursor:pointer;flex-shrink:0}
   .tree-action:hover{border-color:var(--amber-dim);color:var(--amber)}
+  .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
+  .tree-details-btn:hover{background:var(--amber);color:#0d0d0f;border-color:var(--amber)}
   .tree-empty{padding:8px 12px;color:var(--text-muted);font-size:12px;font-style:italic}
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
@@ -314,7 +316,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.15 · AutoFlag© stack</div>
+  <div class="ver">v1.16 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -382,7 +384,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.15</span>
+    AutoFlag© <span>Rev v1.16</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -1284,6 +1286,7 @@ function renderBrowse(){
       <div class="tree-row tree-row-customer" onclick="toggleCustomer('${c.id}')">
         <span class="tree-caret ${cExpanded?'open':''}">▶</span>
         <div class="tree-name">${c.name||'(unnamed)'}</div>
+        <button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="View customer details">Details</button>
         <div class="tree-stats">
           <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
@@ -1330,6 +1333,7 @@ function renderBrowse(){
           <div class="tree-row tree-row-site" onclick="toggleSite('${s.id}')">
             <span class="tree-caret ${sExpanded?'open':''}">▶</span>
             <div class="tree-name">${s.name||'(unnamed site)'}</div>
+            <button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="View site details">Details</button>
             <div class="tree-stats">
               <span class="tree-stat">${poles.length} pole${poles.length===1?'':'s'}</span>
               ${(s.photos && s.photos.length)?`<span class="tree-stat">📷 ${s.photos.length}</span>`:''}
