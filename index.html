@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.30 · AutoFlag© stack</div>
+  <div class="ver">v1.31 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.30</span>
+    AutoFlag© <span>Rev v1.31</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -1217,9 +1217,11 @@ function showLogin(){
 
 // ==== Data layer ====
 function subscribeData(){
+  console.log("[DATADIAG] subscribeData() called", { isAdmin: state.isAdmin, uid: state.user?.uid });
   const root = ref(db, "autoflag/installs/customers");
   onValue(root, snap => {
     const raw = snap.val() || {};
+    console.log("[DATADIAG] onValue FIRE", { rawCustomerCount: Object.keys(raw).length, hasData: !!snap.val() });
     const customers = {};
     Object.entries(raw).forEach(([cid, c]) => {
       const sc = sanitizeCustomer(c, cid);
@@ -1228,8 +1230,17 @@ function subscribeData(){
       customers[cid] = sc;
     });
     state.data.customers = customers;
-    renderActive();
-  }, err => toast("Read failed: "+err.message, true));
+    console.log("[DATADIAG] customers populated", { count: Object.keys(customers).length, view: state.view });
+    try {
+      renderActive();
+      console.log("[DATADIAG] renderActive() completed");
+    } catch(e){
+      console.error("[DATADIAG] renderActive THREW:", e?.message, e?.stack);
+    }
+  }, err => {
+    console.error("[DATADIAG] onValue ERROR:", err?.code, err?.message);
+    toast("Read failed: "+err.message, true);
+  });
 }
 
 async function writeNode(path, value){
