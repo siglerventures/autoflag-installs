@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.36 · AutoFlag© stack</div>
+  <div class="ver">v1.37 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.36</span>
+    AutoFlag© <span>Rev v1.37</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -743,9 +743,13 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+// Init order matches Eats v11.12 (line 1661-1664): db before auth.
+// The reverse order (auth first) was triggering an SDK quirk on Android Chrome
+// where RTDB's lazy-init never completed — auth network calls fired but no
+// RTDB request was ever sent (verified via Eruda Network tab in Rev 1.36).
 const db = getDatabase(app);
 const storage = getStorage(app);
+const auth = getAuth(app);
 
 // ==== Manual RTDB reconnect (emergency button) ====
 // Manual override exposed in footer for any case where the lifecycle handlers
