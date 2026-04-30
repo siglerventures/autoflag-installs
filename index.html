@@ -317,7 +317,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.20 · AutoFlag© stack</div>
+  <div class="ver">v1.21 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -385,7 +385,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.20</span>
+    AutoFlag© <span>Rev v1.21</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -890,7 +890,24 @@ getRedirectResult(auth).catch(e => {
 });
 
 onAuthStateChanged(auth, async user => {
-  if(!user){ showLogin(); return; }
+  if(!user){
+    // True sign-out only if we don't already have an authenticated session.
+    // (During token refresh, Firebase can briefly fire null on some browsers — ignore if user was already signed in.)
+    if(state.user){
+      console.warn("[auth] onAuthStateChanged(null) fired while signed in — ignoring transient state");
+      return;
+    }
+    showLogin();
+    return;
+  }
+
+  // If we already resolved this user's role earlier in the session, skip the lookup.
+  // Token refresh fires onAuthStateChanged again — we should NOT re-verify role each time
+  // because a transient RTDB hiccup would silently sign the user out.
+  if(state.user && state.user.uid === user.uid && state.userRole){
+    state.user = user; // keep token fresh
+    return;
+  }
 
   // Phil (root admin) — always allowed without RTDB read
   const isRootAdmin = ROOT_ADMIN_UIDS.includes(user.uid);
