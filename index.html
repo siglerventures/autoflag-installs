@@ -321,7 +321,8 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.25 · AutoFlag© stack</div>
+  <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
+  <div class="ver">v1.26 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -389,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.25</span>
+    AutoFlag© <span>Rev v1.26</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -884,13 +885,99 @@ window.signIn = async () => {
   }
 };
 
-// On page load, check if we're returning from a redirect-based sign-in
-getRedirectResult(auth).catch(e => {
-  // Errors here are non-fatal — onAuthStateChanged handles the actual auth state
-  if(e?.code && e.code !== "auth/no-auth-event"){
-    console.warn("Redirect sign-in result error:", e.code, e.message);
-  }
-});
+// Track redirect-result resolution state. On page load, we don't know yet
+// whether we're coming back from a sign-in redirect. onAuthStateChanged can
+// fire with null BEFORE getRedirectResult finishes restoring the session
+// (especially on iOS Safari with ITP). We must NOT show the login screen
+// during that window — wait for the redirect result first.
+let redirectResolved = false;
+let redirectHasUser = false;
+
+// Detect whether this load looks like a redirect return — Firebase stores
+// state in sessionStorage during redirect; if we have a hint, we hold login UI.
+function looksLikeRedirectReturn(){
+  try{
+    // Firebase auth uses sessionStorage keys prefixed with "firebase:" during redirect
+    for(let i = 0; i < sessionStorage.length; i++){
+      const k = sessionStorage.key(i);
+      if(k && k.startsWith("firebase:") && k.includes("authEvent")) return true;
+    }
+  }catch(e){ /* sessionStorage may be unavailable */ }
+  return false;
+}
+
+const isRedirectReturn = looksLikeRedirectReturn();
+
+// On page load, check if we're returning from a redirect-based sign-in.
+// We deliberately await this before letting onAuthStateChanged decide to sign out.
+getRedirectResult(auth)
+  .then(result => {
+    redirectHasUser = !!(result && result.user);
+    if(redirectHasUser){
+      console.log("[auth] getRedirectResult: user restored from redirect");
+    }
+  })
+  .catch(e => {
+    if(e?.code && e.code !== "auth/no-auth-event"){
+      console.warn("[auth] redirect result error:", e.code, e.message);
+    }
+  })
+  .finally(() => {
+    redirectResolved = true;
+    // If we were holding the UI for a redirect return that didn't pan out,
+    // and onAuthStateChanged hasn't fired with a user, drop to login now.
+    if(isRedirectReturn && !state.user){
+      const loginEl = document.getElementById("loginScreen");
+      // Only show login if we're still in the "checking..." state
+      if(loginEl && loginEl.dataset.pending === "1"){
+        loginEl.dataset.pending = "";
+        // Clear any "signing you in" message that was shown during the wait
+        showLogin();
+      }
+    }
+  });
+
+// If this looks like a redirect return, show a brief "signing you in" state
+// instead of the login button — prevents the flash-of-login-screen-then-sign-out.
+if(isRedirectReturn){
+  document.addEventListener("DOMContentLoaded", () => {
+    const loginEl = document.getElementById("loginScreen");
+    if(!loginEl) return;
+    loginEl.dataset.pending = "1";
+    // Hide the sign-in button briefly while redirect resolves
+    const btn = loginEl.querySelector("button");
+    if(btn) btn.style.visibility = "hidden";
+    // Show the "signing you in" indicator
+    const pending = document.getElementById("loginPending");
+    if(pending) pending.style.display = "";
+  }, { once: true });
+
+  // Safety timeout: if getRedirectResult hangs entirely (Safari ITP edge case,
+  // network drop, third-party-cookie quirk), don't leave the user staring at a
+  // spinner forever. After 9 seconds, force-resolve and show login with a hint.
+  setTimeout(() => {
+    if(redirectResolved) return; // resolved normally — nothing to do
+    console.warn("[auth] getRedirectResult timed out after 9s — falling through to login");
+    redirectResolved = true; // unblock onAuthStateChanged decisions
+    if(state.user) return; // session already established somehow — leave it
+    // Inline UI restore — we don't call showLogin() because it would wipe our error message
+    const loginEl = document.getElementById("loginScreen");
+    if(loginEl){
+      loginEl.style.display = "";
+      loginEl.dataset.pending = "";
+      const btn = loginEl.querySelector("button");
+      if(btn) btn.style.visibility = "";
+    }
+    document.getElementById("app").style.display = "none";
+    const pending = document.getElementById("loginPending");
+    if(pending){
+      pending.style.display = "";
+      pending.style.color = "var(--red, #ff6b6b)";
+      pending.style.fontStyle = "normal";
+      pending.textContent = "Sign-in didn't complete. Please try again.";
+    }
+  }, 9000);
+}
 
 // Track whether the user explicitly signed out (vs. transient token-refresh null)
 let signOutInProgress = false;
@@ -902,9 +989,12 @@ window.signOutNow = async () => {
 
 onAuthStateChanged(auth, async user => {
   if(!user){
-    // Explicit sign-out, OR no session yet → go to login screen
-    if(signOutInProgress || !state.user){
-      // Reset session state so any next sign-in starts fresh
+    // Three cases:
+    // 1. Explicit sign-out → log out cleanly
+    // 2. Mid-redirect (page just loaded, redirect not yet resolved) → wait
+    // 3. Transient token-refresh null with active session → ignore
+    if(signOutInProgress){
+      // Explicit sign-out by the user
       state.user = null;
       state.userRole = null;
       state.userPersonRecord = null;
@@ -912,8 +1002,24 @@ onAuthStateChanged(auth, async user => {
       showLogin();
       return;
     }
-    // Otherwise this is a transient token-refresh null — ignore
-    console.warn("[auth] onAuthStateChanged(null) ignored as transient (no explicit sign-out)");
+    // No prior session — could be first load, or could be returning from redirect
+    if(!state.user){
+      // If we're still waiting on getRedirectResult AND it looks like we just came
+      // back from a redirect, hold the UI. Otherwise, no session — show login.
+      if(isRedirectReturn && !redirectResolved){
+        console.log("[auth] null fire during redirect resolution — holding login UI");
+        return;
+      }
+      // True no-session state
+      state.user = null;
+      state.userRole = null;
+      state.userPersonRecord = null;
+      state.isAdmin = false;
+      showLogin();
+      return;
+    }
+    // Otherwise this is a transient token-refresh null with an active session — ignore
+    console.warn("[auth] onAuthStateChanged(null) ignored as transient (active session)");
     return;
   }
 
@@ -1015,7 +1121,23 @@ onAuthStateChanged(auth, async user => {
 function showLogin(){
   state.user=null;
   document.getElementById("app").style.display="none";
-  document.getElementById("loginScreen").style.display="";
+  const loginEl = document.getElementById("loginScreen");
+  if(loginEl){
+    loginEl.style.display="";
+    loginEl.dataset.pending = "";
+    // Restore sign-in button if it was hidden during redirect resolution
+    const btn = loginEl.querySelector("button");
+    if(btn) btn.style.visibility = "";
+    // Hide the "signing you in" indicator + reset any error styling so
+    // a future redirect attempt starts fresh
+    const pending = document.getElementById("loginPending");
+    if(pending){
+      pending.style.display = "none";
+      pending.style.color = "";
+      pending.style.fontStyle = "";
+      pending.textContent = "📡 Signing you in…";
+    }
+  }
 }
 
 // ==== Data layer ====
