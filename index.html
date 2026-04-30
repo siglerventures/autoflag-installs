@@ -315,9 +315,9 @@
 <!-- ==== Login ==== -->
 <div id="loginScreen">
   <h1>AutoFlag© Installs</h1>
-  <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
+  <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.21 · AutoFlag© stack</div>
+  <div class="ver">v1.22 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -385,7 +385,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.21</span>
+    AutoFlag© <span>Rev v1.22</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -404,8 +404,8 @@
       <div class="form-row"><label>Notes</label><textarea id="mc-notes"></textarea></div>
       <div class="form-row" id="mc-installer-row" style="display:none">
         <label>Assigned installers (comma-separated UIDs)</label>
-        <input id="mc-installers" placeholder="uid1,uid2 — leave empty for Phil/Trinity only" />
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Only Phil/Trinity can edit this field.</div>
+        <input id="mc-installers" placeholder="uid1,uid2 — leave empty for admin-only access" />
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Only admins can edit this field.</div>
       </div>
       <div class="btn-row">
         <button class="btn-secondary btn" id="mc-delete" onclick="deleteCustomer()">Delete</button>
@@ -879,7 +879,6 @@ window.signIn = async () => {
     }
   }
 };
-window.signOutNow = async () => { await signOut(auth); };
 
 // On page load, check if we're returning from a redirect-based sign-in
 getRedirectResult(auth).catch(e => {
@@ -889,25 +888,42 @@ getRedirectResult(auth).catch(e => {
   }
 });
 
+// Track whether the user explicitly signed out (vs. transient token-refresh null)
+let signOutInProgress = false;
+window.signOutNow = async () => {
+  signOutInProgress = true;
+  try { await signOut(auth); }
+  finally { signOutInProgress = false; }
+};
+
 onAuthStateChanged(auth, async user => {
   if(!user){
-    // True sign-out only if we don't already have an authenticated session.
-    // (During token refresh, Firebase can briefly fire null on some browsers — ignore if user was already signed in.)
-    if(state.user){
-      console.warn("[auth] onAuthStateChanged(null) fired while signed in — ignoring transient state");
+    // Explicit sign-out, OR no session yet → go to login screen
+    if(signOutInProgress || !state.user){
+      // Reset session state so any next sign-in starts fresh
+      state.user = null;
+      state.userRole = null;
+      state.userPersonRecord = null;
+      state.isAdmin = false;
+      showLogin();
       return;
     }
-    showLogin();
+    // Otherwise this is a transient token-refresh null — ignore
+    console.warn("[auth] onAuthStateChanged(null) ignored as transient (no explicit sign-out)");
     return;
   }
 
   // If we already resolved this user's role earlier in the session, skip the lookup.
-  // Token refresh fires onAuthStateChanged again — we should NOT re-verify role each time
-  // because a transient RTDB hiccup would silently sign the user out.
+  // Token refresh fires onAuthStateChanged again — re-checking would silently sign out on RTDB hiccups.
   if(state.user && state.user.uid === user.uid && state.userRole){
-    state.user = user; // keep token fresh
+    state.user = user; // keep token reference fresh
     return;
   }
+
+  // New session for this user — reset stale role state from any previous user
+  state.userRole = null;
+  state.userPersonRecord = null;
+  state.isAdmin = false;
 
   // Phil (root admin) — always allowed without RTDB read
   const isRootAdmin = ROOT_ADMIN_UIDS.includes(user.uid);
