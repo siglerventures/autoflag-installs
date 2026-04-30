@@ -10,8 +10,8 @@
 <!-- CSP: Firebase RTDB hosts + Cloud Function + Storage + Google Maps tiles -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self' https://siglerventures.github.io;
-  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com https://cdn.jsdelivr.net;
-  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net;
+  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com;
+  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
   font-src    'self' https://fonts.gstatic.com data:;
   img-src     'self' data: blob: https: https://*.googleusercontent.com https://*.tile.openstreetmap.org;
   connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com
@@ -223,6 +223,60 @@
     .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
   }
 
+  /* ==== Filter bar labels (Status:/Type:/Customer:) — base styles ==== */
+  .filter-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin:0 4px;flex-shrink:0}
+  .filter-sep{width:8px;flex-shrink:0}
+
+  /* On desktop, secondary chips display inline with primary chips (passthrough) */
+  .tree-stats-secondary{display:contents}
+
+  /* ==== Mobile breakpoint (Rev 1.39, Eats v11.12 patterns) ==== */
+  @media (max-width:768px){
+    /* Filter bar: scroll horizontally instead of wrapping into 3 rows */
+    .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+    .filter-bar .chip{flex-shrink:0;min-height:36px;padding:7px 14px;font-size:13px;display:inline-flex;align-items:center}
+    .filter-label{display:none}                    /* category obvious from chip context */
+    .filter-sep{width:4px}
+
+    /* Tap targets — minimum 40-48px */
+    .btn{min-height:40px;padding:10px 16px;font-size:14px}
+    .icon-btn{min-width:44px;min-height:44px;padding:8px 12px;font-size:16px}
+    .header-search{min-height:40px;font-size:16px}      /* 16px prevents iOS zoom-on-focus */
+    .ai-bar-input{min-height:44px;font-size:16px}
+    .ai-bar-label{display:none}                          /* "🤖 Ask AI" label takes width */
+    .ai-icon-btn,.photo-icon-btn{min-width:44px;min-height:44px}
+
+    /* Modal inputs/selects: prevent iOS zoom + better tap targets */
+    .modal input[type=text],.modal input[type=number],.modal input[type=email],
+    .modal input[type=date],.modal input[type=tel],.modal input[type=password],
+    .modal textarea,.modal select{font-size:16px;min-height:44px}
+
+    /* Customer-row chip density: collapse secondary chips when collapsed.
+       Sites/poles count + REMAINING chip stay visible; type/status chips hidden
+       until the customer is expanded. Matches existing accordion model. */
+    .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
+    .tree-customer.expanded .tree-stats-secondary{display:contents}
+    .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
+
+    /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
+    .tree-row .tree-action{display:none}
+
+    /* Keep DETAILS button tappable */
+    .tree-details-btn{min-height:36px;padding:6px 12px;font-size:12px}
+
+    /* Pole cards on mobile slightly larger touch area */
+    .pole-card{padding:12px}
+  }
+
+  /* ==== Touch-device tweaks ==== */
+  @media (hover:none){
+    .chip:not(.active):hover{color:var(--text-dim)}     /* disable color shift on tap */
+    .chip{-webkit-tap-highlight-color:transparent}
+    .btn{-webkit-tap-highlight-color:transparent}
+    .tree-row:hover{background:transparent}              /* disable hover shading */
+    .pole-card:hover{transform:none}                     /* disable hover lift */
+  }
+
   /* ==== Install Checklist ==== */
   .checklist-step{border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;background:var(--surface);overflow:hidden;transition:border-color .15s}
   .checklist-step.checked{border-color:var(--green);background:rgba(127,176,105,0.06)}
@@ -322,7 +376,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.38 · AutoFlag© stack</div>
+  <div class="ver">v1.39 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +444,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.38</span>
+    AutoFlag© <span>Rev v1.39</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -706,21 +760,6 @@
 
 <div id="toast"></div>
 
-<!-- ==== DIAG (Rev 1.28): Eruda on-page console — kept for one more cycle to verify Rev 1.36 CSP fix on phone; strip in 1.37 ==== -->
-<script src="https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js"></script>
-<script>
-  if(typeof eruda !== "undefined"){
-    eruda.init({
-      tool: ["console", "elements", "network", "info"],
-      defaults: { displaySize: 50, transparency: 0.95, theme: "Material Darker" }
-    });
-    setTimeout(() => { try { eruda.show("console"); } catch(_){} }, 200);
-    console.log("[ERUDA] on-page console ready — tap the floating EE button to toggle");
-  } else {
-    console.warn("[ERUDA] failed to load — diagnostic console unavailable");
-  }
-</script>
-
 <!-- ==== Firebase + App Logic ==== -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
@@ -1031,30 +1070,13 @@ window.signOutNow = async () => {
   finally { signOutInProgress = false; }
 };
 
-// === DIAG (Rev 1.36): minimal auth flow logging — strip in 1.37 once CSP fix verified ===
-function authDiag(label, extra){
-  const snapshot = {
-    when: new Date().toISOString().slice(11,23),
-    isRedirectReturn,
-    redirectResolved,
-    signOutInProgress,
-    stateUserUid: state.user?.uid || null,
-    stateUserRole: state.userRole,
-  };
-  if(extra) Object.assign(snapshot, extra);
-  console.log(`[AUTHDIAG] ${label}`, snapshot);
-}
-authDiag("module loaded");
-
 onAuthStateChanged(auth, async user => {
-  authDiag("onAuthStateChanged FIRE", { incomingUid: user?.uid || null });
   if(!user){
     // Three cases:
     // 1. Explicit sign-out → log out cleanly
     // 2. Mid-redirect (page just loaded, redirect not yet resolved) → wait
     // 3. Transient token-refresh null with active session → ignore
     if(signOutInProgress){
-      authDiag("DECISION: sign-out");
             state.user = null;
       state.userRole = null;
       state.userPersonRecord = null;
@@ -1140,7 +1162,6 @@ onAuthStateChanged(auth, async user => {
     await signOut(auth); showLogin(); return;
   }
 
-  authDiag("SUCCESS: role resolved, entering app", { role });
   state.user = user;
   state.userRole = role;
   state.userPersonRecord = personRecord;
@@ -1253,14 +1274,11 @@ function applyCustomerSnapshot(raw, source){
 }
 
 async function loadDataOnce(){
-  console.log("[DATADIAG] loadDataOnce() firing get()");
   try {
     const snap = await get(ref(db, "autoflag/installs/customers"));
-    const ok = applyCustomerSnapshot(snap.val(), "loadDataOnce");
-    console.log(`[DATADIAG] loadDataOnce ${ok ? "applied" : "skipped"}`, { count: Object.keys(state.data.customers||{}).length });
-    return ok;
+    return applyCustomerSnapshot(snap.val(), "loadDataOnce");
   } catch(e){
-    console.error("[DATADIAG] loadDataOnce failed:", e?.code, e?.message);
+    console.error("loadDataOnce failed:", e?.code, e?.message);
     return false;
   }
 }
@@ -1680,18 +1698,18 @@ window.renderActive = () => {
 function renderFilterBar(){
   const bar = document.getElementById("filterBar");
   const customers = Object.values(state.data.customers).sort((a,b)=>a.name.localeCompare(b.name));
-  let html = `<span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin-right:4px">Status:</span>`;
+  let html = `<span class="filter-label">Status:</span>`;
   html += `<span class="chip ${state.filter.status==='all'?'active':''}" onclick="setStatusFilter('all')">All</span>`;
   STATUSES.forEach(s => {
     html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${STATUS_LABELS[s]}</span>`;
   });
-  html += `<span style="width:8px"></span><span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin:0 4px">Type:</span>`;
+  html += `<span class="filter-sep"></span><span class="filter-label">Type:</span>`;
   html += `<span class="chip ${state.filter.installType==='all'?'active':''}" onclick="setInstallTypeFilter('all')">All</span>`;
   html += `<span class="chip ${state.filter.installType==='external'?'active':''}" onclick="setInstallTypeFilter('external')">🪢 External</span>`;
   html += `<span class="chip ${state.filter.installType==='internal'?'active':''}" onclick="setInstallTypeFilter('internal')">🧵 Internal</span>`;
   html += `<span class="chip ${state.filter.installType==='cylinder'?'active':''}" onclick="setInstallTypeFilter('cylinder')">🛢 Cylinder</span>`;
   if(customers.length > 1){
-    html += `<span style="width:8px"></span><span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin:0 4px">Customer:</span>`;
+    html += `<span class="filter-sep"></span><span class="filter-label">Customer:</span>`;
     html += `<span class="chip ${state.filter.customer==='all'?'active':''}" onclick="setCustomerFilter('all')">All</span>`;
     customers.forEach(c => {
       html += `<span class="chip ${state.filter.customer===c.id?'active':''}" onclick="setCustomerFilter('${c.id}')">${c.name||'(unnamed)'}</span>`;
@@ -1786,7 +1804,7 @@ function renderBrowse(){
     });
     const remaining = (counts.in_review||0) + (counts.scheduled||0) + (counts.in_progress||0);
 
-    html += `<div class="tree-customer">
+    html += `<div class="tree-customer ${cExpanded?'expanded':''}">
       <div class="tree-row tree-row-customer" onclick="toggleCustomer('${c.id}')">
         <span class="tree-caret ${cExpanded?'open':''}">▶</span>
         <div class="tree-name">${c.name||'(unnamed)'}</div>
@@ -1794,14 +1812,7 @@ function renderBrowse(){
         <div class="tree-stats">
           <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
-          ${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}
-          ${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}
-          ${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}
-          ${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}
-          ${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}
-          ${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}
-          ${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}
-          ${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}
+          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
           ${remaining > 0?`<span class="tree-stat-remaining ${state.filter.status==='remaining'?'active':''}" onclick="event.stopPropagation();filterByStatus('remaining','${c.id}')" title="Show only poles still needing install (in review + scheduled + in progress)">${remaining} remaining</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
