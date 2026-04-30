@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.29 · AutoFlag© stack</div>
+  <div class="ver">v1.30 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.29</span>
+    AutoFlag© <span>Rev v1.30</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -884,21 +884,16 @@ function isMobileDevice(){
 }
 
 window.signIn = async () => {
+  // Popup-first on all platforms. Redirect-based signin requires storage writes
+  // to bridge philinity-893d2.firebaseapp.com → siglerventures.github.io, which
+  // Android Chrome and Safari ITP block as cross-origin tracking. Popup keeps
+  // everything in the same tab/origin and avoids that class of failure.
+  // If popup itself fails (older browser, blocker), we fall back to redirect —
+  // that path may still fail on the same browsers, but at least the user sees
+  // a clear error instead of a silent bounce.
   try {
-    if(isMobileDevice()){
-      // Mobile: use redirect (reliable, no popup blocker issues)
-      // Set our own flag so the page-load detection works reliably across all
-      // browsers (Android Chrome stores Firebase's internal state in IndexedDB,
-      // not sessionStorage, so sniffing Firebase's keys is unreliable)
-      try { sessionStorage.setItem("autoflag:redirectPending", "1"); } catch(_){}
-      await signInWithRedirect(auth, PROVIDER);
-      // Page will redirect to Google, then back; getRedirectResult on load handles the rest
-    } else {
-      // Desktop: try popup first; fall back to redirect if it fails
-      await signInWithPopup(auth, PROVIDER);
-    }
+    await signInWithPopup(auth, PROVIDER);
   } catch(e){
-    // Popup blocked or closed → fall back to redirect
     if(e.code === "auth/popup-blocked" || e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request"){
       try {
         try { sessionStorage.setItem("autoflag:redirectPending", "1"); } catch(_){}
