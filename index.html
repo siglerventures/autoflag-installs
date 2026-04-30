@@ -318,7 +318,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.23 · AutoFlag© stack</div>
+  <div class="ver">v1.24 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -386,7 +386,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.23</span>
+    AutoFlag© <span>Rev v1.24</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -1530,20 +1530,45 @@ function renderBrowse(){
         const filtersActive = state.filter.status !== 'all' || state.filter.installType !== 'all';
         if(filtersActive && poles.length === 0) return;
 
-        // Compute status breakdown across this site's poles
+        // Compute status breakdown across this site's poles, plus a representative date per status
         const siteStatusCounts = { in_review:0, scheduled:0, in_progress:0, completed:0, verified:0 };
-        Object.values(s.poles).forEach(p => { siteStatusCounts[p.status] = (siteStatusCounts[p.status]||0)+1; });
+        const siteStatusDates  = { in_review:[], scheduled:[], in_progress:[], completed:[], verified:[] };
+        Object.values(s.poles).forEach(p => {
+          siteStatusCounts[p.status] = (siteStatusCounts[p.status]||0)+1;
+          // Pick the right date field based on status, only collect non-empty dates
+          const d = (p.status === "scheduled" || p.status === "in_progress")
+            ? p.expectedInstallDate
+            : (p.status === "completed" || p.status === "verified")
+              ? (p.completedDate || p.expectedInstallDate)
+              : "";
+          if(d) siteStatusDates[p.status].push(d);
+        });
+        // Pick representative date per status: earliest for upcoming work, latest for completed work
+        function reprDate(status){
+          const dates = siteStatusDates[status];
+          if(!dates || dates.length === 0) return "";
+          if(status === "scheduled" || status === "in_progress"){
+            // Earliest upcoming — sort ascending, take first
+            return dates.slice().sort()[0];
+          }
+          // Most recent completion — sort descending, take first
+          return dates.slice().sort().reverse()[0];
+        }
         const activeStatuses = STATUSES.filter(st => siteStatusCounts[st] > 0);
         let statusPillsHtml = "";
         if(activeStatuses.length === 1){
-          // Unified status across all poles — single pill, no count needed
+          // Unified status across all poles — single pill with date if available
           const st = activeStatuses[0];
-          statusPillsHtml = `<span class="status-badge status-${st}">${STATUS_LABELS[st]}</span>`;
+          const d = reprDate(st);
+          const dateSuffix = d ? ` ${fmtShortDate(d)}` : "";
+          statusPillsHtml = `<span class="status-badge status-${st}">${STATUS_LABELS[st]}${dateSuffix}</span>`;
         } else if(activeStatuses.length > 1){
-          // Mixed statuses — show each with its count
-          statusPillsHtml = activeStatuses.map(st =>
-            `<span class="status-badge status-${st}" style="font-size:9px;padding:1px 6px">${siteStatusCounts[st]} ${STATUS_LABELS[st]}</span>`
-          ).join(" ");
+          // Mixed statuses — show each with its count and (if available) earliest/latest date
+          statusPillsHtml = activeStatuses.map(st => {
+            const d = reprDate(st);
+            const dateSuffix = d ? ` ${fmtShortDate(d)}` : "";
+            return `<span class="status-badge status-${st}" style="font-size:9px;padding:1px 6px">${siteStatusCounts[st]} ${STATUS_LABELS[st]}${dateSuffix}</span>`;
+          }).join(" ");
         }
 
         html += `<div class="tree-site">
