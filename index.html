@@ -197,6 +197,7 @@
   .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
+  .tree-stat-date{padding:2px 8px;background:#1a2a3a;color:#a8c5e6;border-radius:var(--radius-pill);font-size:10px;font-weight:600;white-space:nowrap}
   .tree-stat-clickable{cursor:pointer;border:1px solid transparent;transition:transform .1s,box-shadow .1s}
   .tree-stat-clickable:hover{transform:scale(1.05);box-shadow:0 0 0 1px var(--amber-dim)}
   .tree-stat-clickable.active{box-shadow:0 0 0 2px var(--amber);font-weight:700}
@@ -316,7 +317,7 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer install tracking · Phil/Trinity + installers</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
-  <div class="ver">v1.16 · AutoFlag© stack</div>
+  <div class="ver">v1.17 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -384,7 +385,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.16</span>
+    AutoFlag© <span>Rev v1.17</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -485,7 +486,7 @@
         <span id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic"></span>
       </div>
       <div class="form-grid-2">
-        <div class="form-row"><label>Warranty start</label><input id="mp-warranty" type="date" /></div>
+        <div class="form-row"><label id="mp-warranty-label">Install / Warranty Date</label><input id="mp-warranty" type="date" /></div>
         <div class="form-row"><label>SaaS active</label><select id="mp-saas">
           <option value="">—</option>
           <option value="pending">Pending</option>
@@ -1353,6 +1354,7 @@ function renderBrowse(){
               <div class="tree-name"><strong>${p.label||'(unlabeled)'}</strong></div>
               <div class="tree-stats">
                 <span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span>
+                ${(shouldShowDate(p.status) && p.warrantyStart)?`<span class="tree-stat-date">${fmtShortDate(p.warrantyStart)}</span>`:''}
                 ${p.installType?`<span class="data-chip" style="font-size:10px;padding:1px 8px">${formatInstallType(p.installType)}</span>`:''}
                 ${p.serial?`<span class="tree-stat" style="font-family:monospace;font-size:10px">SN: ${p.serial}</span>`:''}
                 ${p.photos.length?`<span class="tree-stat">📷 ${p.photos.length}</span>`:''}
@@ -1495,7 +1497,10 @@ function renderPoleCard(c,s,p,big){
   return `<div class="customer-card" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
       <h3 style="margin:0">${p.label||'(unlabeled)'}</h3>
-      <span class="status-badge status-${p.status}">${statusLabel}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+        <span class="status-badge status-${p.status}">${statusLabel}</span>
+        ${(shouldShowDate(p.status) && p.warrantyStart)?`<span class="tree-stat-date">${fmtShortDate(p.warrantyStart)}</span>`:''}
+      </div>
     </div>
     ${big?`<div style="font-size:12px;color:var(--text-dim);margin-top:6px">${c.name} · ${s.name}</div>`:''}
     <div class="chips-inline" style="margin-top:8px">
@@ -1513,6 +1518,21 @@ function formatInstallType(t){
   if(t==="internal") return "🧵 Internal";
   if(t==="cylinder") return "🛢 Cylinder";
   return "";
+}
+
+// Show the install/warranty date inline next to the status badge for these statuses only
+function shouldShowDate(status){
+  return status === "scheduled" || status === "in_progress" || status === "completed";
+}
+
+// Compact date format (M/D/YY) for inline display next to status badges
+function fmtShortDate(iso){
+  if(!iso) return "";
+  // Parse YYYY-MM-DD as local date (avoids timezone shift)
+  const [y, m, d] = iso.split("-").map(Number);
+  if(!y || !m || !d) return "";
+  const yy = String(y).slice(-2);
+  return `${m}/${d}/${yy}`;
 }
 
 window.drillTo = (customerId, siteId) => {
@@ -1565,6 +1585,7 @@ function renderKanban(){
         <div class="title">${p.label||'(unlabeled)'}</div>
         <div style="color:var(--text-dim);font-size:11px">${c.name} · ${s.name}</div>
         <div class="meta">
+          ${(shouldShowDate(p.status) && p.warrantyStart)?`<span style="background:#1a2a3a;color:#a8c5e6;font-weight:600">📅 ${fmtShortDate(p.warrantyStart)}</span>`:''}
           ${p.installType?`<span style="background:var(--amber-dim);color:#fff">${formatInstallType(p.installType)}</span>`:''}
           ${p.serial?`<span>SN: ${p.serial}</span>`:''}
           ${p.plan?`<span>${p.plan.toUpperCase()}</span>`:''}
@@ -1833,7 +1854,7 @@ function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return `<div class="empty">No poles match.</div>`;
   let html = `<table class="list-table"><thead><tr>
-    <th>Pole</th><th>Customer</th><th>Site</th><th>Type</th><th>Status</th><th>Serial</th><th>Plan</th><th>Updated</th>
+    <th>Pole</th><th>Customer</th><th>Site</th><th>Type</th><th>Status</th><th>Date</th><th>Serial</th><th>Plan</th><th>Updated</th>
   </tr></thead><tbody>`;
   allPoles.sort((a,b)=>b.p.updatedAt - a.p.updatedAt).forEach(({c,s,p}) => {
     html += `<tr onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
@@ -1841,6 +1862,7 @@ function renderList(){
       <td>${c.name}</td><td>${s.name}</td>
       <td>${p.installType?formatInstallType(p.installType):'—'}</td>
       <td><span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
+      <td>${(shouldShowDate(p.status) && p.warrantyStart)?fmtShortDate(p.warrantyStart):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
       <td>${new Date(p.updatedAt).toLocaleDateString()}</td>
@@ -2153,6 +2175,7 @@ window.openPoleModal = (pid, cid, sid) => {
   }
   document.getElementById("mp-gps-status").textContent = "";
   document.getElementById("mp-warranty").value = p?.warrantyStart || "";
+  updateWarrantyLabel(p?.status || "in_review");
   document.getElementById("mp-survey").value = p?.survey || "";
   document.getElementById("mp-notes").value = p?.notes || "";
   document.getElementById("mp-delete").style.display = p ? "" : "none";
@@ -2385,6 +2408,9 @@ document.addEventListener("change", e => {
     const p = (cid && sid && pid) ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
     renderPoleChecklist(p);
   }
+  if(e.target?.id === "mp-status"){
+    updateWarrantyLabel(e.target.value);
+  }
 });
 
 function renderPolePhotos(existing){
@@ -2434,6 +2460,19 @@ window.handlePolePhotoDrop = (ev) => {
 };
 
 // ==== GPS helpers for pole location ====
+// Dynamic label for the date field — switches between "Expected Install Date" and "Warranty Start Date" based on status
+function updateWarrantyLabel(status){
+  const label = document.getElementById("mp-warranty-label");
+  if(!label) return;
+  if(status === "scheduled" || status === "in_progress"){
+    label.textContent = "Expected Install Date";
+  } else if(status === "completed" || status === "verified"){
+    label.textContent = "Warranty Start Date";
+  } else {
+    label.textContent = "Install / Warranty Date";
+  }
+}
+
 window.usePhoneGPS = () => {
   const status = document.getElementById("mp-gps-status");
   if(!navigator.geolocation){
