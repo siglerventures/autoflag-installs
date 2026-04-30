@@ -322,7 +322,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.28 · AutoFlag© stack</div>
+  <div class="ver">v1.29 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -390,7 +390,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.28</span>
+    AutoFlag© <span>Rev v1.29</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
@@ -887,6 +887,10 @@ window.signIn = async () => {
   try {
     if(isMobileDevice()){
       // Mobile: use redirect (reliable, no popup blocker issues)
+      // Set our own flag so the page-load detection works reliably across all
+      // browsers (Android Chrome stores Firebase's internal state in IndexedDB,
+      // not sessionStorage, so sniffing Firebase's keys is unreliable)
+      try { sessionStorage.setItem("autoflag:redirectPending", "1"); } catch(_){}
       await signInWithRedirect(auth, PROVIDER);
       // Page will redirect to Google, then back; getRedirectResult on load handles the rest
     } else {
@@ -896,7 +900,10 @@ window.signIn = async () => {
   } catch(e){
     // Popup blocked or closed → fall back to redirect
     if(e.code === "auth/popup-blocked" || e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request"){
-      try { await signInWithRedirect(auth, PROVIDER); }
+      try {
+        try { sessionStorage.setItem("autoflag:redirectPending", "1"); } catch(_){}
+        await signInWithRedirect(auth, PROVIDER);
+      }
       catch(e2){ toast("Sign-in failed: "+e2.message, true); }
     } else {
       toast("Sign-in failed: "+e.message, true);
@@ -912,17 +919,15 @@ window.signIn = async () => {
 let redirectResolved = false;
 let redirectHasUser = false;
 
-// Detect whether this load looks like a redirect return — Firebase stores
-// state in sessionStorage during redirect; if we have a hint, we hold login UI.
+// Detect whether this load is a return from our redirect-based sign-in.
+// We set 'autoflag:redirectPending' in sessionStorage just before calling
+// signInWithRedirect — checking our own flag is reliable across all browsers
+// (sniffing Firebase's internal keys was unreliable: works on iOS Safari, fails
+// on Android Chrome which stores its redirect state in IndexedDB).
 function looksLikeRedirectReturn(){
   try{
-    // Firebase auth uses sessionStorage keys prefixed with "firebase:" during redirect
-    for(let i = 0; i < sessionStorage.length; i++){
-      const k = sessionStorage.key(i);
-      if(k && k.startsWith("firebase:") && k.includes("authEvent")) return true;
-    }
-  }catch(e){ /* sessionStorage may be unavailable */ }
-  return false;
+    return sessionStorage.getItem("autoflag:redirectPending") === "1";
+  }catch(e){ return false; }
 }
 
 const isRedirectReturn = looksLikeRedirectReturn();
@@ -955,6 +960,8 @@ getRedirectResult(auth)
   })
   .finally(() => {
     redirectResolved = true;
+    // Clear our redirect-pending flag — we're done with this redirect cycle
+    try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
     authDiag("getRedirectResult finally — redirectResolved set to true");
     // If we were holding the UI for a redirect return that didn't pan out,
     // and onAuthStateChanged hasn't fired with a user, drop to login now.
