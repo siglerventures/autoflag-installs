@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.47 · AutoFlag© stack</div>
+  <div class="ver">v1.48 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.47</span>
+    AutoFlag© <span>Rev v1.48</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1288,7 +1288,7 @@ function applyCustomerSnapshot(raw, source){
 // Strategy: try SDK first (fast path, auto-reconnect, real-time listener), and
 // if it times out, fall back to REST. Real-time updates are then served by a
 // 30s REST poll. When user backgrounds + returns, we re-try the SDK first.
-const SDK_TIMEOUT_MS = 4000;
+const SDK_TIMEOUT_MS = 1500;
 const REST_POLL_MS = 30000;
 let _restPollInterval = null;
 
