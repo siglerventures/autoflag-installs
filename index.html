@@ -271,87 +271,21 @@
     /* ==== Main content padding ==== */
     main{padding:10px}
 
-    /* ==== Customer rows — stacked card layout ====
-       Desktop: one horizontal row with all info inline.
-       Mobile: stack name → core stats → secondary chips → action button vertically.
-       Gives each piece of info room to breathe and stay readable on 380px. */
-    .tree-row-customer{
-      flex-direction:column;
-      align-items:stretch;
-      gap:8px;
-      padding:12px;
-    }
-    .tree-row-customer .tree-name{font-size:16px;line-height:1.3;min-width:0}
-    /* First-line cluster: caret + name + DETAILS button */
-    .tree-row-customer > .tree-caret{align-self:flex-start;margin-top:4px;flex-shrink:0}
-    .tree-row-customer > .tree-details-btn{align-self:flex-start;min-height:36px}
-    /* tree-stats becomes a wrappable bag of chips below the name */
-    .tree-row-customer .tree-stats{
-      width:100%;
-      flex-wrap:wrap;
-      justify-content:flex-start;
-      gap:6px;
-    }
-    .tree-row-customer .tree-stats > .tree-stat,
-    .tree-row-customer .tree-stats > .tree-stat-remaining,
-    .tree-row-customer .tree-stats-secondary > .tree-stat{
-      min-height:32px;
-      padding:6px 11px;
-      font-size:12px;
-      display:inline-flex;
-      align-items:center;
-    }
-    /* Customer-row chip density: keep core counts visible always; only show
-       type+status chip breakdown when expanded. */
+    /* ==== Customer rows — keep 1.53 horizontal layout but allow horizontal
+       scroll within the row instead of overflowing the page. Customer-row
+       chip density: keep core counts visible always; only show type+status
+       chip breakdown when expanded. ==== */
     .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
     .tree-customer.expanded .tree-stats-secondary{display:contents}
+    .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
 
-    /* ==== Site rows — same stacked treatment ==== */
-    .tree-row-site{
-      flex-direction:column;
-      align-items:stretch;
-      gap:8px;
-      padding:10px 12px;
-    }
-    .tree-row-site .tree-name{font-size:14px;line-height:1.3;min-width:0}
-    .tree-row-site .tree-site-status{
-      width:100%;
-      justify-content:flex-start;
-      flex-wrap:wrap;
-      gap:6px;
-    }
-    .tree-row-site .tree-stats{
-      width:100%;
-      justify-content:flex-start;
-      flex-wrap:wrap;
-      gap:6px;
-    }
-    .tree-row-site .tree-details-btn{align-self:flex-start}
-
-    /* ==== Pole rows — slightly bigger tap area, stack the chips below ==== */
-    .tree-pole{
-      flex-direction:column;
-      align-items:stretch;
-      gap:6px;
-      padding:10px 12px;
-    }
-    .tree-pole .tree-name{font-size:14px}
-    .tree-pole .tree-stats{
-      width:100%;
-      flex-wrap:wrap;
-      justify-content:flex-start;
-      gap:5px;
-    }
-    .tree-pole .tree-stats > *{font-size:11px;padding:3px 8px}
-
-    /* Tree children: less left-indent so site/pole rows aren't squeezed */
-    .tree-children{padding:4px 6px 8px 10px}
-
-    /* Hide redundant "↗" arrow — DETAILS button does the same job */
+    /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
     .tree-row .tree-action{display:none}
+
+    /* Keep DETAILS button tappable */
     .tree-details-btn{min-height:36px;padding:6px 12px;font-size:12px}
 
-    /* Pole cards (used in some contexts) slightly larger touch area */
+    /* Pole cards on mobile slightly larger touch area */
     .pole-card{padding:12px}
 
     /* List view on mobile: smaller cells, smaller font, but still legible */
@@ -468,7 +402,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.54 · AutoFlag© stack</div>
+  <div class="ver">v1.55 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -536,7 +470,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.54</span>
+    AutoFlag© <span>Rev v1.55</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
