@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.52 · AutoFlag© stack</div>
+  <div class="ver">v1.53 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.52</span>
+    AutoFlag© <span>Rev v1.53</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1834,10 +1834,12 @@ const REMAINING_STATUSES = ["in_review", "scheduled", "in_progress"];
 
 // Single source of truth for whether a pole matches the current status filter.
 // Recognizes the "remaining" pseudo-status as a multi-status match.
+// 'completed' filter also matches verified poles (verified is a superset of completed).
 function matchesStatusFilter(p){
   const f = state.filter.status;
   if(f === "all") return true;
   if(f === "remaining") return REMAINING_STATUSES.includes(p.status);
+  if(f === "completed") return p.status === "completed" || p.status === "verified";
   return p.status === f;
 }
 window.filterByType = (installType, customerId) => {
@@ -1907,7 +1909,7 @@ function renderBrowse(){
         <div class="tree-stats">
           <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
-          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
+          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${(counts.completed + counts.verified)?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed (includes verified)">${counts.completed + counts.verified} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
           ${remaining > 0?`<span class="tree-stat-remaining ${state.filter.status==='remaining'?'active':''}" onclick="event.stopPropagation();filterByStatus('remaining','${c.id}')" title="Show only poles still needing install (in review + scheduled + in progress)">${remaining} remaining</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
@@ -2513,13 +2515,57 @@ window.kanbanTouchEnd = async (ev) => {
 };
 
 // ==== LIST ====
+// List view sort state
+let _listSort = { col: "updated", dir: "desc" };
+window.setListSort = (col) => {
+  if(_listSort.col === col){ _listSort.dir = _listSort.dir === "asc" ? "desc" : "asc"; }
+  else { _listSort.col = col; _listSort.dir = "asc"; }
+  renderActive();
+};
+
+// Resolve a "completedBy" value (UID or emailKey) to a human name
+function completedByName(key){
+  if(!key) return "";
+  if(key === PHIL_UID) return "Phil";
+  if(typeof peopleRoster === "object" && peopleRoster?.[key]){
+    return peopleRoster[key].name || peopleRoster[key].email || key;
+  }
+  return key.length > 12 ? key.slice(0,8) + "…" : key;
+}
+
 function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return `<div class="empty">No poles match.</div>`;
+
+  // Sort according to current column/direction
+  const dir = _listSort.dir === "asc" ? 1 : -1;
+  const sorted = [...allPoles].sort((a,b) => {
+    let va, vb;
+    switch(_listSort.col){
+      case "pole":      va = a.p.label||""; vb = b.p.label||""; break;
+      case "customer":  va = a.c.name||"";  vb = b.c.name||"";  break;
+      case "site":      va = a.s.name||"";  vb = b.s.name||"";  break;
+      case "type":      va = a.p.installType||""; vb = b.p.installType||""; break;
+      case "status":    va = a.p.status||""; vb = b.p.status||""; break;
+      case "date":      va = getDisplayDate(a.p)||""; vb = getDisplayDate(b.p)||""; break;
+      case "serial":    va = a.p.serial||""; vb = b.p.serial||""; break;
+      case "plan":      va = a.p.plan||""; vb = b.p.plan||""; break;
+      case "completedBy": va = completedByName(a.p.completedBy); vb = completedByName(b.p.completedBy); break;
+      case "updated":   va = a.p.updatedAt||0; vb = b.p.updatedAt||0; break;
+      default:          va = a.p.updatedAt||0; vb = b.p.updatedAt||0;
+    }
+    if(typeof va === "string"){ return va.localeCompare(vb) * dir; }
+    return (va - vb) * dir;
+  });
+
+  // Indicator helper for the active column header
+  const ind = col => _listSort.col === col ? (_listSort.dir === "asc" ? " ▲" : " ▼") : "";
+  const th = (col, label) => `<th onclick="setListSort('${col}')" style="cursor:pointer;user-select:none">${label}${ind(col)}</th>`;
+
   let html = `<table class="list-table"><thead><tr>
-    <th>Pole</th><th>Customer</th><th>Site</th><th>Type</th><th>Status</th><th>Date</th><th>Serial</th><th>Plan</th><th>Updated</th>
+    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Serial")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
-  allPoles.sort((a,b)=>b.p.updatedAt - a.p.updatedAt).forEach(({c,s,p}) => {
+  sorted.forEach(({c,s,p}) => {
     html += `<tr onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
       <td><strong>${p.label||'—'}</strong></td>
       <td>${c.name}</td><td>${s.name}</td>
@@ -2528,10 +2574,38 @@ function renderList(){
       <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
+      <td>${completedByName(p.completedBy)||'—'}</td>
       <td>${new Date(p.updatedAt).toLocaleDateString()}</td>
     </tr>`;
   });
   html += `</tbody></table>`;
+
+  // Per-installer completion summary across the currently-filtered poles.
+  // Counts a pole as "completed" if its status is 'completed' or 'verified'
+  // (verified is a superset of completed) AND completedBy is set.
+  const byInstaller = {};
+  allPoles.forEach(({p}) => {
+    if(p.status !== "completed" && p.status !== "verified") return;
+    if(!p.completedBy) return;
+    byInstaller[p.completedBy] = (byInstaller[p.completedBy]||0) + 1;
+  });
+  const installerEntries = Object.entries(byInstaller).sort((a,b) => b[1] - a[1]);
+  if(installerEntries.length){
+    const totalCompleted = installerEntries.reduce((sum,[,n]) => sum + n, 0);
+    html += `<div style="margin-top:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">
+        Completed by installer · ${totalCompleted} pole${totalCompleted===1?'':'s'} total (in current filter)
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${installerEntries.map(([key,count]) => `
+          <span class="data-chip" style="border-color:var(--green);color:var(--green);font-weight:600;padding:4px 12px">
+            ${completedByName(key)}: ${count}
+          </span>
+        `).join("")}
+      </div>
+    </div>`;
+  }
+
   return html;
 }
 
@@ -2568,7 +2642,7 @@ function collectPoles(){
     if(state.filter.customer!=='all' && state.filter.customer!==c.id) return;
     Object.values(c.sites).forEach(s => {
       Object.values(s.poles).forEach(p => {
-        if(state.filter.status!=='all' && state.filter.status!==p.status) return;
+        if(!matchesStatusFilter(p)) return;
         if(state.filter.installType!=='all' && state.filter.installType!==p.installType) return;
         if(state.search && !matchesSearch(c,s,p)) return;
         out.push({c,s,p});
