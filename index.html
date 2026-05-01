@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.42 · AutoFlag© stack</div>
+  <div class="ver">v1.43 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.42</span>
+    AutoFlag© <span>Rev v1.43</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1344,27 +1344,52 @@ function runCompatDiag(){
     dbScript.onload = async () => {
       console.log("[COMPAT-DIAG] firebase-database-compat loaded; initializing compat app...");
       try {
-        // Use a separate named app so compat init doesn't conflict with modular
         const compatApp = firebase.initializeApp(firebaseConfig, 'compat-diag');
         const compatDb = compatApp.database();
-        const compatStart = Date.now();
-        console.log("[COMPAT-DIAG] starting compat read on autoflag/installs/customers...");
-        const compatResult = await Promise.race([
-          compatDb.ref('autoflag/installs/customers').get().then(snap => ({
-            ok: snap.exists(),
-            count: snap.exists() ? Object.keys(snap.val() || {}).length : 0,
-            elapsedMs: Date.now() - compatStart
-          })),
-          new Promise(resolve => setTimeout(() => resolve({ ok: "TIMEOUT_10S", elapsedMs: 10000 }), 10000))
-        ]);
-        console.log("[COMPAT-DIAG] result:", compatResult);
+
+        // Test 1: /.info/connected — Firebase metadata, bypasses most rules
+        runCompatTest(compatDb, ".info/connected", 5000);
+
+        // Test 2: autoflag/installs/customers — the failing path
+        runCompatTest(compatDb, "autoflag/installs/customers", 8000);
+
+        // Test 3: veritas — same DB, known-good path (rule: auth != null)
+        runCompatTest(compatDb, "veritas", 8000);
+
+        // Test 4: autoflag/people — same top-level autoflag rule as #2, but
+        // tiny data. If this works while #2 hangs → not rules, it's path-/size-
+        // specific. If both fail → autoflag-rule-eval is the actual problem.
+        runCompatTest(compatDb, "autoflag/people", 8000);
+
       } catch(e){
-        console.error("[COMPAT-DIAG] threw:", e?.message, e?.code);
+        console.error("[COMPAT-DIAG] init threw:", e?.message, e?.code);
       }
     };
-    dbScript.onerror = (e) => console.error("[COMPAT-DIAG] firebase-database-compat failed to load");
+    dbScript.onerror = () => console.error("[COMPAT-DIAG] firebase-database-compat failed to load");
   };
-  appScript.onerror = (e) => console.error("[COMPAT-DIAG] firebase-app-compat failed to load");
+  appScript.onerror = () => console.error("[COMPAT-DIAG] firebase-app-compat failed to load");
+}
+
+async function runCompatTest(compatDb, path, timeoutMs){
+  const start = Date.now();
+  console.log(`[COMPAT-DIAG] reading "${path}"...`);
+  const result = await Promise.race([
+    compatDb.ref(path).get().then(snap => ({
+      path,
+      ok: true,
+      exists: snap.exists(),
+      type: typeof snap.val(),
+      preview: snap.exists() ? JSON.stringify(snap.val()).slice(0, 100) : null,
+      elapsedMs: Date.now() - start
+    })).catch(e => ({
+      path,
+      ok: false,
+      error: e?.code || e?.message,
+      elapsedMs: Date.now() - start
+    })),
+    new Promise(resolve => setTimeout(() => resolve({ path, ok: "TIMEOUT", timeoutMs, elapsedMs: timeoutMs }), timeoutMs))
+  ]);
+  console.log(`[COMPAT-DIAG] "${path}" →`, result);
 }
 
 // ==== Lifecycle handlers — recover from mobile listener-death ====
