@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.49 · AutoFlag© stack</div>
+  <div class="ver">v1.50 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.49</span>
+    AutoFlag© <span>Rev v1.50</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1400,24 +1400,33 @@ async function recoverDataAfterLifecycleEvent(reason){
   subscribeRealtime();
 }
 
+// Shared 5-second debounce across all three lifecycle handlers. On flaky
+// cellular, `online` can fire repeatedly as the radio reconnects; iOS and
+// Android Chrome can fire visibility/focus in rapid bursts when switching
+// apps. Each fire triggers a token refresh + data reload + listener
+// re-subscribe — debouncing prevents thrashing.
+const LIFECYCLE_DEBOUNCE_MS = 5000;
+let _lastLifecycleRecover = 0;
+function debouncedLifecycleRecover(reason){
+  const now = Date.now();
+  if(now - _lastLifecycleRecover < LIFECYCLE_DEBOUNCE_MS) return;
+  _lastLifecycleRecover = now;
+  recoverDataAfterLifecycleEvent(reason);
+}
+
 document.addEventListener("visibilitychange", () => {
   if(document.visibilityState === "visible"){
-    recoverDataAfterLifecycleEvent("visibilitychange");
+    debouncedLifecycleRecover("visibilitychange");
   }
 });
 
 window.addEventListener("online", () => {
-  recoverDataAfterLifecycleEvent("online");
+  debouncedLifecycleRecover("online");
 });
 
 // Page focus (some mobile browsers don't fire visibilitychange reliably).
-// Debounced 5s so rapid focus events don't thrash the data path.
 window.addEventListener("focus", () => {
-  const now = Date.now();
-  if(!window._lastFocusRefresh || now - window._lastFocusRefresh > 5000){
-    window._lastFocusRefresh = now;
-    recoverDataAfterLifecycleEvent("focus");
-  }
+  debouncedLifecycleRecover("focus");
 });
 
 async function writeNode(path, value){
