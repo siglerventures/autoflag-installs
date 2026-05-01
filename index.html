@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.48 · AutoFlag© stack</div>
+  <div class="ver">v1.49 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.48</span>
+    AutoFlag© <span>Rev v1.49</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -766,7 +766,7 @@
 <!-- ==== Firebase + App Logic ==== -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getDatabase, ref, get, set, update, remove, onValue, push, child, goOnline, goOffline } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getDatabase, ref, get, set, update, remove, onValue, push, child } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getStorage, ref as storageRef, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
@@ -1387,11 +1387,9 @@ async function subscribeData(){
 // On return: refresh token (may have expired) → re-fetch via loadDataOnce
 // (which uses REST fallback if the SDK is wedged) → re-subscribe with fresh listener.
 // Guarded by state.user so they don't fire pre-login.
-let _lastActiveAt = Date.now();
 
 async function recoverDataAfterLifecycleEvent(reason){
   if(typeof state === "undefined" || !state?.user) return;
-  _lastActiveAt = Date.now();
   console.log(`[lifecycle] ${reason}: refreshing token + reloading data`);
   try { await auth.currentUser.getIdToken(true); }
   catch(e){ console.warn(`token refresh on ${reason} failed:`, e?.message); }
