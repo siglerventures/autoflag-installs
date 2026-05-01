@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.43 · AutoFlag© stack</div>
+  <div class="ver">v1.44 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.43</span>
+    AutoFlag© <span>Rev v1.44</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1332,38 +1332,58 @@ async function subscribeData(){
 }
 
 function runCompatDiag(){
-  console.log("[COMPAT-DIAG] loading compat SDK scripts...");
+  // === DIAG (Rev 1.44): switched compat SDK from 10.8.0 to 9.23.0 — matches Veritas ===
+  // Veritas uses Firebase 9.23.0 compat and works on Phil's phone against this
+  // exact database. AutoFlag with Firebase 10.8.0 (modular AND compat) hangs.
+  // This test loads Firebase 9.23.0 compat and runs the same 4 paths.
+  // If 9.23.0 reads succeed: SDK version is the bug, commit to full conversion.
+  // If 9.23.0 also hangs: SDK version is NOT the bug, look elsewhere.
+  console.log("[COMPAT-DIAG] loading Firebase 9.23.0 compat scripts (Veritas's version)...");
   const appScript = document.createElement('script');
-  appScript.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js';
+  appScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
   document.head.appendChild(appScript);
   appScript.onload = () => {
-    console.log("[COMPAT-DIAG] firebase-app-compat loaded");
+    console.log("[COMPAT-DIAG] firebase-app-compat 9.23.0 loaded");
     const dbScript = document.createElement('script');
-    dbScript.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js';
+    dbScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
     document.head.appendChild(dbScript);
     dbScript.onload = async () => {
-      console.log("[COMPAT-DIAG] firebase-database-compat loaded; initializing compat app...");
-      try {
-        const compatApp = firebase.initializeApp(firebaseConfig, 'compat-diag');
-        const compatDb = compatApp.database();
+      console.log("[COMPAT-DIAG] firebase-database-compat 9.23.0 loaded; initializing compat app...");
+      // Also load auth-compat 9.23.0 since reads against rule-protected paths
+      // need an auth context that the compat instance can see
+      const authScript = document.createElement('script');
+      authScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
+      document.head.appendChild(authScript);
+      authScript.onload = async () => {
+        console.log("[COMPAT-DIAG] firebase-auth-compat 9.23.0 loaded");
+        try {
+          const compatApp = firebase.initializeApp(firebaseConfig, 'compat-diag-923');
+          const compatDb = compatApp.database();
+          const compatAuth = compatApp.auth();
+          // Wait for compat-side auth to settle before reading rule-protected paths
+          await new Promise(resolve => {
+            const unsub = compatAuth.onAuthStateChanged(u => {
+              console.log("[COMPAT-DIAG] compat auth state:", u ? `signed in as ${u.email}` : "signed out");
+              unsub();
+              resolve();
+            });
+            setTimeout(resolve, 3000); // safety timeout
+          });
 
-        // Test 1: /.info/connected — Firebase metadata, bypasses most rules
-        runCompatTest(compatDb, ".info/connected", 5000);
+          // Test 1: /.info/connected — bypasses rules
+          runCompatTest(compatDb, ".info/connected", 5000);
+          // Test 2: autoflag/installs/customers — the failing path
+          runCompatTest(compatDb, "autoflag/installs/customers", 8000);
+          // Test 3: veritas — known-good path on same DB
+          runCompatTest(compatDb, "veritas", 8000);
+          // Test 4: autoflag/people — same autoflag rule, tiny data
+          runCompatTest(compatDb, "autoflag/people", 8000);
 
-        // Test 2: autoflag/installs/customers — the failing path
-        runCompatTest(compatDb, "autoflag/installs/customers", 8000);
-
-        // Test 3: veritas — same DB, known-good path (rule: auth != null)
-        runCompatTest(compatDb, "veritas", 8000);
-
-        // Test 4: autoflag/people — same top-level autoflag rule as #2, but
-        // tiny data. If this works while #2 hangs → not rules, it's path-/size-
-        // specific. If both fail → autoflag-rule-eval is the actual problem.
-        runCompatTest(compatDb, "autoflag/people", 8000);
-
-      } catch(e){
-        console.error("[COMPAT-DIAG] init threw:", e?.message, e?.code);
-      }
+        } catch(e){
+          console.error("[COMPAT-DIAG] init threw:", e?.message, e?.code);
+        }
+      };
+      authScript.onerror = () => console.error("[COMPAT-DIAG] firebase-auth-compat failed to load");
     };
     dbScript.onerror = () => console.error("[COMPAT-DIAG] firebase-database-compat failed to load");
   };
