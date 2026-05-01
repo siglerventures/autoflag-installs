@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.45-test2 · AutoFlag© stack</div>
+  <div class="ver">v1.45-test3 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.45-test2</span>
+    AutoFlag© <span>Rev v1.45-test3</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1352,6 +1352,7 @@ async function loadDataOnce(retryCount = 0){
       new Promise((_, rej) => setTimeout(() => rej(new Error("LOAD_TIMEOUT")), TIMEOUT_MS))
     ]);
     console.log(`[FRESH-SOCKET] get() succeeded after ${Date.now()-start}ms (attempt ${retryCount+1})`);
+    sessionStorage.removeItem("autoflag_reload_attempted");
     return applyCustomerSnapshot(snap.val(), "loadDataOnce");
   } catch(e){
     if(e?.message === "LOAD_TIMEOUT" && retryCount < MAX_RETRIES){
@@ -1370,8 +1371,19 @@ async function loadDataOnce(retryCount = 0){
         console.warn("[FRESH-SOCKET] offline — not reloading");
         return false;
       }
-      console.warn("[FRESH-SOCKET] reloading in 3s so you have time to read the [REST-AUTH] log line...");
-      setTimeout(() => location.reload(), 3000);
+      // Anti-reload-loop: only reload ONCE per session. If we've already
+      // reloaded and we're STILL hitting this codepath, the reload didn't help
+      // — bail gracefully and let the user see Eruda for diagnostics.
+      const alreadyReloaded = sessionStorage.getItem("autoflag_reload_attempted") === "1";
+      if(alreadyReloaded){
+        console.warn("[FRESH-SOCKET] reload already attempted this session and bug persisted — NOT reloading again. Tap EE to view diagnostics.");
+        toast("Data load failed. Diagnostic captured — tap EE icon to view.", true);
+        return false;
+      }
+      sessionStorage.setItem("autoflag_reload_attempted", "1");
+      console.warn("[FRESH-SOCKET] reloading in 15s — open Eruda (EE icon) NOW to see [REST-AUTH] result");
+      toast("⚠️ Data load failed. Reloading in 15s — tap EE icon to view diagnostics.", true);
+      setTimeout(() => location.reload(), 15000);
       return false;
     }
     console.error("loadDataOnce failed:", e?.code, e?.message);
