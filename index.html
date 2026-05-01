@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.51 · AutoFlag© stack</div>
+  <div class="ver">v1.52 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.51</span>
+    AutoFlag© <span>Rev v1.52</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1408,6 +1408,12 @@ async function recoverDataAfterLifecycleEvent(reason){
 const LIFECYCLE_DEBOUNCE_MS = 5000;
 let _lastLifecycleRecover = 0;
 function debouncedLifecycleRecover(reason){
+  // Skip if a modal is open — user is mid-interaction. On mobile, tapping
+  // a <select> dropdown briefly fires window focus events as the native
+  // picker opens/closes, which would otherwise trigger a heavy data refresh
+  // that disrupts the open dropdown. (Manifested as Status dropdown
+  // flashing open then immediately closing in the Edit Pole modal.)
+  if(document.querySelector(".modal-overlay.open")) return;
   const now = Date.now();
   if(now - _lastLifecycleRecover < LIFECYCLE_DEBOUNCE_MS) return;
   _lastLifecycleRecover = now;
