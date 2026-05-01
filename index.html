@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.44 · AutoFlag© stack</div>
+  <div class="ver">v1.45-test · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.44</span>
+    AutoFlag© <span>Rev v1.45-test</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1281,11 +1281,60 @@ function applyCustomerSnapshot(raw, source){
   return true;
 }
 
-async function loadDataOnce(){
+// === DIAG (Rev 1.45-test): fresh-socket experiment ===
+// Hypothesis: cold-start hang on Phil's phone is Chrome's HTTP/2 connection
+// pool reusing dead sockets to firebaseio.com. Loading Veritas in the same tab
+// fixes it because Veritas's load forces Chrome to open fresh sockets that
+// AutoFlag's SDK then piggybacks on.
+// This experiment automates that: on timeout, fetch firebaseio.com directly
+// (forces Chrome to open fresh sockets), wait 600ms for them to be available,
+// retry the get(). NO goOffline/goOnline — that was already disproven in
+// 1.34/1.35 manual Reconnect button testing.
+async function forceFreshSockets(){
+  console.log("[FRESH-SOCKET] fetching firebaseio.com to warm Chrome's connection pool...");
+  const start = Date.now();
   try {
-    const snap = await get(ref(db, "autoflag/installs/customers"));
+    const r = await fetch("https://philinity-893d2-default-rtdb.firebaseio.com/.json?shallow=true", {
+      cache: "no-store",
+      credentials: "omit",
+      mode: "cors"
+    });
+    console.log(`[FRESH-SOCKET] fetch returned status=${r.status} after ${Date.now()-start}ms`);
+  } catch(e){
+    console.warn(`[FRESH-SOCKET] fetch threw after ${Date.now()-start}ms:`, e?.message);
+  }
+}
+
+async function loadDataOnce(retryCount = 0){
+  const TIMEOUT_MS = 8000;
+  const MAX_RETRIES = 2;
+  const start = Date.now();
+  console.log(`[FRESH-SOCKET] loadDataOnce attempt ${retryCount+1} firing get()...`);
+  try {
+    const snap = await Promise.race([
+      get(ref(db, "autoflag/installs/customers")),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("LOAD_TIMEOUT")), TIMEOUT_MS))
+    ]);
+    console.log(`[FRESH-SOCKET] get() succeeded after ${Date.now()-start}ms (attempt ${retryCount+1})`);
     return applyCustomerSnapshot(snap.val(), "loadDataOnce");
   } catch(e){
+    if(e?.message === "LOAD_TIMEOUT" && retryCount < MAX_RETRIES){
+      console.warn(`[FRESH-SOCKET] timeout after ${Date.now()-start}ms — running fresh-socket experiment, retry ${retryCount+1}/${MAX_RETRIES}`);
+      await forceFreshSockets();
+      console.log("[FRESH-SOCKET] waiting 600ms for fresh sockets to settle...");
+      await new Promise(r => setTimeout(r, 600));
+      return loadDataOnce(retryCount + 1);
+    }
+    if(e?.message === "LOAD_TIMEOUT"){
+      // Defensive: don't loop on reload if phone is actually offline
+      if(navigator.onLine === false){
+        console.warn("[FRESH-SOCKET] all retries exhausted AND offline — not reloading");
+        return false;
+      }
+      console.warn("[FRESH-SOCKET] all retries exhausted — falling through to location.reload()");
+      location.reload();
+      return false;
+    }
     console.error("loadDataOnce failed:", e?.code, e?.message);
     return false;
   }
@@ -1311,106 +1360,13 @@ function subscribeRealtime(){
 async function subscribeData(){
   // Initial one-shot load happens even if the listener is dead; we already
   // refreshed the token above in onAuthStateChanged so this WILL succeed.
-
-  // === DIAG (Rev 1.42): time the modular get() to see if it hangs ===
-  const modStart = Date.now();
-  console.log("[MODULAR-DIAG] starting modular loadDataOnce at", new Date().toISOString().slice(11,23));
-  // Race modular load against a 5s timeout so we don't block the compat test
-  const modularResult = await Promise.race([
-    loadDataOnce().then(ok => ({ ok, elapsedMs: Date.now() - modStart })),
-    new Promise(resolve => setTimeout(() => resolve({ ok: "TIMEOUT_5S", elapsedMs: 5000 }), 5000))
-  ]);
-  console.log("[MODULAR-DIAG] result:", modularResult);
-
+  // loadDataOnce() now has its own timeout + fresh-socket retry logic.
+  await loadDataOnce();
   subscribeRealtime();
-
-  // === DIAG (Rev 1.42): independent compat-SDK read on same path ===
-  // Load firebase-app-compat + firebase-database-compat in a side app namespace
-  // and try the same read. Compares modular SDK vs compat SDK on the same
-  // browser/device/account/network. Strip this entire block in next rev.
-  runCompatDiag();
 }
 
-function runCompatDiag(){
-  // === DIAG (Rev 1.44): switched compat SDK from 10.8.0 to 9.23.0 — matches Veritas ===
-  // Veritas uses Firebase 9.23.0 compat and works on Phil's phone against this
-  // exact database. AutoFlag with Firebase 10.8.0 (modular AND compat) hangs.
-  // This test loads Firebase 9.23.0 compat and runs the same 4 paths.
-  // If 9.23.0 reads succeed: SDK version is the bug, commit to full conversion.
-  // If 9.23.0 also hangs: SDK version is NOT the bug, look elsewhere.
-  console.log("[COMPAT-DIAG] loading Firebase 9.23.0 compat scripts (Veritas's version)...");
-  const appScript = document.createElement('script');
-  appScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
-  document.head.appendChild(appScript);
-  appScript.onload = () => {
-    console.log("[COMPAT-DIAG] firebase-app-compat 9.23.0 loaded");
-    const dbScript = document.createElement('script');
-    dbScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
-    document.head.appendChild(dbScript);
-    dbScript.onload = async () => {
-      console.log("[COMPAT-DIAG] firebase-database-compat 9.23.0 loaded; initializing compat app...");
-      // Also load auth-compat 9.23.0 since reads against rule-protected paths
-      // need an auth context that the compat instance can see
-      const authScript = document.createElement('script');
-      authScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
-      document.head.appendChild(authScript);
-      authScript.onload = async () => {
-        console.log("[COMPAT-DIAG] firebase-auth-compat 9.23.0 loaded");
-        try {
-          const compatApp = firebase.initializeApp(firebaseConfig, 'compat-diag-923');
-          const compatDb = compatApp.database();
-          const compatAuth = compatApp.auth();
-          // Wait for compat-side auth to settle before reading rule-protected paths
-          await new Promise(resolve => {
-            const unsub = compatAuth.onAuthStateChanged(u => {
-              console.log("[COMPAT-DIAG] compat auth state:", u ? `signed in as ${u.email}` : "signed out");
-              unsub();
-              resolve();
-            });
-            setTimeout(resolve, 3000); // safety timeout
-          });
 
-          // Test 1: /.info/connected — bypasses rules
-          runCompatTest(compatDb, ".info/connected", 5000);
-          // Test 2: autoflag/installs/customers — the failing path
-          runCompatTest(compatDb, "autoflag/installs/customers", 8000);
-          // Test 3: veritas — known-good path on same DB
-          runCompatTest(compatDb, "veritas", 8000);
-          // Test 4: autoflag/people — same autoflag rule, tiny data
-          runCompatTest(compatDb, "autoflag/people", 8000);
 
-        } catch(e){
-          console.error("[COMPAT-DIAG] init threw:", e?.message, e?.code);
-        }
-      };
-      authScript.onerror = () => console.error("[COMPAT-DIAG] firebase-auth-compat failed to load");
-    };
-    dbScript.onerror = () => console.error("[COMPAT-DIAG] firebase-database-compat failed to load");
-  };
-  appScript.onerror = () => console.error("[COMPAT-DIAG] firebase-app-compat failed to load");
-}
-
-async function runCompatTest(compatDb, path, timeoutMs){
-  const start = Date.now();
-  console.log(`[COMPAT-DIAG] reading "${path}"...`);
-  const result = await Promise.race([
-    compatDb.ref(path).get().then(snap => ({
-      path,
-      ok: true,
-      exists: snap.exists(),
-      type: typeof snap.val(),
-      preview: snap.exists() ? JSON.stringify(snap.val()).slice(0, 100) : null,
-      elapsedMs: Date.now() - start
-    })).catch(e => ({
-      path,
-      ok: false,
-      error: e?.code || e?.message,
-      elapsedMs: Date.now() - start
-    })),
-    new Promise(resolve => setTimeout(() => resolve({ path, ok: "TIMEOUT", timeoutMs, elapsedMs: timeoutMs }), timeoutMs))
-  ]);
-  console.log(`[COMPAT-DIAG] "${path}" →`, result);
-}
 
 // ==== Lifecycle handlers — recover from mobile listener-death ====
 // Mobile Chrome kills onValue listeners when the tab is backgrounded.
