@@ -13,8 +13,8 @@
 <!-- CSP: Firebase RTDB hosts + Cloud Function + Storage + Google Maps tiles -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self' https://siglerventures.github.io;
-  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com;
-  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
+  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com https://cdn.jsdelivr.net;
+  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net;
   font-src    'self' https://fonts.gstatic.com data:;
   img-src     'self' data: blob: https: https://*.googleusercontent.com https://*.tile.openstreetmap.org;
   connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com
@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.41 · AutoFlag© stack</div>
+  <div class="ver">v1.42 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.41</span>
+    AutoFlag© <span>Rev v1.42</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -762,6 +762,15 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- DIAG (Rev 1.42): Eruda back for compat-vs-modular SDK test — strip in next rev -->
+<script src="https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js"></script>
+<script>
+  if(typeof eruda !== "undefined"){
+    eruda.init({ tool: ["console", "elements", "network", "info"], defaults: { displaySize: 50, transparency: 0.95, theme: "Material Darker" } });
+    setTimeout(() => { try { eruda.show("console"); } catch(_){} }, 200);
+  }
+</script>
 
 <!-- ==== Firebase + App Logic ==== -->
 <script type="module">
@@ -1302,8 +1311,60 @@ function subscribeRealtime(){
 async function subscribeData(){
   // Initial one-shot load happens even if the listener is dead; we already
   // refreshed the token above in onAuthStateChanged so this WILL succeed.
-  await loadDataOnce();
+
+  // === DIAG (Rev 1.42): time the modular get() to see if it hangs ===
+  const modStart = Date.now();
+  console.log("[MODULAR-DIAG] starting modular loadDataOnce at", new Date().toISOString().slice(11,23));
+  // Race modular load against a 5s timeout so we don't block the compat test
+  const modularResult = await Promise.race([
+    loadDataOnce().then(ok => ({ ok, elapsedMs: Date.now() - modStart })),
+    new Promise(resolve => setTimeout(() => resolve({ ok: "TIMEOUT_5S", elapsedMs: 5000 }), 5000))
+  ]);
+  console.log("[MODULAR-DIAG] result:", modularResult);
+
   subscribeRealtime();
+
+  // === DIAG (Rev 1.42): independent compat-SDK read on same path ===
+  // Load firebase-app-compat + firebase-database-compat in a side app namespace
+  // and try the same read. Compares modular SDK vs compat SDK on the same
+  // browser/device/account/network. Strip this entire block in next rev.
+  runCompatDiag();
+}
+
+function runCompatDiag(){
+  console.log("[COMPAT-DIAG] loading compat SDK scripts...");
+  const appScript = document.createElement('script');
+  appScript.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js';
+  document.head.appendChild(appScript);
+  appScript.onload = () => {
+    console.log("[COMPAT-DIAG] firebase-app-compat loaded");
+    const dbScript = document.createElement('script');
+    dbScript.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js';
+    document.head.appendChild(dbScript);
+    dbScript.onload = async () => {
+      console.log("[COMPAT-DIAG] firebase-database-compat loaded; initializing compat app...");
+      try {
+        // Use a separate named app so compat init doesn't conflict with modular
+        const compatApp = firebase.initializeApp(firebaseConfig, 'compat-diag');
+        const compatDb = compatApp.database();
+        const compatStart = Date.now();
+        console.log("[COMPAT-DIAG] starting compat read on autoflag/installs/customers...");
+        const compatResult = await Promise.race([
+          compatDb.ref('autoflag/installs/customers').get().then(snap => ({
+            ok: snap.exists(),
+            count: snap.exists() ? Object.keys(snap.val() || {}).length : 0,
+            elapsedMs: Date.now() - compatStart
+          })),
+          new Promise(resolve => setTimeout(() => resolve({ ok: "TIMEOUT_10S", elapsedMs: 10000 }), 10000))
+        ]);
+        console.log("[COMPAT-DIAG] result:", compatResult);
+      } catch(e){
+        console.error("[COMPAT-DIAG] threw:", e?.message, e?.code);
+      }
+    };
+    dbScript.onerror = (e) => console.error("[COMPAT-DIAG] firebase-database-compat failed to load");
+  };
+  appScript.onerror = (e) => console.error("[COMPAT-DIAG] firebase-app-compat failed to load");
 }
 
 // ==== Lifecycle handlers — recover from mobile listener-death ====
