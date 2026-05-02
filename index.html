@@ -39,7 +39,7 @@
     --radius:10px; --radius-sm:6px; --radius-pill:20px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.4;overscroll-behavior:none}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.4;overscroll-behavior:none;overflow-x:hidden}
   button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;background:transparent;border:none;outline:none}
   button{cursor:pointer}
   a{color:var(--amber);text-decoration:none}
@@ -244,6 +244,22 @@
 
   /* ==== Mobile breakpoint (Rev 1.39, Eats v11.12 patterns) ==== */
   @media (max-width:768px){
+    /* On mobile the header has too much stuff (AI input + buttons) for a 380px
+       phone screen. Hide AI input + label + AI buttons in header. Users can still
+       use search. AI chat surface remains accessible via the chat thread below.
+       Also: hide expand toggle on mobile (use customer rows directly). */
+    header .ai-bar-label,
+    header #aiInput,
+    header .ai-icon-btn,
+    #expandToggleBtn{display:none}
+    /* Make the top-row (filters + view tabs) scroll horizontally inside itself
+       so it never blows past viewport width. */
+    .top-row{flex-wrap:nowrap}
+    .top-row .filter-bar,
+    .top-row .view-tabs{flex-shrink:0}
+    /* Footer wraps to two lines on mobile rather than horizontal scroll. */
+    footer{flex-wrap:wrap;justify-content:center;gap:6px;padding:10px 12px}
+
     /* Filter bar: scroll horizontally instead of wrapping into 3 rows */
     .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
     .filter-bar .chip{flex-shrink:0;min-height:36px;padding:7px 14px;font-size:13px;display:inline-flex;align-items:center}
@@ -435,7 +451,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.68</div>
+  <div class="ver">AutoFlag© · v1.69</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -501,7 +517,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.68</span>
+    AutoFlag© <span>Rev v1.69</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
