@@ -223,13 +223,6 @@
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
     .tree-row{flex-wrap:wrap}
-    /* Force name to claim its own row on mobile — prevents it from being
-       collapsed to zero-width when sibling chips (especially when
-       .tree-stats-secondary is display:contents and adds 9+ phantom flex
-       children) push it out. Symptom was: customers with many chips like
-       "City of Boise" rendered with no visible name, just caret + chips. */
-    .tree-row-customer .tree-name,
-    .tree-row-site .tree-name{flex-basis:100%;min-width:100%}
     .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
   }
 
@@ -242,46 +235,28 @@
 
   /* ==== Mobile breakpoint (Rev 1.39, Eats v11.12 patterns) ==== */
   @media (max-width:768px){
-    /* ==== Header — give logo and search room to breathe ==== */
-    header{padding:8px 10px;gap:6px}
-    .logo small{display:none}                          /* "Installs" subtitle eats width */
-    .header-search{flex:1;min-height:40px;font-size:16px;padding:6px 10px} /* 16px prevents iOS zoom */
-    .user-pill{padding:3px 6px;font-size:11px}
-    .user-pill img{width:18px;height:18px}
-    .user-pill span{max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-    /* ==== View tabs — slightly bigger so they're tappable ==== */
-    .view-tabs{padding:6px 10px;gap:6px}
-    .view-tab{min-height:36px;padding:7px 14px;font-size:13px;display:inline-flex;align-items:center}
-
-    /* ==== Filter bar: scroll horizontally instead of wrapping ==== */
-    .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:6px 10px}
+    /* Filter bar: scroll horizontally instead of wrapping into 3 rows */
+    .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
     .filter-bar .chip{flex-shrink:0;min-height:36px;padding:7px 14px;font-size:13px;display:inline-flex;align-items:center}
-    .filter-label{display:none}                        /* category obvious from chip context */
+    .filter-label{display:none}                    /* category obvious from chip context */
     .filter-sep{width:4px}
 
-    /* ==== AI bar ==== */
-    .ai-bar{padding:8px 10px}
-    .ai-bar-input{min-height:44px;font-size:16px}
-    .ai-bar-label{display:none}                        /* "🤖 Ask AI" eats width */
-    .ai-icon-btn,.photo-icon-btn{min-width:44px;min-height:44px}
-
-    /* ==== Tap targets — minimum 40-48px ==== */
+    /* Tap targets — minimum 40-48px */
     .btn{min-height:40px;padding:10px 16px;font-size:14px}
     .icon-btn{min-width:44px;min-height:44px;padding:8px 12px;font-size:16px}
+    .header-search{min-height:40px;font-size:16px}      /* 16px prevents iOS zoom-on-focus */
+    .ai-bar-input{min-height:44px;font-size:16px}
+    .ai-bar-label{display:none}                          /* "🤖 Ask AI" label takes width */
+    .ai-icon-btn,.photo-icon-btn{min-width:44px;min-height:44px}
 
-    /* ==== Modal inputs/selects: prevent iOS zoom + better tap targets ==== */
+    /* Modal inputs/selects: prevent iOS zoom + better tap targets */
     .modal input[type=text],.modal input[type=number],.modal input[type=email],
     .modal input[type=date],.modal input[type=tel],.modal input[type=password],
     .modal textarea,.modal select{font-size:16px;min-height:44px}
 
-    /* ==== Main content padding ==== */
-    main{padding:10px}
-
-    /* ==== Customer rows — keep 1.53 horizontal layout but allow horizontal
-       scroll within the row instead of overflowing the page. Customer-row
-       chip density: keep core counts visible always; only show type+status
-       chip breakdown when expanded. ==== */
+    /* Customer-row chip density: collapse secondary chips when collapsed.
+       Sites/poles count + REMAINING chip stay visible; type/status chips hidden
+       until the customer is expanded. Matches existing accordion model. */
     .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
     .tree-customer.expanded .tree-stats-secondary{display:contents}
     .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
@@ -294,11 +269,6 @@
 
     /* Pole cards on mobile slightly larger touch area */
     .pole-card{padding:12px}
-
-    /* List view on mobile: smaller cells, smaller font, but still legible */
-    .list-table th,.list-table td{padding:8px 6px;font-size:12px}
-    .list-table th{font-size:10px}
-    .list-table .status-badge{font-size:9px;padding:1px 6px}
   }
 
   /* ==== Touch-device tweaks ==== */
@@ -409,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.56 · AutoFlag© stack</div>
+  <div class="ver">v1.57 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -477,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.56</span>
+    AutoFlag© <span>Rev v1.57</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1430,19 +1400,18 @@ async function recoverDataAfterLifecycleEvent(reason){
   subscribeRealtime();
 }
 
-// Shared 5-second debounce across all three lifecycle handlers. On flaky
-// cellular, `online` can fire repeatedly as the radio reconnects; iOS and
-// Android Chrome can fire visibility/focus in rapid bursts when switching
-// apps. Each fire triggers a token refresh + data reload + listener
-// re-subscribe — debouncing prevents thrashing.
+// Shared 5-second debounce across all three lifecycle handlers, plus a
+// modal-open guard. On flaky cellular, `online` fires repeatedly as the
+// radio reconnects; iOS/Android Chrome can fire visibility/focus in rapid
+// bursts when switching apps. Debouncing prevents thrashing.
+// Modal-open guard (Rev 1.52): skip refresh while a modal is open. On
+// mobile, tapping a <select> dropdown briefly fires window focus events
+// as the native picker opens/closes — without this guard the lifecycle
+// handler would refresh data mid-interaction and disrupt the open
+// dropdown (manifested as Status dropdown flashing open then closing).
 const LIFECYCLE_DEBOUNCE_MS = 5000;
 let _lastLifecycleRecover = 0;
 function debouncedLifecycleRecover(reason){
-  // Skip if a modal is open — user is mid-interaction. On mobile, tapping
-  // a <select> dropdown briefly fires window focus events as the native
-  // picker opens/closes, which would otherwise trigger a heavy data refresh
-  // that disrupts the open dropdown. (Manifested as Status dropdown
-  // flashing open then immediately closing in the Edit Pole modal.)
   if(document.querySelector(".modal-overlay.open")) return;
   const now = Date.now();
   if(now - _lastLifecycleRecover < LIFECYCLE_DEBOUNCE_MS) return;
@@ -1842,20 +1811,9 @@ function renderFilterBar(){
   }
   bar.innerHTML = html;
 }
-// All three top filter chips toggle: clicking the active value clears the
-// filter back to "all". Matches the behavior of customer-row stat chips.
-window.setStatusFilter = s => {
-  state.filter.status = (state.filter.status === s && s !== "all") ? "all" : s;
-  renderActive();
-};
-window.setCustomerFilter = c => {
-  state.filter.customer = (state.filter.customer === c && c !== "all") ? "all" : c;
-  renderActive();
-};
-window.setInstallTypeFilter = t => {
-  state.filter.installType = (state.filter.installType === t && t !== "all") ? "all" : t;
-  renderActive();
-};
+window.setStatusFilter = s => { state.filter.status=s; renderActive(); };
+window.setCustomerFilter = c => { state.filter.customer=c; renderActive(); };
+window.setInstallTypeFilter = t => { state.filter.installType=t; renderActive(); };
 
 // Click a stat chip: toggles the filter (click again to clear) and ensures customer is expanded
 window.filterByStatus = (status, customerId) => {
