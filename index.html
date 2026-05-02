@@ -421,7 +421,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.73</div>
+  <div class="ver">AutoFlag© · v1.74</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -487,7 +487,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.73</span>
+    AutoFlag© <span>Rev v1.74</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2106,8 +2106,18 @@ function renderBrowse(){
 }
 
 window.toggleCustomer = (cid) => {
-  if(state.expanded.customers.has(cid)) state.expanded.customers.delete(cid);
-  else state.expanded.customers.add(cid);
+  if(state.expanded.customers.has(cid)){
+    // User tapped the currently-expanded customer → collapse it (and its sites)
+    state.expanded.customers.delete(cid);
+    // Also collapse any sites under this customer so reopening starts clean
+    const c = state.data.customers[cid];
+    if(c) Object.keys(c.sites||{}).forEach(sid => state.expanded.sites.delete(sid));
+  } else {
+    // Solo-expand: collapse all OTHER customers + clear all expanded sites
+    state.expanded.customers.clear();
+    state.expanded.sites.clear();
+    state.expanded.customers.add(cid);
+  }
   updateExpandToggleBtn();
   renderActive();
 };
