@@ -118,6 +118,12 @@
   .list-table td{padding:10px;border-bottom:1px solid var(--border);font-size:13px}
   .list-table tr{cursor:pointer}
   .list-table tr:hover td{background:var(--surface2)}
+  /* Clickable cell values inside List view rows. Hover hint differentiates
+     them from non-clickable cell text; .active state shows when the cell's
+     value matches the current top filter. */
+  .list-cell-clickable{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);cursor:pointer;border:1px solid transparent;transition:border-color .15s,background .15s}
+  .list-cell-clickable:hover{border-color:var(--amber);background:var(--surface2)}
+  .list-cell-clickable.active{border-color:var(--amber-bright);background:#3a2a14;color:var(--amber-bright);font-weight:600}
   .status-badge{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
   .status-in_review{background:#3a2a3a;color:#d8a8d8}
   .status-scheduled{background:#3a3520;color:var(--amber)}
@@ -379,7 +385,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.61</div>
+  <div class="ver">AutoFlag© · v1.62</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +453,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.61</span>
+    AutoFlag© <span>Rev v1.62</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -2573,11 +2579,20 @@ function renderList(){
     ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Serial")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
   sorted.forEach(({c,s,p}) => {
+    // Each filterable cell is wrapped in a clickable span. event.stopPropagation()
+    // prevents the row's openPoleModal from firing. The functions called are the
+    // same setStatusFilter/setCustomerFilter/setInstallTypeFilter used by the top
+    // filter bar, so toggling behavior matches: click active value to clear.
+    const customerActive = state.filter.customer === c.id;
+    const typeActive     = p.installType && state.filter.installType === p.installType;
+    const statusActive   = state.filter.status === p.status;
+
     html += `<tr onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
       <td><strong>${p.label||'—'}</strong></td>
-      <td>${c.name}</td><td>${s.name}</td>
-      <td>${p.installType?formatInstallType(p.installType):'—'}</td>
-      <td><span class="status-badge status-${p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
+      <td><span class="list-cell-clickable ${customerActive?'active':''}" onclick="event.stopPropagation();setCustomerFilter('${c.id}')" title="Filter to this customer">${c.name}</span></td>
+      <td>${s.name}</td>
+      <td>${p.installType?`<span class="list-cell-clickable ${typeActive?'active':''}" onclick="event.stopPropagation();setInstallTypeFilter('${p.installType}')" title="Filter to ${formatInstallType(p.installType)}">${formatInstallType(p.installType)}</span>`:'—'}</td>
+      <td><span class="status-badge status-${p.status} list-cell-clickable ${statusActive?'active':''}" onclick="event.stopPropagation();setStatusFilter('${p.status}')" title="Filter to ${STATUS_LABELS[p.status]||p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
       <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
