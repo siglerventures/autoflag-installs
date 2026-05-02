@@ -223,6 +223,8 @@
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
     .tree-row{flex-wrap:wrap}
+    .tree-row-customer .tree-name,
+    .tree-row-site .tree-name{flex-basis:100%;min-width:100%}
     .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
   }
 
@@ -379,7 +381,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.57 · AutoFlag© stack</div>
+  <div class="ver">v1.58 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +449,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.57</span>
+    AutoFlag© <span>Rev v1.58</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
