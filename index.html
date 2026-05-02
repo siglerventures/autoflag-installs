@@ -126,7 +126,7 @@
   .list-cell-clickable.active{border-color:var(--amber-bright);background:#3a2a14;color:var(--amber-bright);font-weight:600}
   .status-badge{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
   .status-in_review{background:#3a2a3a;color:#d8a8d8}
-  .status-scheduled{background:#3a3520;color:var(--amber)}
+  .status-scheduled{background:#3a1f1f;color:var(--red)}
   .status-in_progress{background:#3a2a20;color:var(--amber-bright)}
   .status-completed{background:#1f3a2a;color:var(--green)}
   .status-done{background:#1f3a2a;color:var(--green)}     /* legacy alias */
@@ -211,7 +211,7 @@
   .tree-stat-clickable:hover{transform:scale(1.05);box-shadow:0 0 0 1px var(--amber-dim)}
   .tree-stat-clickable.active{box-shadow:0 0 0 2px var(--amber);font-weight:700}
   .tree-stat.status-in_review{background:#3a2a3a;color:#d8a8d8}
-  .tree-stat.status-scheduled{background:#3a3520;color:var(--amber)}
+  .tree-stat.status-scheduled{background:#3a1f1f;color:var(--red)}
   .tree-stat.status-in_progress{background:#3a2a20;color:var(--amber-bright)}
   .tree-stat.status-completed{background:#1f3a2a;color:var(--green);font-weight:700}
   .tree-stat.status-done{background:#1f3a2a;color:var(--green)}
@@ -228,8 +228,10 @@
   .tree-empty{padding:8px 12px;color:var(--text-muted);font-size:12px;font-style:italic}
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
-    .tree-row{flex-wrap:wrap}
-    .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
+    /* Keep chips inline on the right side of the customer/site name.
+       On mobile we only render 2 small chips (scheduled + remaining) so they fit. */
+    .tree-row{flex-wrap:nowrap}
+    .tree-stats{width:auto;justify-content:flex-end;margin-top:0;flex-shrink:0}
   }
 
   /* ==== Filter bar labels (Status:/Type:/Customer:) — base styles ==== */
@@ -295,6 +297,11 @@
     */
 
     .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
+
+    /* Mobile-only: shrink REMAINING chip on customer rows so chips stay
+       inline with the customer name without crowding it. */
+    .tree-row-customer .tree-stat-remaining{min-height:24px;padding:3px 8px;font-size:10px;letter-spacing:.3px}
+    .tree-row-customer .tree-stat{min-height:24px;padding:3px 8px;font-size:10px}
 
     /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
     .tree-row .tree-action{display:none}
@@ -414,7 +421,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.72</div>
+  <div class="ver">AutoFlag© · v1.73</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -480,7 +487,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.72</span>
+    AutoFlag© <span>Rev v1.73</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
