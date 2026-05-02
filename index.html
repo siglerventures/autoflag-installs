@@ -297,41 +297,38 @@
        desktop-scheduled get re-parented visually by moving them inside same wrap.
     */
 
-    /* Mobile-only chip visibility on the customer row itself.
-       Only the mobile-scheduled and REMAINING chips show inline on the row. */
+    .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
+
+    /* Mobile customer-row chip visibility — MUST come AFTER the .tree-stat
+       display:inline-flex rule above, otherwise that rule overrides display:none
+       on .tree-stat-sites/poles (same specificity, later wins). */
     .tree-row-customer .tree-details-btn,
     .tree-row-customer .tree-stat-sites,
     .tree-row-customer .tree-stat-poles,
-    .tree-row-customer .tree-stat-desktop-scheduled{display:none}
+    .tree-row-customer .tree-stat-desktop-scheduled,
+    .tree-customer:not(.expanded) .tree-stats-secondary,
+    .tree-customer:not(.expanded) .tree-stats-secondary > *{display:none !important}
     .tree-stat-mobile-scheduled{display:inline-flex}
 
-    /* When customer is COLLAPSED on mobile: hide the entire secondary chip
-       cluster (types + statuses except scheduled which is shown via mobile-scheduled). */
-    .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
-
     /* When customer is EXPANDED on mobile: show secondary chip cluster as a
-       new row BELOW the customer row, full width, wrapping. The flex-basis:100%
-       on the .tree-stats container forces wrap, and we use a flex display
-       (instead of display:contents) so chips don't leak into the row's flex. */
+       new row BELOW the customer row, full width, wrapping. */
     .tree-customer.expanded .tree-stats-secondary{
-      display:flex;
+      display:flex !important;
       flex-wrap:wrap;
       gap:6px;
       flex-basis:100%;
       margin-top:6px;
-      padding:8px 0 4px 28px;  /* indent matches caret offset */
+      padding:8px 0 4px 28px;
       border-top:1px solid var(--border);
     }
+    .tree-customer.expanded .tree-stats-secondary > *{display:inline-flex !important}
 
-    /* When expanded on mobile, also surface DETAILS button + sites/poles
-       count chips inside that secondary cluster row so they're discoverable. */
+    /* When expanded on mobile, also surface DETAILS button. */
     .tree-customer.expanded .tree-row-customer .tree-details-btn{
-      display:inline-flex;
+      display:inline-flex !important;
       align-items:center;
-      order:99;  /* push DETAILS to end of cluster */
+      order:99;
     }
-
-    .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
 
     /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
     .tree-row .tree-action{display:none}
@@ -451,7 +448,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.69</div>
+  <div class="ver">AutoFlag© · v1.70</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -517,7 +514,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.69</span>
+    AutoFlag© <span>Rev v1.70</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
