@@ -435,7 +435,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.66</div>
+  <div class="ver">AutoFlag© · v1.67</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -444,7 +444,7 @@
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
     <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
-    <input type="text" id="aiInput" class="ai-bar-input" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site at 1001 S Americana with 3 poles, scheduled in 2 weeks'" onkeydown="if(event.key==='Enter')askAI()" />
+    <input type="text" id="aiInput" class="ai-bar-input" style="width:420px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site at 1001 S Americana...'" onkeydown="if(event.key==='Enter')askAI()" />
     <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
     <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
       📸
@@ -452,9 +452,9 @@
     </button>
   </header>
 
-  <!-- Combined view tabs + filter bar on one row -->
+  <!-- Combined view tabs + filter bar on one row. View tabs sit immediately after Type chips, not far-right. -->
   <div class="top-row" style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch">
-    <div class="filter-bar" id="filterBar" style="flex:1;border-bottom:none;padding:0;background:transparent;overflow:visible"></div>
+    <div class="filter-bar" id="filterBar" style="flex:0 0 auto;border-bottom:none;padding:0;background:transparent;overflow:visible"></div>
     <div class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0">
       <button class="view-tab active" data-view="browse" onclick="switchView('browse')">📋 Browse</button>
       <button class="view-tab" data-view="kanban" onclick="switchView('kanban')">📊 Kanban</button>
@@ -500,12 +500,11 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.66</span>
+    AutoFlag© <span>Rev v1.67</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
-    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">👥</button>
-    <button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">📋</button>
-    <span class="user-pill" id="userPill" style="vertical-align:middle"></span>
+    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">📋</button>
+    <span class="user-pill" id="userPill" style="display:inline-flex;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
 </div>
