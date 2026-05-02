@@ -13,8 +13,8 @@
 <!-- CSP: Firebase RTDB hosts + Cloud Function + Storage + Google Maps tiles -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self' https://siglerventures.github.io;
-  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com;
-  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
+  script-src  'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://unpkg.com https://cdn.jsdelivr.net;
+  style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net;
   font-src    'self' https://fonts.gstatic.com data:;
   img-src     'self' data: blob: https: https://*.googleusercontent.com https://*.tile.openstreetmap.org;
   connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com
@@ -223,8 +223,6 @@
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
     .tree-row{flex-wrap:wrap}
-    .tree-row-customer .tree-name,
-    .tree-row-site .tree-name{flex-basis:100%;min-width:100%}
     .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
   }
 
@@ -381,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.58 · AutoFlag© stack</div>
+  <div class="ver">v1.46 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -449,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.58</span>
+    AutoFlag© <span>Rev v1.46</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -765,10 +763,19 @@
 
 <div id="toast"></div>
 
+<!-- DIAG (Rev 1.42): Eruda back for compat-vs-modular SDK test — strip in next rev -->
+<script src="https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js"></script>
+<script>
+  if(typeof eruda !== "undefined"){
+    eruda.init({ tool: ["console", "elements", "network", "info"], defaults: { displaySize: 50, transparency: 0.95, theme: "Material Darker" } });
+    setTimeout(() => { try { eruda.show("console"); } catch(_){} }, 200);
+  }
+</script>
+
 <!-- ==== Firebase + App Logic ==== -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getDatabase, ref, get, set, update, remove, onValue, push, child } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getDatabase, ref, get, set, update, remove, onValue, push, child, goOnline, goOffline } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getStorage, ref as storageRef, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
@@ -1290,7 +1297,7 @@ function applyCustomerSnapshot(raw, source){
 // Strategy: try SDK first (fast path, auto-reconnect, real-time listener), and
 // if it times out, fall back to REST. Real-time updates are then served by a
 // 30s REST poll. When user backgrounds + returns, we re-try the SDK first.
-const SDK_TIMEOUT_MS = 1500;
+const SDK_TIMEOUT_MS = 4000;
 const REST_POLL_MS = 30000;
 let _restPollInterval = null;
 
@@ -1331,19 +1338,16 @@ function stopRestPoll(){
 
 async function loadDataOnce(){
   // Try SDK first (fast path, enables real-time listener)
-  const start = Date.now();
   try {
     const snap = await Promise.race([
       get(ref(db, "autoflag/installs/customers")),
       new Promise((_, rej) => setTimeout(() => rej(new Error("SDK_TIMEOUT")), SDK_TIMEOUT_MS))
     ]);
-    console.log(`[load] SDK ${Date.now()-start}ms`);
     stopRestPoll(); // SDK is healthy — stop any active fallback poll
     return applyCustomerSnapshot(snap.val(), "loadDataOnce");
   } catch(e){
     if(e?.message === "SDK_TIMEOUT"){
       // SDK WebSocket is wedged — fall back to REST
-      console.log("[load] REST fallback used (SDK timeout)");
       const ok = await loadDataViaREST();
       if(ok){
         // Also start a poll so you get periodic updates while SDK is wedged
@@ -1389,9 +1393,11 @@ async function subscribeData(){
 // On return: refresh token (may have expired) → re-fetch via loadDataOnce
 // (which uses REST fallback if the SDK is wedged) → re-subscribe with fresh listener.
 // Guarded by state.user so they don't fire pre-login.
+let _lastActiveAt = Date.now();
 
 async function recoverDataAfterLifecycleEvent(reason){
   if(typeof state === "undefined" || !state?.user) return;
+  _lastActiveAt = Date.now();
   console.log(`[lifecycle] ${reason}: refreshing token + reloading data`);
   try { await auth.currentUser.getIdToken(true); }
   catch(e){ console.warn(`token refresh on ${reason} failed:`, e?.message); }
@@ -1402,38 +1408,24 @@ async function recoverDataAfterLifecycleEvent(reason){
   subscribeRealtime();
 }
 
-// Shared 5-second debounce across all three lifecycle handlers, plus a
-// modal-open guard. On flaky cellular, `online` fires repeatedly as the
-// radio reconnects; iOS/Android Chrome can fire visibility/focus in rapid
-// bursts when switching apps. Debouncing prevents thrashing.
-// Modal-open guard (Rev 1.52): skip refresh while a modal is open. On
-// mobile, tapping a <select> dropdown briefly fires window focus events
-// as the native picker opens/closes — without this guard the lifecycle
-// handler would refresh data mid-interaction and disrupt the open
-// dropdown (manifested as Status dropdown flashing open then closing).
-const LIFECYCLE_DEBOUNCE_MS = 5000;
-let _lastLifecycleRecover = 0;
-function debouncedLifecycleRecover(reason){
-  if(document.querySelector(".modal-overlay.open")) return;
-  const now = Date.now();
-  if(now - _lastLifecycleRecover < LIFECYCLE_DEBOUNCE_MS) return;
-  _lastLifecycleRecover = now;
-  recoverDataAfterLifecycleEvent(reason);
-}
-
 document.addEventListener("visibilitychange", () => {
   if(document.visibilityState === "visible"){
-    debouncedLifecycleRecover("visibilitychange");
+    recoverDataAfterLifecycleEvent("visibilitychange");
   }
 });
 
 window.addEventListener("online", () => {
-  debouncedLifecycleRecover("online");
+  recoverDataAfterLifecycleEvent("online");
 });
 
 // Page focus (some mobile browsers don't fire visibilitychange reliably).
+// Debounced 5s so rapid focus events don't thrash the data path.
 window.addEventListener("focus", () => {
-  debouncedLifecycleRecover("focus");
+  const now = Date.now();
+  if(!window._lastFocusRefresh || now - window._lastFocusRefresh > 5000){
+    window._lastFocusRefresh = now;
+    recoverDataAfterLifecycleEvent("focus");
+  }
 });
 
 async function writeNode(path, value){
@@ -1835,12 +1827,10 @@ const REMAINING_STATUSES = ["in_review", "scheduled", "in_progress"];
 
 // Single source of truth for whether a pole matches the current status filter.
 // Recognizes the "remaining" pseudo-status as a multi-status match.
-// 'completed' filter also matches verified poles (verified is a superset of completed).
 function matchesStatusFilter(p){
   const f = state.filter.status;
   if(f === "all") return true;
   if(f === "remaining") return REMAINING_STATUSES.includes(p.status);
-  if(f === "completed") return p.status === "completed" || p.status === "verified";
   return p.status === f;
 }
 window.filterByType = (installType, customerId) => {
@@ -1910,7 +1900,7 @@ function renderBrowse(){
         <div class="tree-stats">
           <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
-          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${(counts.completed + counts.verified)?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed (includes verified)">${counts.completed + counts.verified} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
+          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
           ${remaining > 0?`<span class="tree-stat-remaining ${state.filter.status==='remaining'?'active':''}" onclick="event.stopPropagation();filterByStatus('remaining','${c.id}')" title="Show only poles still needing install (in review + scheduled + in progress)">${remaining} remaining</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
@@ -2516,57 +2506,13 @@ window.kanbanTouchEnd = async (ev) => {
 };
 
 // ==== LIST ====
-// List view sort state
-let _listSort = { col: "updated", dir: "desc" };
-window.setListSort = (col) => {
-  if(_listSort.col === col){ _listSort.dir = _listSort.dir === "asc" ? "desc" : "asc"; }
-  else { _listSort.col = col; _listSort.dir = "asc"; }
-  renderActive();
-};
-
-// Resolve a "completedBy" value (UID or emailKey) to a human name
-function completedByName(key){
-  if(!key) return "";
-  if(key === PHIL_UID) return "Phil";
-  if(typeof peopleRoster === "object" && peopleRoster?.[key]){
-    return peopleRoster[key].name || peopleRoster[key].email || key;
-  }
-  return key.length > 12 ? key.slice(0,8) + "…" : key;
-}
-
 function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return `<div class="empty">No poles match.</div>`;
-
-  // Sort according to current column/direction
-  const dir = _listSort.dir === "asc" ? 1 : -1;
-  const sorted = [...allPoles].sort((a,b) => {
-    let va, vb;
-    switch(_listSort.col){
-      case "pole":      va = a.p.label||""; vb = b.p.label||""; break;
-      case "customer":  va = a.c.name||"";  vb = b.c.name||"";  break;
-      case "site":      va = a.s.name||"";  vb = b.s.name||"";  break;
-      case "type":      va = a.p.installType||""; vb = b.p.installType||""; break;
-      case "status":    va = a.p.status||""; vb = b.p.status||""; break;
-      case "date":      va = getDisplayDate(a.p)||""; vb = getDisplayDate(b.p)||""; break;
-      case "serial":    va = a.p.serial||""; vb = b.p.serial||""; break;
-      case "plan":      va = a.p.plan||""; vb = b.p.plan||""; break;
-      case "completedBy": va = completedByName(a.p.completedBy); vb = completedByName(b.p.completedBy); break;
-      case "updated":   va = a.p.updatedAt||0; vb = b.p.updatedAt||0; break;
-      default:          va = a.p.updatedAt||0; vb = b.p.updatedAt||0;
-    }
-    if(typeof va === "string"){ return va.localeCompare(vb) * dir; }
-    return (va - vb) * dir;
-  });
-
-  // Indicator helper for the active column header
-  const ind = col => _listSort.col === col ? (_listSort.dir === "asc" ? " ▲" : " ▼") : "";
-  const th = (col, label) => `<th onclick="setListSort('${col}')" style="cursor:pointer;user-select:none">${label}${ind(col)}</th>`;
-
   let html = `<table class="list-table"><thead><tr>
-    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Serial")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
+    <th>Pole</th><th>Customer</th><th>Site</th><th>Type</th><th>Status</th><th>Date</th><th>Serial</th><th>Plan</th><th>Updated</th>
   </tr></thead><tbody>`;
-  sorted.forEach(({c,s,p}) => {
+  allPoles.sort((a,b)=>b.p.updatedAt - a.p.updatedAt).forEach(({c,s,p}) => {
     html += `<tr onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
       <td><strong>${p.label||'—'}</strong></td>
       <td>${c.name}</td><td>${s.name}</td>
@@ -2575,38 +2521,10 @@ function renderList(){
       <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
-      <td>${completedByName(p.completedBy)||'—'}</td>
       <td>${new Date(p.updatedAt).toLocaleDateString()}</td>
     </tr>`;
   });
   html += `</tbody></table>`;
-
-  // Per-installer completion summary across the currently-filtered poles.
-  // Counts a pole as "completed" if its status is 'completed' or 'verified'
-  // (verified is a superset of completed) AND completedBy is set.
-  const byInstaller = {};
-  allPoles.forEach(({p}) => {
-    if(p.status !== "completed" && p.status !== "verified") return;
-    if(!p.completedBy) return;
-    byInstaller[p.completedBy] = (byInstaller[p.completedBy]||0) + 1;
-  });
-  const installerEntries = Object.entries(byInstaller).sort((a,b) => b[1] - a[1]);
-  if(installerEntries.length){
-    const totalCompleted = installerEntries.reduce((sum,[,n]) => sum + n, 0);
-    html += `<div style="margin-top:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">
-        Completed by installer · ${totalCompleted} pole${totalCompleted===1?'':'s'} total (in current filter)
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
-        ${installerEntries.map(([key,count]) => `
-          <span class="data-chip" style="border-color:var(--green);color:var(--green);font-weight:600;padding:4px 12px">
-            ${completedByName(key)}: ${count}
-          </span>
-        `).join("")}
-      </div>
-    </div>`;
-  }
-
   return html;
 }
 
@@ -2643,7 +2561,7 @@ function collectPoles(){
     if(state.filter.customer!=='all' && state.filter.customer!==c.id) return;
     Object.values(c.sites).forEach(s => {
       Object.values(s.poles).forEach(p => {
-        if(!matchesStatusFilter(p)) return;
+        if(state.filter.status!=='all' && state.filter.status!==p.status) return;
         if(state.filter.installType!=='all' && state.filter.installType!==p.installType) return;
         if(state.search && !matchesSearch(c,s,p)) return;
         out.push({c,s,p});
@@ -3488,27 +3406,12 @@ async function uploadPendingAIPhotos(){
 
 function appendBubble(text, role){
   const wrap = document.getElementById("aiResponse");
-  // Lazy-add the "Clear" link the first time content appears in the thread
-  if(!document.getElementById("aiClearLink")){
-    const clearRow = document.createElement("div");
-    clearRow.id = "aiClearLink";
-    clearRow.style.cssText = "display:flex;justify-content:flex-end;font-size:11px;color:var(--text-muted);margin-bottom:4px";
-    clearRow.innerHTML = `<span style="cursor:pointer;text-decoration:underline" onclick="clearAIChat()">✕ Clear chat</span>`;
-    wrap.appendChild(clearRow);
-  }
   const div = document.createElement("div");
   div.className = `ai-bubble ${role}`;
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollIntoView({behavior:"smooth", block:"end"});
 }
-
-window.clearAIChat = () => {
-  aiHistory = [];
-  const wrap = document.getElementById("aiResponse");
-  if(wrap) wrap.innerHTML = "";
-  toast("Chat cleared");
-};
 
 window.askAI = async () => {
   const input = document.getElementById("aiInput");
