@@ -435,7 +435,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.65</div>
+  <div class="ver">AutoFlag© · v1.66</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -443,31 +443,28 @@
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
-    <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people (admins, installers, customers)" style="display:none">👥</button>
-    <button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none">📋</button>
-    <div class="user-pill" id="userPill"></div>
+    <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
+    <input type="text" id="aiInput" class="ai-bar-input" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site at 1001 S Americana with 3 poles, scheduled in 2 weeks'" onkeydown="if(event.key==='Enter')askAI()" />
+    <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
+    <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
+      📸
+      <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
+    </button>
   </header>
 
-  <div class="view-tabs">
-    <button class="view-tab active" data-view="browse" onclick="switchView('browse')">📋 Browse</button>
-    <button class="view-tab" data-view="kanban" onclick="switchView('kanban')">📊 Kanban</button>
-    <button class="view-tab" data-view="list" onclick="switchView('list')">📑 List</button>
-    <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
+  <!-- Combined view tabs + filter bar on one row -->
+  <div class="top-row" style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <div class="filter-bar" id="filterBar" style="flex:1;border-bottom:none;padding:0;background:transparent;overflow:visible"></div>
+    <div class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0">
+      <button class="view-tab active" data-view="browse" onclick="switchView('browse')">📋 Browse</button>
+      <button class="view-tab" data-view="kanban" onclick="switchView('kanban')">📊 Kanban</button>
+      <button class="view-tab" data-view="list" onclick="switchView('list')">📑 List</button>
+      <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
+    </div>
   </div>
 
-  <div class="filter-bar" id="filterBar"></div>
-
-  <!-- ==== AI BAR (persistent, top — Eats pattern) ==== -->
-  <div class="ai-bar">
-    <div class="ai-bar-inner">
-      <div class="ai-bar-label">🤖 Ask AI</div>
-      <input type="text" id="aiInput" class="ai-bar-input" placeholder="Ask anything, or: 'Add Albertsons site at 1001 S Americana with 3 poles, scheduled in 2 weeks'" onkeydown="if(event.key==='Enter')askAI()" />
-      <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
-      <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
-        📸
-        <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
-      </button>
-    </div>
+  <!-- AI photo panel + thinking + chat thread (no longer wrapped in ai-bar div) -->
+  <div class="ai-bar" style="background:transparent;border-bottom:none;padding:0">
     <div id="aiPhotoPanel" class="ai-photo-panel" style="display:none">
       <div class="ai-photo-panel-row">
         <span class="ai-photo-panel-label">📸 Attach Photos (max 4)</span>
@@ -503,9 +500,12 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.65</span>
+    AutoFlag© <span>Rev v1.66</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
+    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">👥</button>
+    <button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">📋</button>
+    <span class="user-pill" id="userPill" style="vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
 </div>
@@ -1841,7 +1841,6 @@ window.renderActive = () => {
 
 function renderFilterBar(){
   const bar = document.getElementById("filterBar");
-  const customers = Object.values(state.data.customers).sort((a,b)=>a.name.localeCompare(b.name));
   let html = `<span class="filter-label">Status:</span>`;
   html += `<span class="chip ${state.filter.status==='all'?'active':''}" onclick="setStatusFilter('all')">All</span>`;
   STATUSES.forEach(s => {
@@ -1852,13 +1851,8 @@ function renderFilterBar(){
   html += `<span class="chip ${state.filter.installType==='external'?'active':''}" onclick="setInstallTypeFilter('external')">🪢 External</span>`;
   html += `<span class="chip ${state.filter.installType==='internal'?'active':''}" onclick="setInstallTypeFilter('internal')">🧵 Internal</span>`;
   html += `<span class="chip ${state.filter.installType==='cylinder'?'active':''}" onclick="setInstallTypeFilter('cylinder')">🛢 Cylinder</span>`;
-  if(customers.length > 1){
-    html += `<span class="filter-sep"></span><span class="filter-label">Customer:</span>`;
-    html += `<span class="chip ${state.filter.customer==='all'?'active':''}" onclick="setCustomerFilter('all')">All</span>`;
-    customers.forEach(c => {
-      html += `<span class="chip ${state.filter.customer===c.id?'active':''}" onclick="setCustomerFilter('${c.id}')">${c.name||'(unnamed)'}</span>`;
-    });
-  }
+  // Customer filter chips removed — filter customers by clicking customer-row
+  // chips in Browse view or customer name cell in List view (toggle on/off).
   bar.innerHTML = html;
 }
 // All three top filter chips toggle: clicking the active value clears the
