@@ -223,6 +223,13 @@
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
   @media (max-width:600px){
     .tree-row{flex-wrap:wrap}
+    /* Force name to claim its own row on mobile — prevents it from being
+       collapsed to zero-width when sibling chips (especially when
+       .tree-stats-secondary is display:contents and adds 9+ phantom flex
+       children) push it out. Symptom was: customers with many chips like
+       "City of Boise" rendered with no visible name, just caret + chips. */
+    .tree-row-customer .tree-name,
+    .tree-row-site .tree-name{flex-basis:100%;min-width:100%}
     .tree-stats{width:100%;justify-content:flex-start;margin-top:4px}
   }
 
@@ -402,7 +409,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.55 · AutoFlag© stack</div>
+  <div class="ver">v1.56 · AutoFlag© stack</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -470,7 +477,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.55</span>
+    AutoFlag© <span>Rev v1.56</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1835,9 +1842,20 @@ function renderFilterBar(){
   }
   bar.innerHTML = html;
 }
-window.setStatusFilter = s => { state.filter.status=s; renderActive(); };
-window.setCustomerFilter = c => { state.filter.customer=c; renderActive(); };
-window.setInstallTypeFilter = t => { state.filter.installType=t; renderActive(); };
+// All three top filter chips toggle: clicking the active value clears the
+// filter back to "all". Matches the behavior of customer-row stat chips.
+window.setStatusFilter = s => {
+  state.filter.status = (state.filter.status === s && s !== "all") ? "all" : s;
+  renderActive();
+};
+window.setCustomerFilter = c => {
+  state.filter.customer = (state.filter.customer === c && c !== "all") ? "all" : c;
+  renderActive();
+};
+window.setInstallTypeFilter = t => {
+  state.filter.installType = (state.filter.installType === t && t !== "all") ? "all" : t;
+  renderActive();
+};
 
 // Click a stat chip: toggles the filter (click again to clear) and ensures customer is expanded
 window.filterByStatus = (status, customerId) => {
