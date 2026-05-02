@@ -217,6 +217,10 @@
   .tree-stat.status-done{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-installed{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
+  /* Desktop default: hide the mobile-only consolidated Completed chip
+     (counts.completed + counts.verified). Mobile media query below
+     overrides this and hides the desktop variant instead. */
+  .tree-stat-completed-mobile{display:none}
   .tree-action{padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:12px;cursor:pointer;flex-shrink:0}
   .tree-action:hover{border-color:var(--amber-dim);color:var(--amber)}
   .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
@@ -260,12 +264,36 @@
     .modal input[type=date],.modal input[type=tel],.modal input[type=password],
     .modal textarea,.modal select{font-size:16px;min-height:44px}
 
-    /* Customer-row chip density: collapse secondary chips when collapsed.
-       Sites/poles count + REMAINING chip stay visible; type/status chips hidden
-       until the customer is expanded. Matches existing accordion model. */
+    /* ==== Mobile customer-row chip rules ====
+       Goal: keep customer rows readable on phones by hiding chips that aren't
+       installer-critical. Type chips and 4 status chips (in_review, scheduled,
+       in_progress, completed-consolidated) stay visible. REMAINING stays.
+       Verified is hidden unless the user has explicitly clicked Verified in
+       the top status filter bar (filterByStatus sets state.filter.status to
+       'verified', which adds .active to the chip — we use that as the visibility
+       trigger via :not(.tree-stat-verified):not(.active) in the hide rule).
+       Completed chip exists in two variants in the JSX: -desktop shows literal
+       counts.completed only, -mobile shows counts.completed+counts.verified
+       consolidated. Mobile hides -desktop, desktop hides -mobile. */
     .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
     .tree-customer.expanded .tree-stats-secondary{display:contents}
     .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
+
+    /* When customer is COLLAPSED on mobile: hide everything in tree-stats
+       except the REMAINING chip. Keeps the row to: name + DETAILS + REMAINING. */
+    .tree-customer:not(.expanded) .tree-row-customer .tree-stat-sites,
+    .tree-customer:not(.expanded) .tree-row-customer .tree-stat-poles{display:none}
+
+    /* When customer is EXPANDED on mobile: hide sites/poles count chips
+       (saves chip density), hide the desktop-only literal Completed chip,
+       hide Verified (unless it's the active filter). */
+    .tree-customer.expanded .tree-row-customer .tree-stat-sites,
+    .tree-customer.expanded .tree-row-customer .tree-stat-poles,
+    .tree-customer.expanded .tree-row-customer .tree-stat-completed-desktop,
+    .tree-customer.expanded .tree-row-customer .tree-stat-verified:not(.active){display:none}
+
+    /* Re-enable the mobile consolidated Completed chip (default-hidden above) */
+    .tree-customer.expanded .tree-row-customer .tree-stat-completed-mobile{display:inline-flex}
 
     /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
     .tree-row .tree-action{display:none}
@@ -385,7 +413,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.62</div>
+  <div class="ver">AutoFlag© · v1.63</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -453,7 +481,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.62</span>
+    AutoFlag© <span>Rev v1.63</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1918,9 +1946,9 @@ function renderBrowse(){
         <div class="tree-name">${c.name||'(unnamed)'}</div>
         <button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="View customer details">Details</button>
         <div class="tree-stats">
-          <span class="tree-stat">${sites.length} site${sites.length===1?'':'s'}</span>
-          <span class="tree-stat">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
-          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${(counts.completed + counts.verified)?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed (includes verified)">${counts.completed + counts.verified} completed</span>`:''}</span>
+          <span class="tree-stat tree-stat-sites">${sites.length} site${sites.length===1?'':'s'}</span>
+          <span class="tree-stat tree-stat-poles">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
+          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${counts.completed?`<span class="tree-stat tree-stat-clickable status-completed tree-stat-completed-desktop ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed">${counts.completed} completed</span>`:''}${(counts.completed + counts.verified)?`<span class="tree-stat tree-stat-clickable status-completed tree-stat-completed-mobile ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed (includes verified)">${counts.completed + counts.verified} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified tree-stat-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
           ${remaining > 0?`<span class="tree-stat-remaining ${state.filter.status==='remaining'?'active':''}" onclick="event.stopPropagation();filterByStatus('remaining','${c.id}')" title="Show only poles still needing install (in review + scheduled + in progress)">${remaining} remaining</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
