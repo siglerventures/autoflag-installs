@@ -217,6 +217,9 @@
   .tree-stat.status-done{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-installed{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
+  /* Mobile-only chip variants — hidden by default on desktop. Mobile media
+     query below re-enables them and hides their desktop counterparts. */
+  .tree-stat-mobile-scheduled{display:none}
   .tree-action{padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:12px;cursor:pointer;flex-shrink:0}
   .tree-action:hover{border-color:var(--amber-dim);color:var(--amber)}
   .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
@@ -261,20 +264,58 @@
     .modal textarea,.modal select{font-size:16px;min-height:44px}
 
     /* ==== Mobile customer-row chip rules ====
-       Collapsed: only customer name, DETAILS button, and REMAINING chip visible.
-                  All other chips hidden (sites, poles, type, status).
-       Expanded:  customer name takes its own row (flex-basis 100% via the 600px
-                  rule already in place); ALL chips visible below, wrapping freely
-                  in a chip cloud. Same content as desktop. */
-    .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
-    .tree-customer.expanded .tree-stats-secondary{display:contents}
-    .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
+       Goal:
+         - ALWAYS visible on customer row: name, scheduled count, REMAINING.
+         - Hidden on customer row always: DETAILS button, sites count, poles count,
+           type chips, in_review/in_progress/completed/verified status chips,
+           the desktop scheduled chip (because we use the mobile one instead).
+         - When customer is EXPANDED: a second row appears below the name showing
+           all the chips that desktop has (DETAILS, sites/poles, types, all statuses).
+           This is what the existing .tree-stats-secondary block carries — we make
+           it a full-width wrapping flex container and move it below the row.
 
-    /* Collapsed customer row on mobile: hide sites count + poles count.
-       (Type/status chips are inside .tree-stats-secondary which is already
-       hidden by the rule above when collapsed.) Only REMAINING stays visible. */
-    .tree-customer:not(.expanded) .tree-row-customer .tree-stat-sites,
-    .tree-customer:not(.expanded) .tree-row-customer .tree-stat-poles{display:none}
+       Implementation: .tree-stats-secondary uses display:contents by default, which
+       leaks its children into .tree-row's flex layout (this is what caused the
+       City of Boise bug). On mobile we change it to display:flex with flex-basis:100%
+       so it becomes a single wrapping line BELOW the row. Sites/poles count and
+       desktop-scheduled get re-parented visually by moving them inside same wrap.
+    */
+
+    /* Mobile-only chip visibility on the customer row itself.
+       Only the mobile-scheduled and REMAINING chips show inline on the row. */
+    .tree-row-customer .tree-details-btn,
+    .tree-row-customer .tree-stat-sites,
+    .tree-row-customer .tree-stat-poles,
+    .tree-row-customer .tree-stat-desktop-scheduled{display:none}
+    .tree-stat-mobile-scheduled{display:inline-flex}
+
+    /* When customer is COLLAPSED on mobile: hide the entire secondary chip
+       cluster (types + statuses except scheduled which is shown via mobile-scheduled). */
+    .tree-customer:not(.expanded) .tree-stats-secondary{display:none}
+
+    /* When customer is EXPANDED on mobile: show secondary chip cluster as a
+       new row BELOW the customer row, full width, wrapping. The flex-basis:100%
+       on the .tree-stats container forces wrap, and we use a flex display
+       (instead of display:contents) so chips don't leak into the row's flex. */
+    .tree-customer.expanded .tree-stats-secondary{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      flex-basis:100%;
+      margin-top:6px;
+      padding:8px 0 4px 28px;  /* indent matches caret offset */
+      border-top:1px solid var(--border);
+    }
+
+    /* When expanded on mobile, also surface DETAILS button + sites/poles
+       count chips inside that secondary cluster row so they're discoverable. */
+    .tree-customer.expanded .tree-row-customer .tree-details-btn{
+      display:inline-flex;
+      align-items:center;
+      order:99;  /* push DETAILS to end of cluster */
+    }
+
+    .tree-stat,.tree-stat-remaining{min-height:30px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center}
 
     /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
     .tree-row .tree-action{display:none}
@@ -394,7 +435,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.64</div>
+  <div class="ver">AutoFlag© · v1.65</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -462,7 +503,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.64</span>
+    AutoFlag© <span>Rev v1.65</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1929,7 +1970,8 @@ function renderBrowse(){
         <div class="tree-stats">
           <span class="tree-stat tree-stat-sites">${sites.length} site${sites.length===1?'':'s'}</span>
           <span class="tree-stat tree-stat-poles">${allPoles.length} pole${allPoles.length===1?'':'s'}</span>
-          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${(counts.completed + counts.verified)?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed (includes verified)">${counts.completed + counts.verified} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified tree-stat-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
+          <span class="tree-stats-secondary">${typeCounts.external?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='external'?'active':''}" style="background:#2a2520;color:var(--amber-bright)" onclick="event.stopPropagation();filterByType('external','${c.id}')" title="Filter to External">🪢 External ${typeCounts.external}</span>`:''}${typeCounts.internal?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='internal'?'active':''}" style="background:#252a30;color:#a8c5e6" onclick="event.stopPropagation();filterByType('internal','${c.id}')" title="Filter to Internal">🧵 Internal ${typeCounts.internal}</span>`:''}${typeCounts.cylinder?`<span class="tree-stat tree-stat-clickable tree-stat-type ${state.filter.installType==='cylinder'?'active':''}" style="background:#2a2030;color:#c8a8e8" onclick="event.stopPropagation();filterByType('cylinder','${c.id}')" title="Filter to Cylinder">🛢 Cylinder ${typeCounts.cylinder}</span>`:''}${counts.in_review?`<span class="tree-stat tree-stat-clickable status-in_review ${state.filter.status==='in_review'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_review','${c.id}')" title="Filter to In Review">${counts.in_review} in review</span>`:''}${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled tree-stat-desktop-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}${counts.in_progress?`<span class="tree-stat tree-stat-clickable status-in_progress ${state.filter.status==='in_progress'?'active':''}" onclick="event.stopPropagation();filterByStatus('in_progress','${c.id}')" title="Filter to In Progress">${counts.in_progress} in progress</span>`:''}${(counts.completed + counts.verified)?`<span class="tree-stat tree-stat-clickable status-completed ${state.filter.status==='completed'?'active':''}" onclick="event.stopPropagation();filterByStatus('completed','${c.id}')" title="Filter to Completed (includes verified)">${counts.completed + counts.verified} completed</span>`:''}${counts.verified?`<span class="tree-stat tree-stat-clickable status-verified tree-stat-verified ${state.filter.status==='verified'?'active':''}" onclick="event.stopPropagation();filterByStatus('verified','${c.id}')" title="Filter to Verified">${counts.verified} verified</span>`:''}</span>
+          ${counts.scheduled?`<span class="tree-stat tree-stat-clickable status-scheduled tree-stat-mobile-scheduled ${state.filter.status==='scheduled'?'active':''}" onclick="event.stopPropagation();filterByStatus('scheduled','${c.id}')" title="Filter to Scheduled">${counts.scheduled} scheduled</span>`:''}
           ${remaining > 0?`<span class="tree-stat-remaining ${state.filter.status==='remaining'?'active':''}" onclick="event.stopPropagation();filterByStatus('remaining','${c.id}')" title="Show only poles still needing install (in review + scheduled + in progress)">${remaining} remaining</span>`:''}
         </div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
