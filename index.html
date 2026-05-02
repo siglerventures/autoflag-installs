@@ -379,7 +379,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">v1.60 · AutoFlag© stack</div>
+  <div class="ver">AutoFlag© · v1.61</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -447,7 +447,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.60</span>
+    AutoFlag© <span>Rev v1.61</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1805,9 +1805,21 @@ function renderFilterBar(){
   }
   bar.innerHTML = html;
 }
-window.setStatusFilter = s => { state.filter.status=s; renderActive(); };
-window.setCustomerFilter = c => { state.filter.customer=c; renderActive(); };
-window.setInstallTypeFilter = t => { state.filter.installType=t; renderActive(); };
+// All three top filter chips toggle: clicking the active value clears the
+// filter back to "all". Matches the behavior of customer-row stat chips.
+// "All" itself doesn't toggle (clicking "All" while active does nothing).
+window.setStatusFilter = s => {
+  state.filter.status = (state.filter.status === s && s !== "all") ? "all" : s;
+  renderActive();
+};
+window.setCustomerFilter = c => {
+  state.filter.customer = (state.filter.customer === c && c !== "all") ? "all" : c;
+  renderActive();
+};
+window.setInstallTypeFilter = t => {
+  state.filter.installType = (state.filter.installType === t && t !== "all") ? "all" : t;
+  renderActive();
+};
 
 // Click a stat chip: toggles the filter (click again to clear) and ensures customer is expanded
 window.filterByStatus = (status, customerId) => {
