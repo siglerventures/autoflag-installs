@@ -435,7 +435,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.67</div>
+  <div class="ver">AutoFlag© · v1.68</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -444,7 +444,7 @@
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
     <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
-    <input type="text" id="aiInput" class="ai-bar-input" style="width:420px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site at 1001 S Americana...'" onkeydown="if(event.key==='Enter')askAI()" />
+    <input type="text" id="aiInput" class="ai-bar-input" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
     <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
     <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
       📸
@@ -461,6 +461,7 @@
       <button class="view-tab" data-view="list" onclick="switchView('list')">📑 List</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
     </div>
+    <button class="btn-secondary btn" id="expandToggleBtn" style="flex-shrink:0;font-size:11px;padding:5px 12px" onclick="toggleExpandCollapse()">Expand</button>
   </div>
 
   <!-- AI photo panel + thinking + chat thread (no longer wrapped in ai-bar div) -->
@@ -500,11 +501,11 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.67</span>
+    AutoFlag© <span>Rev v1.68</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
-    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;font-size:14px;padding:2px 8px;vertical-align:middle">📋</button>
-    <span class="user-pill" id="userPill" style="display:inline-flex;vertical-align:middle"></span>
+    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
+    <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
   </footer>
 </div>
@@ -1936,10 +1937,6 @@ function renderBrowse(){
 
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>
-    <div style="display:flex;gap:6px">
-      <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="expandAll()">Expand All</button>
-      <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="collapseAll()">Collapse All</button>
-    </div>
   </div>`;
 
   html += `<div class="tree">`;
@@ -2085,6 +2082,7 @@ function renderBrowse(){
 window.toggleCustomer = (cid) => {
   if(state.expanded.customers.has(cid)) state.expanded.customers.delete(cid);
   else state.expanded.customers.add(cid);
+  updateExpandToggleBtn();
   renderActive();
 };
 window.toggleSite = (sid) => {
@@ -2097,13 +2095,29 @@ window.expandAll = () => {
     state.expanded.customers.add(c.id);
     Object.values(c.sites).forEach(s => state.expanded.sites.add(s.id));
   });
+  updateExpandToggleBtn();
   renderActive();
 };
 window.collapseAll = () => {
   state.expanded.customers.clear();
   state.expanded.sites.clear();
+  updateExpandToggleBtn();
   renderActive();
 };
+// Toggle: if any customer is expanded, collapse all; else expand all.
+window.toggleExpandCollapse = () => {
+  if(state.expanded.customers.size > 0){
+    window.collapseAll();
+  } else {
+    window.expandAll();
+  }
+};
+// Keep the toggle button label in sync with current expand state.
+function updateExpandToggleBtn(){
+  const btn = document.getElementById("expandToggleBtn");
+  if(!btn) return;
+  btn.textContent = state.expanded.customers.size > 0 ? "Collapse" : "Expand";
+}
 
 function renderCustomerDetail(c){
   const sites = Object.values(c.sites)
