@@ -128,10 +128,10 @@
   .status-in_review{background:#3a2a3a;color:#d8a8d8}
   .status-scheduled{background:#3a1f1f;color:var(--red)}
   .status-in_progress{background:#3a2a20;color:var(--amber-bright)}
-  .status-completed{background:#1f3a2a;color:var(--green)}
+  .status-completed{background:#1f2a3a;color:var(--blue)}
   .status-done{background:#1f3a2a;color:var(--green)}     /* legacy alias */
   .status-installed{background:#1f3a2a;color:var(--green)}/* legacy alias */
-  .status-verified{background:#1f2a3a;color:var(--blue)}
+  .status-verified{background:#1f3a2a;color:var(--green)}
 
   /* ==== Map ==== */
   #mapContainer{height:calc(100vh - 180px);min-height:400px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
@@ -218,10 +218,10 @@
   .tree-stat.status-in_review{background:#3a2a3a;color:#d8a8d8}
   .tree-stat.status-scheduled{background:#3a1f1f;color:var(--red)}
   .tree-stat.status-in_progress{background:#3a2a20;color:var(--amber-bright)}
-  .tree-stat.status-completed{background:#1f3a2a;color:var(--green);font-weight:700}
+  .tree-stat.status-completed{background:#1f2a3a;color:var(--blue);font-weight:700}
   .tree-stat.status-done{background:#1f3a2a;color:var(--green)}
   .tree-stat.status-installed{background:#1f3a2a;color:var(--green)}
-  .tree-stat.status-verified{background:#1f2a3a;color:var(--blue)}
+  .tree-stat.status-verified{background:#1f3a2a;color:var(--green)}
   .tree-action{padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:12px;cursor:pointer;flex-shrink:0}
   .tree-action:hover{border-color:var(--amber-dim);color:var(--amber)}
   .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.87</div>
+  <div class="ver">AutoFlag© · v1.88</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.87</span>
+    AutoFlag© <span>Rev v1.88</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2815,8 +2815,8 @@ function renderMap(){
     in_review:   '#b48ae0',  // purple — matches .status-in_review chip
     scheduled:   '#d96e6e',  // red    — matches .status-scheduled chip (changed in 1.73)
     in_progress: '#ff9d4d',  // orange — matches .status-in_progress chip
-    completed:   '#7fb069',  // green  — matches --green CSS var
-    verified:    '#6ea3d9'   // teal/blue — matches --blue CSS var
+    completed:   '#6ea3d9',  // blue   — matches --blue CSS var
+    verified:    '#7fb069'   // green  — matches --green CSS var
   };
   items.forEach(({c,s,p}) => {
     const lat = p.lat ?? s.lat, lng = p.lng ?? s.lng;
