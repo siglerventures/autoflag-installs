@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.85</div>
+  <div class="ver">AutoFlag© · v1.86</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.85</span>
+    AutoFlag© <span>Rev v1.86</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2793,10 +2793,21 @@ function renderMap(){
   }).addTo(map);
   const items = collectPoles().filter(({s,p}) => (p.lat&&p.lng) || (s.lat&&s.lng));
   const bounds = [];
+  // Map pin colors per status (matches chip colors in customer/pole rows):
+  //   in_review  → purple, scheduled → red, in_progress → orange,
+  //   completed  → green,  verified  → teal/blue.
+  // Fallback (no recognized status): muted amber.
+  const PIN_COLORS = {
+    in_review:   '#b48ae0',  // purple — matches .status-in_review chip
+    scheduled:   '#d96e6e',  // red    — matches .status-scheduled chip (changed in 1.73)
+    in_progress: '#ff9d4d',  // orange — matches .status-in_progress chip
+    completed:   '#7fb069',  // green  — matches --green CSS var
+    verified:    '#6ea3d9'   // teal/blue — matches --blue CSS var
+  };
   items.forEach(({c,s,p}) => {
     const lat = p.lat ?? s.lat, lng = p.lng ?? s.lng;
     if(lat==null || lng==null) return;
-    const color = p.status==='verified'?'#6ea3d9':p.status==='installed'?'#7fb069':p.status==='in_progress'?'#f3c489':'#e0a96d';
+    const color = PIN_COLORS[p.status] || '#e0a96d';
     const m = L.circleMarker([lat,lng],{
       radius:8, fillColor:color, color:'#0d0d0f', weight:2, fillOpacity:.9
     }).addTo(map);
@@ -2805,6 +2816,24 @@ function renderMap(){
     bounds.push([lat,lng]);
   });
   if(bounds.length>0) map.fitBounds(bounds, {padding:[40,40], maxZoom:14});
+
+  // Legend control — bottom-right of map. Shows pin colors and status labels.
+  const legend = L.control({position:'bottomright'});
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div', 'map-legend');
+    div.style.cssText = 'background:rgba(13,13,15,.92);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--text);line-height:1.6;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    const row = (color, label) =>
+      `<div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:${color};border:1px solid #0d0d0f;display:inline-block;flex-shrink:0"></span>${label}</div>`;
+    div.innerHTML = `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px">Status</div>` +
+      row(PIN_COLORS.in_review, 'In Review') +
+      row(PIN_COLORS.scheduled, 'Scheduled') +
+      row(PIN_COLORS.in_progress, 'In Progress') +
+      row(PIN_COLORS.completed, 'Completed') +
+      row(PIN_COLORS.verified, 'Verified');
+    return div;
+  };
+  legend.addTo(map);
+
   state.mapInstance = map;
 }
 
