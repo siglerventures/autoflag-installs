@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.83</div>
+  <div class="ver">AutoFlag© · v1.84</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.83</span>
+    AutoFlag© <span>Rev v1.84</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -3732,10 +3732,18 @@ You can perform actions by emitting JSON action blocks at the END of your respon
 Emit each action as raw JSON on its own line (NO markdown code fences).
 
 Supported actions:
-{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "in_review|scheduled|in_progress|completed|verified", "installType": "external|internal|cylinder", "serial":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "expectedInstallDate":"YYYY-MM-DD", "completedDate":"YYYY-MM-DD", "completedBy":"<uid>", "survey":"", "notes":"", "photos":["https://..."] }
+{ "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "in_review|scheduled|in_progress|completed|verified", "installType": "external|internal|cylinder", "serial":"", "flagSize":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "expectedInstallDate":"YYYY-MM-DD", "completedDate":"YYYY-MM-DD", "completedBy":"<uid>", "survey":"", "notes":"", "photos":["https://..."] }
 { "action": "update_pole", "customerId":"...", "siteId":"...", "poleId":"...", "patch": { ...fields to change... } }
 { "action": "add_site", "customerId":"...", "name":"...", "address":"" }
 { "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
+
+FIELD SEMANTICS (important — labels in UI differ from JSON keys):
+- "serial" = Flag Pole Height (e.g., "20 ft", "30 ft"). Standard heights: 15/20/25/30/35/40/45/50/60/70/80 ft.
+- "fw" = Serial # of the AutoFlag hardware unit. (Field name "fw" is a legacy artifact — don't call it "firmware".)
+- "flagSize" = Physical flag dimensions (e.g., "4x6", "5x8"). Standard sizes: 2x3, 3x5, 4x6, 5x8, 6x10, 8x12, 10x15, 12x18, 15x25, 20x30, 30x60.
+- "sim" = SIM/ICCID number for cellular hardware.
+- "plan" = SaaS subscription tier (lte $199/yr or wifi $149/yr).
+- "saas" = current SaaS activation state (pending/active/failed).
 
 CRITICAL RULES:
 - NEVER guess customerId or siteId. If ambiguous, ASK the user to disambiguate (list candidates by name).
@@ -3801,7 +3809,12 @@ function buildAIContext(){
           const checkedSteps = totalSteps ? tpl.steps.filter(st => cl[st.id]?.checked).length : 0;
           return [pid, {
             id:pid, label:p.label, status:p.status, installType:p.installType,
-            serial:p.serial, plan:p.plan, saas:p.saas,
+            // serial=Flag Pole Height, fw=Serial #, flagSize=physical flag dimensions
+            serial:p.serial, flagSize:p.flagSize, sim:p.sim, fw:p.fw,
+            plan:p.plan, saas:p.saas,
+            expectedInstallDate:p.expectedInstallDate, completedDate:p.completedDate,
+            completedBy:p.completedBy,
+            survey:p.survey, notes:p.notes,
             ...(totalSteps ? { progress: `${checkedSteps}/${totalSteps} steps done` } : {})
           }];
         }))
