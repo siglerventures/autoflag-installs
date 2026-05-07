@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.82</div>
+  <div class="ver">AutoFlag© · v1.83</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.82</span>
+    AutoFlag© <span>Rev v1.83</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -586,7 +586,6 @@
         <div class="form-row"><label>Flag Size</label><select id="mp-flagSize">
           <option value="">—</option>
           <option value="2x3">2x3</option>
-          <option value="2.5x4">2.5x4</option>
           <option value="3x5">3x5</option>
           <option value="4x6">4x6</option>
           <option value="5x8">5x8</option>
@@ -596,6 +595,7 @@
           <option value="12x18">12x18</option>
           <option value="15x25">15x25</option>
           <option value="20x30">20x30</option>
+          <option value="30x60">30x60</option>
         </select></div>
         <div class="form-row"><label>Install type *</label><select id="mp-installType">
           <option value="">— Select —</option>
@@ -975,7 +975,7 @@ function sanitizePole(p, id){
     id, label: stripHTML(p.label||""),
     status,
     installType: ["external","internal","cylinder"].includes(p.installType) ? p.installType : "",
-    serial: stripHTML(p.serial||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
+    serial: stripHTML(p.serial||""), flagSize: stripHTML(p.flagSize||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
     plan: ["lte","wifi"].includes(p.plan) ? p.plan : "",
     saas: ["pending","active","failed"].includes(p.saas) ? p.saas : "",
     lat: num(p.lat), lng: num(p.lng),
