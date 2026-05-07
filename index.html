@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.84</div>
+  <div class="ver">AutoFlag© · v1.85</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.84</span>
+    AutoFlag© <span>Rev v1.85</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -3735,6 +3735,7 @@ Supported actions:
 { "action": "add_pole", "customerId": "...", "siteId": "...", "label": "...", "status": "in_review|scheduled|in_progress|completed|verified", "installType": "external|internal|cylinder", "serial":"", "flagSize":"", "sim":"", "fw":"", "plan":"lte|wifi", "saas":"pending|active|failed", "expectedInstallDate":"YYYY-MM-DD", "completedDate":"YYYY-MM-DD", "completedBy":"<uid>", "survey":"", "notes":"", "photos":["https://..."] }
 { "action": "update_pole", "customerId":"...", "siteId":"...", "poleId":"...", "patch": { ...fields to change... } }
 { "action": "add_site", "customerId":"...", "name":"...", "address":"" }
+{ "action": "update_site", "customerId":"...", "siteId":"...", "patch": { ...site fields to change (name, address, lat, lng, photos, contact, phone, notes)... } }
 { "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
 
 FIELD SEMANTICS (important — labels in UI differ from JSON keys):
@@ -3752,7 +3753,7 @@ CRITICAL RULES:
 - Reject unknown IDs — do not invent them.
 - For reports, respond in plain text only (no JSON).
 - Be concise. Phil prefers short responses.
-- When the user attaches photos, include the URLs in the photos array of add_pole or update_pole. For update_pole, MERGE with existing photos.
+- When the user attaches photos: photos can be attached to a SITE or a POLE. If the user references a customer or site name without naming a specific pole (e.g., "add this photo to Albertsons"), default to attaching at the SITE level via update_site (don't ask which pole). Only ask which pole when the user explicitly mentions a pole label or number is needed for context. Photos array is auto-merged with existing on the server side, so just include the new URLs in the patch.
 - Install types: "external" = rope-on-outside halyard, "internal" = rope-inside halyard, "cylinder" = ornamental/architectural pole. If user mentions a halyard type or the pole appearance, infer the installType. Otherwise ask.
 - Date fields: expectedInstallDate is the planned install date (set during scheduled phase). completedDate is the actual completion date. completedBy is the UID of the person who completed it (admins or installers).
 - Status workflow: in_review (specs incomplete) → scheduled (date set) → in_progress (installer on site) → completed (installer marked complete) → verified (admin QA-checked).
@@ -3868,7 +3869,17 @@ async function executeAction(a){
     if(!validP(a.customerId,a.siteId,a.poleId)) return toast("Unknown pole ID", true);
     const before = known[a.customerId].sites[a.siteId].poles[a.poleId];
     if(a.patch?.status === "verified" && !state.isAdmin) return toast("Only admins can mark verified", true);
-    const merged = sanitizePole({...before, ...a.patch}, a.poleId);
+    // BACKSTOP: if patch contains photos, merge with existing instead of replacing.
+    // The system prompt asks the AI to merge, but it sometimes forgets — this prevents
+    // accidental photo deletion when the AI sends only the new URL(s) in the patch.
+    const safePatch = {...a.patch};
+    if(Array.isArray(safePatch.photos)){
+      const existing = Array.isArray(before.photos) ? before.photos : [];
+      const incoming = safePatch.photos;
+      // Deduplicate by URL
+      safePatch.photos = [...existing, ...incoming.filter(u => !existing.includes(u))];
+    }
+    const merged = sanitizePole({...before, ...safePatch}, a.poleId);
     merged.updatedAt = Date.now(); merged.updatedBy = state.user.uid;
     const changes = diffPole(before, merged);
     if(changes.length > 0){
@@ -3877,6 +3888,28 @@ async function executeAction(a){
     }
     await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}/poles/${a.poleId}`, merged);
     toast(`Updated ${merged.label}`);
+  }
+  else if(a.action==="update_site"){
+    if(!validS(a.customerId,a.siteId)) return toast("Unknown customer/site ID", true);
+    const before = known[a.customerId].sites[a.siteId];
+    // Whitelist of writable site fields. poles{} is intentionally NOT writable here —
+    // pole adds/updates go through their own actions.
+    const allowed = ["name","address","lat","lng","photos","contact","phone","notes"];
+    const safePatch = {};
+    for(const k of allowed){
+      if(a.patch && Object.prototype.hasOwnProperty.call(a.patch, k)){
+        safePatch[k] = a.patch[k];
+      }
+    }
+    // BACKSTOP: merge photos array instead of replacing (same as update_pole)
+    if(Array.isArray(safePatch.photos)){
+      const existing = Array.isArray(before.photos) ? before.photos : [];
+      const incoming = safePatch.photos;
+      safePatch.photos = [...existing, ...incoming.filter(u => !existing.includes(u))];
+    }
+    const sitePatch = {...safePatch, updatedAt: Date.now()};
+    await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}`, sitePatch);
+    toast(`Updated site ${before.name || a.siteId}`);
   }
 }
 
