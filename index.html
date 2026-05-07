@@ -105,6 +105,24 @@
   .kanban-card.kanban-insert-before{border-top:3px solid var(--amber);margin-top:-2px}
   .kanban-card.kanban-insert-after{border-bottom:3px solid var(--amber);margin-bottom:-2px}
   .kanban-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:0.85;transform:rotate(2deg);box-shadow:0 8px 30px rgba(0,0,0,.6);background:var(--surface2);border:1px solid var(--amber);border-radius:var(--radius-sm);padding:10px}
+
+  /* ==== Procedures admin drag-and-drop (Rev 1.91) ==== */
+  /* Rows draggable on whole-row; ✎/✕/+ buttons keep their click behavior via draggable=false + stopPropagation */
+  .proc-section-row{cursor:grab;user-select:none;-webkit-user-select:none}
+  .proc-section-row:active{cursor:grabbing}
+  .proc-step-row{cursor:grab;user-select:none;-webkit-user-select:none}
+  .proc-step-row:active{cursor:grabbing}
+  .proc-row-dragging{opacity:0.4}
+  /* Drop indicators — amber 3px line above/below target row */
+  .proc-section-row.proc-insert-before{border-top:3px solid var(--amber);margin-top:-2px}
+  .proc-section-row.proc-insert-after{border-bottom:3px solid var(--amber);margin-bottom:-2px}
+  .proc-step-row.proc-insert-before{border-top:3px solid var(--amber);margin-top:-2px}
+  .proc-step-row.proc-insert-after{border-bottom:3px solid var(--amber);margin-bottom:-2px}
+  /* Touch ghost (mobile long-press) */
+  .proc-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:0.85;transform:rotate(2deg);box-shadow:0 8px 30px rgba(0,0,0,.6);background:var(--surface2);border:1px solid var(--amber);border-radius:var(--radius-sm);padding:10px;max-width:90vw}
+  /* Buttons inside drag rows must not initiate drag — also reset cursor */
+  .proc-section-row [data-no-drag],
+  .proc-step-row [data-no-drag]{cursor:pointer;user-select:auto;-webkit-user-select:auto}
   .kanban-hint{margin-top:14px;text-align:center;color:var(--text-muted);font-size:11px;font-style:italic}
   .pole-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;cursor:pointer;font-size:12px}
   .pole-card:hover{border-color:var(--amber-dim)}
@@ -349,6 +367,45 @@
   .checklist-step-photo{position:relative;width:90px;height:90px;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;border:1px solid var(--green)}
   .checklist-step-photo img{width:100%;height:100%;object-fit:cover}
 
+  /* ==== Rev 1.90 — Sectioned install steps + measurement capture ==== */
+  /* Reference pill at top of install-steps area showing captured A/B */
+  .checklist-ref-pill{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;margin-bottom:8px;background:rgba(110,163,217,0.10);border:1px solid var(--blue);border-radius:var(--radius-sm);font-size:12px}
+  .checklist-ref-pill-label{color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .checklist-ref-pill-val{color:var(--blue);font-weight:700}
+  .checklist-ref-pill-missing{color:var(--text-muted);font-style:italic}
+
+  /* Section group wrappers (terminology + steps sections) */
+  .checklist-section{margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);overflow:hidden}
+  .checklist-section-header{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
+  .checklist-section-header:hover{background:var(--surface3)}
+  .checklist-section-title{flex:1;font-size:12px;font-weight:700;color:var(--amber-bright);text-transform:uppercase;letter-spacing:.5px}
+  .checklist-section-progress{font-size:10px;color:var(--text-muted);font-weight:normal;text-transform:none;letter-spacing:0}
+  .checklist-section-caret{color:var(--text-muted);font-size:10px;transition:transform .15s}
+  .checklist-section-body{padding:8px}
+  .checklist-section.collapsed .checklist-section-body{display:none}
+  .checklist-section.collapsed .checklist-section-header{border-bottom:none}
+
+  /* Terminology reference block */
+  .checklist-terms-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:6px;margin-top:8px}
+  .checklist-term{padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px}
+  .checklist-term-label{font-weight:700;color:var(--amber-bright);display:block;margin-bottom:2px}
+  .checklist-term-desc{color:var(--text-dim);line-height:1.4}
+  .checklist-term-diagram{max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);margin-bottom:6px}
+
+  /* Locked step (forced sequencing) */
+  .checklist-step.locked{opacity:.5;pointer-events:none;background:var(--surface2)}
+  .checklist-step.locked .checklist-step-header{cursor:not-allowed}
+  .checklist-step.locked .checklist-checkbox{cursor:not-allowed}
+  .checklist-step.next-up{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset}
+
+  /* Per-step measurement-capture input row */
+  .checklist-input-row{display:flex;align-items:center;gap:8px;margin:8px 0;padding:8px;background:var(--surface2);border:1px solid var(--blue);border-radius:var(--radius-sm)}
+  .checklist-input-label{font-size:11px;color:var(--blue);font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+  .checklist-input-field{flex:1;min-width:0;padding:6px 8px;font-size:13px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm)}
+  .checklist-input-field:focus{outline:none;border-color:var(--blue)}
+  .checklist-input-unit{font-size:12px;color:var(--text-muted);flex-shrink:0}
+  .checklist-input-saved{font-size:10px;color:var(--green);flex-shrink:0}
+
   /* ==== Inline site-detail photo strip ==== */
   .site-detail-photo-strip{display:flex;gap:6px;flex-wrap:wrap;padding:6px;border:1px dashed transparent;border-radius:var(--radius-sm);transition:border-color .15s,background .15s}
   .site-detail-photo-strip.drag-over{border-color:var(--amber);background:rgba(212,134,10,0.08)}
@@ -426,7 +483,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.89</div>
+  <div class="ver">AutoFlag© · v1.91</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +549,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.89</span>
+    AutoFlag© <span>Rev v1.91</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1852,22 +1909,33 @@ function renderProcSteps(){
       const secSteps = (sec.kind === "steps" && Array.isArray(sec.steps)) ? sec.steps : [];
       const isReference = sec.kind === "reference";
       const sectionLocked = !isSectioned; // legacy can't reorder/delete sections (only one synthesized)
+      // Drag attributes: only on real sectioned templates with >1 section.
+      // Legacy synthesized sections don't drag (nothing to reorder against).
+      const sectionDraggable = isSectioned && sections.length > 1;
+      const sectionDragAttrs = sectionDraggable
+        ? `draggable="true"
+           ondragstart="procSectionDragStart(event,'${sec.id}')"
+           ondragover="procSectionDragOver(event,'${sec.id}')"
+           ondragleave="procSectionDragLeave(event)"
+           ondrop="procSectionDrop(event,'${sec.id}')"
+           ondragend="procDragEnd(event)"
+           ontouchstart="procSectionTouchStart(event,'${sec.id}')"
+           ontouchmove="procSectionTouchMove(event)"
+           ontouchend="procSectionTouchEnd(event)"`
+        : '';
 
-      html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
-        <div style="background:var(--surface2);padding:8px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
-          <div style="display:flex;flex-direction:column;gap:2px">
-            <button class="btn-secondary btn" style="font-size:10px;padding:1px 5px" onclick="moveProcSection(${sIdx},-1)" ${sIdx===0||sectionLocked?'disabled style="opacity:.3"':''}>▲</button>
-            <button class="btn-secondary btn" style="font-size:10px;padding:1px 5px" onclick="moveProcSection(${sIdx},1)" ${sIdx===sections.length-1||sectionLocked?'disabled style="opacity:.3"':''}>▼</button>
-          </div>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:600;color:var(--amber-bright)">${sIdx+1}. ${sec.title || sec.id}</div>
+      html += `<div class="proc-section-wrap" data-section-id="${sec.id}" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
+        <div class="proc-section-row${sectionDraggable ? '' : ''}" data-section-id="${sec.id}" ${sectionDragAttrs} style="background:var(--surface2);padding:8px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);${sectionDraggable ? '' : 'cursor:default'}">
+          ${sectionDraggable ? `<span style="color:var(--text-muted);font-size:14px;flex-shrink:0" title="Drag to reorder">⋮⋮</span>` : ''}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--amber-bright)">${sIdx+1}. ${escapeHtml(sec.title || sec.id)}</div>
             <div style="font-size:11px;color:var(--text-muted)">
               ${isReference ? 'Reference content (no checkable steps)' : `${secSteps.length} step${secSteps.length===1?'':'s'}`}
               ${sec.id === 'preInstall' ? ' · captures A &amp; B' : ''}
               ${sec.id === 'halyardSetup' ? ' · uses {A} {B}' : ''}
             </div>
           </div>
-          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="deleteProcSection('${sec.id}')" ${sectionLocked?'disabled style="opacity:.3"':''}>✕</button>
+          <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();deleteProcSection('${sec.id}')" ${sectionLocked?'disabled style="opacity:.3"':''}>✕</button>
         </div>
 
         <div style="padding:10px">`;
@@ -1883,7 +1951,7 @@ function renderProcSteps(){
           html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${terms.length} term${terms.length===1?'':'s'}</div>`;
         }
         html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px" onclick="editReferenceSection('${sec.id}')">✎ Edit reference content</button>
+          <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();editReferenceSection('${sec.id}')">✎ Edit reference content</button>
         </div>`;
       } else if(secSteps.length === 0){
         html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:8px;background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);margin-bottom:8px">No steps in this section yet.</div>`;
@@ -1891,23 +1959,33 @@ function renderProcSteps(){
         secSteps.forEach((st, idx) => {
           const refPhotos = Array.isArray(st.referencePhotos) ? st.referencePhotos : [];
           const inputBadge = st.inputField ? ` <span style="color:var(--blue);font-size:11px" title="Captures input ${st.inputField.name}">📝${st.inputField.name}</span>` : '';
-          html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-bottom:6px">
+          // Steps draggable if section has more than one step
+          const stepDraggable = secSteps.length > 1;
+          const stepDragAttrs = stepDraggable
+            ? `draggable="true"
+               ondragstart="procStepDragStart(event,'${sec.id}','${st.id}')"
+               ondragover="procStepDragOver(event,'${sec.id}','${st.id}')"
+               ondragleave="procStepDragLeave(event)"
+               ondrop="procStepDrop(event,'${sec.id}','${st.id}')"
+               ondragend="procDragEnd(event)"
+               ontouchstart="procStepTouchStart(event,'${sec.id}','${st.id}')"
+               ontouchmove="procStepTouchMove(event)"
+               ontouchend="procStepTouchEnd(event)"`
+            : '';
+          html += `<div class="proc-step-row" data-section-id="${sec.id}" data-step-id="${st.id}" ${stepDragAttrs} style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-bottom:6px;${stepDraggable ? '' : 'cursor:default'}">
             <div style="display:flex;align-items:flex-start;gap:8px">
-              <div style="display:flex;flex-direction:column;gap:2px">
-                <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep('${sec.id}',${idx},-1)" ${idx===0?'disabled style="opacity:.3"':''}>▲</button>
-                <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep('${sec.id}',${idx},1)" ${idx===secSteps.length-1?'disabled style="opacity:.3"':''}>▼</button>
-              </div>
-              <div style="flex:1">
-                <div style="font-size:13px;color:var(--amber-bright);font-weight:600">${idx+1}. ${st.title || '(untitled)'}${st.requirePhoto?' <span style="color:var(--amber);font-size:11px" title="Photo required">📷*</span>':''}${inputBadge}</div>
-                ${st.instructions?`<div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap">${st.instructions}</div>`:''}
+              ${stepDraggable ? `<span style="color:var(--text-muted);font-size:14px;flex-shrink:0;margin-top:2px" title="Drag to reorder">⋮⋮</span>` : ''}
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;color:var(--amber-bright);font-weight:600">${idx+1}. ${escapeHtml(st.title || '(untitled)')}${st.requirePhoto?' <span style="color:var(--amber);font-size:11px" title="Photo required">📷*</span>':''}${inputBadge}</div>
+                ${st.instructions?`<div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap">${escapeHtml(st.instructions)}</div>`:''}
                 ${(st.photoUrl || refPhotos.length)?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
-                  ${st.photoUrl?`<img src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${st.photoUrl}','_blank')" title="Legacy reference photo" />`:''}
-                  ${refPhotos.map(u=>`<img src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${u}','_blank')" title="Reference photo" />`).join('')}
+                  ${st.photoUrl?`<img data-no-drag draggable="false" src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="event.stopPropagation();window.open('${st.photoUrl}','_blank')" title="Legacy reference photo" />`:''}
+                  ${refPhotos.map(u=>`<img data-no-drag draggable="false" src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="event.stopPropagation();window.open('${u}','_blank')" title="Reference photo" />`).join('')}
                 </div>`:''}
               </div>
-              <div style="display:flex;flex-direction:column;gap:4px">
-                <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px" onclick="editProcStep('${sec.id}','${st.id}')">✎ Edit</button>
-                <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="deleteProcStep('${sec.id}','${st.id}')">✕ Delete</button>
+              <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+                <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();editProcStep('${sec.id}','${st.id}')">✎ Edit</button>
+                <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();deleteProcStep('${sec.id}','${st.id}')">✕ Delete</button>
               </div>
             </div>
           </div>`;
@@ -1917,7 +1995,7 @@ function renderProcSteps(){
       // Per-section "add step" button (steps sections only)
       if(!isReference){
         html += `<div style="text-align:right;margin-top:4px">
-          <button class="btn-secondary btn" style="font-size:11px;padding:4px 10px" onclick="addStepInSection('${sec.id}')">+ Step in this section</button>
+          <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();addStepInSection('${sec.id}')">+ Step in this section</button>
         </div>`;
       }
 
@@ -2251,6 +2329,357 @@ window.moveProcStep = async (sectionIdOrIdx, idxOrDir, dirMaybe) => {
       steps, updatedAt: Date.now(), updatedBy: state.user.uid
     });
   }
+};
+
+// ==== Procedures drag-and-drop (Rev 1.91) ====
+//
+// Desktop: HTML5 drag-and-drop (draggable=true on whole row).
+// Mobile: 350ms long-press to start, ghost element follows finger, drop on hovered row.
+// Step rows are scoped per-section — cross-section drops are no-ops to keep the rev simple.
+// Section reordering has no canonical-order constraint; user has full control.
+// Action buttons (✎ ✕ + Step + Section) carry data-no-drag + draggable=false + event.stopPropagation()
+// so clicks don't initiate drag.
+const procDrag = {
+  type: null,           // "section" | "step"
+  sectionId: null,      // section being dragged (type="section") OR parent of step (type="step")
+  stepId: null,         // step being dragged (type="step")
+  el: null,             // the DOM row currently being dragged
+  // Touch state
+  touchActive: false,
+  longPressTimer: null,
+  startX: 0, startY: 0,
+  lastTouchX: 0, lastTouchY: 0,
+  ghost: null,
+  suppressClickUntil: 0
+};
+
+function clearProcDropMarkers(){
+  document.querySelectorAll(".proc-section-row.proc-insert-before, .proc-section-row.proc-insert-after, .proc-step-row.proc-insert-before, .proc-step-row.proc-insert-after")
+    .forEach(el => { el.classList.remove("proc-insert-before"); el.classList.remove("proc-insert-after"); });
+}
+function clearProcDragState(){
+  if(procDrag.el) procDrag.el.classList.remove("proc-row-dragging");
+  if(procDrag.ghost){ procDrag.ghost.remove(); }
+  clearTimeout(procDrag.longPressTimer);
+  clearProcDropMarkers();
+  procDrag.type = null;
+  procDrag.sectionId = null;
+  procDrag.stepId = null;
+  procDrag.el = null;
+  procDrag.ghost = null;
+  procDrag.touchActive = false;
+  procDrag.longPressTimer = null;
+}
+
+// ---- Section drag handlers (desktop) ----
+window.procSectionDragStart = (ev, sectionId) => {
+  procDrag.type = "section";
+  procDrag.sectionId = sectionId;
+  procDrag.el = ev.currentTarget;
+  ev.currentTarget.classList.add("proc-row-dragging");
+  if(ev.dataTransfer){
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", sectionId);
+  }
+};
+window.procSectionDragOver = (ev, sectionId) => {
+  if(procDrag.type !== "section") return;
+  if(procDrag.sectionId === sectionId) return;
+  ev.preventDefault();
+  if(ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+  // Only clear other section-row markers; leave step markers alone
+  document.querySelectorAll(".proc-section-row.proc-insert-before, .proc-section-row.proc-insert-after")
+    .forEach(el => { el.classList.remove("proc-insert-before"); el.classList.remove("proc-insert-after"); });
+  const target = ev.currentTarget;
+  const rect = target.getBoundingClientRect();
+  const above = (ev.clientY - rect.top) < rect.height / 2;
+  target.classList.add(above ? "proc-insert-before" : "proc-insert-after");
+};
+window.procSectionDragLeave = (ev) => {
+  // Only clear if leaving the row entirely (not when moving onto a child)
+  if(ev.currentTarget.contains(ev.relatedTarget)) return;
+  ev.currentTarget.classList.remove("proc-insert-before");
+  ev.currentTarget.classList.remove("proc-insert-after");
+};
+window.procSectionDrop = async (ev, dropOnSectionId) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(procDrag.type !== "section" || !procDrag.sectionId){ clearProcDragState(); return; }
+  if(procDrag.sectionId === dropOnSectionId){ clearProcDragState(); return; }
+  const above = ev.currentTarget.classList.contains("proc-insert-before");
+  await applyProcSectionReorder(procDrag.sectionId, dropOnSectionId, above);
+  clearProcDragState();
+};
+
+async function applyProcSectionReorder(draggedId, dropOnId, above){
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl || !Array.isArray(tpl.sections)) return;
+  const sections = [...tpl.sections];
+  const fromIdx = sections.findIndex(s => s.id === draggedId);
+  if(fromIdx < 0) return;
+  const [moved] = sections.splice(fromIdx, 1);
+  let toIdx = sections.findIndex(s => s.id === dropOnId);
+  if(toIdx < 0){ // shouldn't happen — restore
+    sections.splice(fromIdx, 0, moved);
+    return;
+  }
+  if(!above) toIdx += 1;
+  sections.splice(toIdx, 0, moved);
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+}
+
+// ---- Step drag handlers (desktop) ----
+window.procStepDragStart = (ev, sectionId, stepId) => {
+  ev.stopPropagation(); // don't bubble to section
+  procDrag.type = "step";
+  procDrag.sectionId = sectionId;
+  procDrag.stepId = stepId;
+  procDrag.el = ev.currentTarget;
+  ev.currentTarget.classList.add("proc-row-dragging");
+  if(ev.dataTransfer){
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", stepId);
+  }
+};
+window.procStepDragOver = (ev, sectionId, stepId) => {
+  if(procDrag.type !== "step") return;
+  // Cross-section drops are no-ops in this rev
+  if(procDrag.sectionId !== sectionId) return;
+  if(procDrag.stepId === stepId) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".proc-step-row.proc-insert-before, .proc-step-row.proc-insert-after")
+    .forEach(el => { el.classList.remove("proc-insert-before"); el.classList.remove("proc-insert-after"); });
+  const target = ev.currentTarget;
+  const rect = target.getBoundingClientRect();
+  const above = (ev.clientY - rect.top) < rect.height / 2;
+  target.classList.add(above ? "proc-insert-before" : "proc-insert-after");
+};
+window.procStepDragLeave = (ev) => {
+  if(ev.currentTarget.contains(ev.relatedTarget)) return;
+  ev.currentTarget.classList.remove("proc-insert-before");
+  ev.currentTarget.classList.remove("proc-insert-after");
+};
+window.procStepDrop = async (ev, dropSectionId, dropStepId) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(procDrag.type !== "step" || !procDrag.stepId){ clearProcDragState(); return; }
+  if(procDrag.sectionId !== dropSectionId){ clearProcDragState(); return; } // cross-section = no-op
+  if(procDrag.stepId === dropStepId){ clearProcDragState(); return; }
+  const above = ev.currentTarget.classList.contains("proc-insert-before");
+  await applyProcStepReorder(procDrag.sectionId, procDrag.stepId, dropStepId, above);
+  clearProcDragState();
+};
+
+async function applyProcStepReorder(sectionId, draggedStepId, dropOnStepId, above){
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl) return;
+  if(Array.isArray(tpl.sections)){
+    const sections = tpl.sections.map(s => {
+      if(s.id !== sectionId) return s;
+      const steps = [...(s.steps || [])];
+      const fromIdx = steps.findIndex(x => x.id === draggedStepId);
+      if(fromIdx < 0) return s;
+      const [moved] = steps.splice(fromIdx, 1);
+      let toIdx = steps.findIndex(x => x.id === dropOnStepId);
+      if(toIdx < 0){ steps.splice(fromIdx, 0, moved); return s; }
+      if(!above) toIdx += 1;
+      steps.splice(toIdx, 0, moved);
+      return { ...s, steps };
+    });
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } else {
+    // Legacy flat
+    const steps = [...(tpl.steps || [])];
+    const fromIdx = steps.findIndex(x => x.id === draggedStepId);
+    if(fromIdx < 0) return;
+    const [moved] = steps.splice(fromIdx, 1);
+    let toIdx = steps.findIndex(x => x.id === dropOnStepId);
+    if(toIdx < 0){ steps.splice(fromIdx, 0, moved); return; }
+    if(!above) toIdx += 1;
+    steps.splice(toIdx, 0, moved);
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      steps, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  }
+}
+
+window.procDragEnd = (ev) => {
+  if(procDrag.el) procDrag.el.classList.remove("proc-row-dragging");
+  clearProcDropMarkers();
+  procDrag.type = null;
+  procDrag.sectionId = null;
+  procDrag.stepId = null;
+  procDrag.el = null;
+};
+
+// ---- Touch (mobile) — long-press to drag, mirrors kanban pattern ----
+function procIsActionTarget(el){
+  // Walk up looking for [data-no-drag]
+  while(el && el !== document.body){
+    if(el.dataset && el.dataset.noDrag !== undefined) return true;
+    el = el.parentNode;
+  }
+  return false;
+}
+
+window.procSectionTouchStart = (ev, sectionId) => {
+  if(ev.touches.length !== 1) return;
+  if(procIsActionTarget(ev.target)) return; // don't start drag on action button
+  const t = ev.touches[0];
+  procDrag.type = "section";
+  procDrag.sectionId = sectionId;
+  procDrag.el = ev.currentTarget;
+  procDrag.startX = t.clientX;
+  procDrag.startY = t.clientY;
+  procDrag.lastTouchX = t.clientX;
+  procDrag.lastTouchY = t.clientY;
+  procDrag.touchActive = false;
+  procDrag.longPressTimer = setTimeout(() => {
+    procDrag.touchActive = true;
+    procDrag.el.classList.add("proc-row-dragging");
+    if(navigator.vibrate) navigator.vibrate(40);
+    const r = procDrag.el.getBoundingClientRect();
+    const g = procDrag.el.cloneNode(true);
+    g.classList.add("proc-ghost");
+    g.style.width = r.width + "px";
+    g.style.left = r.left + "px";
+    g.style.top = r.top + "px";
+    document.body.appendChild(g);
+    procDrag.ghost = g;
+  }, 350);
+};
+
+window.procSectionTouchMove = (ev) => {
+  if(ev.touches.length !== 1) return;
+  const t = ev.touches[0];
+  procDrag.lastTouchX = t.clientX;
+  procDrag.lastTouchY = t.clientY;
+  if(!procDrag.touchActive){
+    const dx = t.clientX - procDrag.startX;
+    const dy = t.clientY - procDrag.startY;
+    if(Math.abs(dx) > 10 || Math.abs(dy) > 10){
+      clearTimeout(procDrag.longPressTimer);
+      procDrag.longPressTimer = null;
+      procDrag.type = null;
+      procDrag.el = null;
+    }
+    return;
+  }
+  ev.preventDefault();
+  if(procDrag.ghost){
+    procDrag.ghost.style.left = (t.clientX - 100) + "px";
+    procDrag.ghost.style.top = (t.clientY - 20) + "px";
+  }
+  // Highlight section row under finger
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  document.querySelectorAll(".proc-section-row.proc-insert-before, .proc-section-row.proc-insert-after")
+    .forEach(c => { c.classList.remove("proc-insert-before"); c.classList.remove("proc-insert-after"); });
+  const target = el?.closest(".proc-section-row");
+  if(target && target.dataset.sectionId !== procDrag.sectionId){
+    const rect = target.getBoundingClientRect();
+    const above = (t.clientY - rect.top) < rect.height / 2;
+    target.classList.add(above ? "proc-insert-before" : "proc-insert-after");
+  }
+};
+
+window.procSectionTouchEnd = async (ev) => {
+  clearTimeout(procDrag.longPressTimer);
+  if(!procDrag.touchActive){ clearProcDragState(); return; }
+  ev.preventDefault();
+  const x = procDrag.lastTouchX, y = procDrag.lastTouchY;
+  const el = document.elementFromPoint(x, y);
+  const target = el?.closest(".proc-section-row");
+  if(target && target.dataset.sectionId !== procDrag.sectionId){
+    const rect = target.getBoundingClientRect();
+    const above = (y - rect.top) < rect.height / 2;
+    await applyProcSectionReorder(procDrag.sectionId, target.dataset.sectionId, above);
+  }
+  clearProcDragState();
+  procDrag.suppressClickUntil = Date.now() + 300;
+};
+
+window.procStepTouchStart = (ev, sectionId, stepId) => {
+  if(ev.touches.length !== 1) return;
+  if(procIsActionTarget(ev.target)) return;
+  ev.stopPropagation(); // don't trigger section touch
+  const t = ev.touches[0];
+  procDrag.type = "step";
+  procDrag.sectionId = sectionId;
+  procDrag.stepId = stepId;
+  procDrag.el = ev.currentTarget;
+  procDrag.startX = t.clientX;
+  procDrag.startY = t.clientY;
+  procDrag.lastTouchX = t.clientX;
+  procDrag.lastTouchY = t.clientY;
+  procDrag.touchActive = false;
+  procDrag.longPressTimer = setTimeout(() => {
+    procDrag.touchActive = true;
+    procDrag.el.classList.add("proc-row-dragging");
+    if(navigator.vibrate) navigator.vibrate(40);
+    const r = procDrag.el.getBoundingClientRect();
+    const g = procDrag.el.cloneNode(true);
+    g.classList.add("proc-ghost");
+    g.style.width = r.width + "px";
+    g.style.left = r.left + "px";
+    g.style.top = r.top + "px";
+    document.body.appendChild(g);
+    procDrag.ghost = g;
+  }, 350);
+};
+
+window.procStepTouchMove = (ev) => {
+  if(ev.touches.length !== 1) return;
+  const t = ev.touches[0];
+  procDrag.lastTouchX = t.clientX;
+  procDrag.lastTouchY = t.clientY;
+  if(!procDrag.touchActive){
+    const dx = t.clientX - procDrag.startX;
+    const dy = t.clientY - procDrag.startY;
+    if(Math.abs(dx) > 10 || Math.abs(dy) > 10){
+      clearTimeout(procDrag.longPressTimer);
+      procDrag.longPressTimer = null;
+      procDrag.type = null;
+      procDrag.el = null;
+    }
+    return;
+  }
+  ev.preventDefault();
+  if(procDrag.ghost){
+    procDrag.ghost.style.left = (t.clientX - 100) + "px";
+    procDrag.ghost.style.top = (t.clientY - 20) + "px";
+  }
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  document.querySelectorAll(".proc-step-row.proc-insert-before, .proc-step-row.proc-insert-after")
+    .forEach(c => { c.classList.remove("proc-insert-before"); c.classList.remove("proc-insert-after"); });
+  const target = el?.closest(".proc-step-row");
+  // Only highlight in-section targets
+  if(target && target.dataset.stepId !== procDrag.stepId && target.dataset.sectionId === procDrag.sectionId){
+    const rect = target.getBoundingClientRect();
+    const above = (t.clientY - rect.top) < rect.height / 2;
+    target.classList.add(above ? "proc-insert-before" : "proc-insert-after");
+  }
+};
+
+window.procStepTouchEnd = async (ev) => {
+  clearTimeout(procDrag.longPressTimer);
+  if(!procDrag.touchActive){ clearProcDragState(); return; }
+  ev.preventDefault();
+  const x = procDrag.lastTouchX, y = procDrag.lastTouchY;
+  const el = document.elementFromPoint(x, y);
+  const target = el?.closest(".proc-step-row");
+  if(target && target.dataset.stepId !== procDrag.stepId && target.dataset.sectionId === procDrag.sectionId){
+    const rect = target.getBoundingClientRect();
+    const above = (y - rect.top) < rect.height / 2;
+    await applyProcStepReorder(procDrag.sectionId, procDrag.stepId, target.dataset.stepId, above);
+  }
+  clearProcDragState();
+  procDrag.suppressClickUntil = Date.now() + 300;
 };
 
 // Re-render proc steps when procedures data updates — handled inside subscribeProcedures
@@ -3637,10 +4066,11 @@ function renderPoleChecklist(p){
     return;
   }
   const tpl = state.procedures[liveType];
-  // Schema-aware: accept either legacy {steps:[]} or new {sections:[...]} shape.
-  // Rev 1.89 still renders flat for installer; Rev B will add sectioned UI.
-  const stepsForRender = getTemplateSteps(tpl);
-  if(!tpl || stepsForRender.length === 0){
+  // Schema-aware: works for legacy {steps:[]} and new {sections:[...]} shapes.
+  // getTemplateSections synthesizes a single "onsiteInstall" section for legacy templates.
+  const sections = getTemplateSections(tpl);
+  const flatSteps = getTemplateSteps(tpl); // declared order across all sections
+  if(!tpl || flatSteps.length === 0){
     wrap.innerHTML = `<div style="text-align:center;padding:14px;color:var(--text-muted);font-size:12px">
       No procedure defined for <strong>${formatInstallType(liveType)}</strong> yet.
       ${state.isAdmin ? '<br><span style="color:var(--amber);cursor:pointer;text-decoration:underline" onclick="openProceduresModal()">📋 Edit procedures</span>' : '<br>Ask an admin to create one.'}
@@ -3651,43 +4081,209 @@ function renderPoleChecklist(p){
   }
 
   const checklist = (p && p.checklist) || {};
-  const total = stepsForRender.length;
-  const checked = stepsForRender.filter(st => checklist[st.id]?.checked).length;
+  const total = flatSteps.length;
+  const checked = flatSteps.filter(st => checklist[st.id]?.checked).length;
   progressEl.textContent = `(${checked}/${total} done)`;
   typeEl.textContent = `${formatInstallType(liveType)} procedure`;
 
+  // ===== Forced sequencing =====
+  // First unlocked = first step in declared order whose every predecessor is checked.
+  // Already-checked steps remain editable so installer can uncheck if needed.
+  // Steps after firstUnlocked are locked until predecessors are done.
+  let firstUnlockedIdx = -1;
+  for(let i=0; i<flatSteps.length; i++){
+    if(!checklist[flatSteps[i].id]?.checked){
+      firstUnlockedIdx = i;
+      break;
+    }
+  }
+  const allDone = (firstUnlockedIdx === -1);
+  const stepUnlocked = (idx) => allDone || idx <= firstUnlockedIdx || !!checklist[flatSteps[idx].id]?.checked;
+
+  // ===== Reference pill (A/B captured) =====
+  const Aval = getPoleMeasurement(p, "A");
+  const Bval = getPoleMeasurement(p, "B");
+  // Only show if at least one of A or B is meaningful for this template
+  // (template has a step with inputField.name === "A" or "B")
+  const hasA = flatSteps.some(s => s.inputField?.name === "A");
+  const hasB = flatSteps.some(s => s.inputField?.name === "B");
   let html = "";
-  stepsForRender.forEach((st, idx) => {
-    const c = checklist[st.id] || {};
-    const isChecked = !!c.checked;
-    const stepPhotoUrl = c.photoUrl || "";
-    html += `<div class="checklist-step ${isChecked?'checked':''}" data-step-id="${st.id}">
-      <div class="checklist-step-header" onclick="toggleStepDetails('${st.id}')">
-        <input type="checkbox" class="checklist-checkbox" ${isChecked?'checked':''} onclick="event.stopPropagation();toggleChecklistStep('${st.id}')" ${(!state.editing.poleId)?'disabled title="Save the pole first"':''} />
-        <span class="checklist-step-num">${idx+1}.</span>
-        <span class="checklist-step-title">${st.title || '(untitled step)'}</span>
-        ${st.requirePhoto?'<span class="checklist-required" title="Photo required">📷*</span>':''}
-        ${isChecked && c.checkedByName?`<span class="checklist-meta">${c.checkedByName} · ${new Date(c.checkedAt||0).toLocaleDateString()}</span>`:''}
-        <span class="checklist-caret" id="caret-${st.id}">▶</span>
+  if(hasA || hasB){
+    const aPart = hasA
+      ? (Aval
+        ? `<span><span class="checklist-ref-pill-label">A</span> <span class="checklist-ref-pill-val">${escapeHtml(Aval)}</span></span>`
+        : `<span class="checklist-ref-pill-missing"><span class="checklist-ref-pill-label">A</span> not yet captured</span>`)
+      : "";
+    const bPart = hasB
+      ? (Bval
+        ? `<span><span class="checklist-ref-pill-label">B</span> <span class="checklist-ref-pill-val">${escapeHtml(Bval)}</span></span>`
+        : `<span class="checklist-ref-pill-missing"><span class="checklist-ref-pill-label">B</span> not yet captured</span>`)
+      : "";
+    const sep = (aPart && bPart) ? `<span style="color:var(--text-muted)">·</span>` : "";
+    html += `<div class="checklist-ref-pill" title="Pre-install measurements">📏 ${aPart}${sep}${bPart}</div>`;
+  }
+
+  // ===== Render sections =====
+  // Continuous step numbering across sections (1, 2, 3, ... through every steps section).
+  let runningStepIdx = 0;
+  sections.forEach(sec => {
+    if(sec.kind === "reference"){
+      html += renderTerminologySection(sec, p);
+      return;
+    }
+    if(sec.kind !== "steps") return;
+    const secSteps = Array.isArray(sec.steps) ? sec.steps : [];
+    if(secSteps.length === 0) return;
+
+    const secCheckedCount = secSteps.filter(st => checklist[st.id]?.checked).length;
+    const secComplete = (secCheckedCount === secSteps.length);
+    // Auto-collapse rule: collapsedByDefault, but auto-expand sections that contain
+    // unchecked steps that are currently unlocked or are at the active edge.
+    const sectionContainsActiveStep = secSteps.some((st, sidx) => {
+      const globalIdx = runningStepIdx + sidx;
+      return !checklist[st.id]?.checked && stepUnlocked(globalIdx);
+    });
+    const collapsed = (sec.collapsedByDefault && !sectionContainsActiveStep && !secComplete) || (secComplete && sec.id !== "onsiteInstall" && false);
+    // ^ Don't auto-collapse completed sections by default; installers may want to see what they did.
+
+    html += `<div class="checklist-section${collapsed ? ' collapsed' : ''}" data-section-id="${sec.id}">
+      <div class="checklist-section-header" onclick="toggleSectionGroup('${sec.id}')">
+        <span class="checklist-section-title">${escapeHtml(sec.title || sec.id)}</span>
+        <span class="checklist-section-progress">${secCheckedCount}/${secSteps.length}${secComplete ? ' ✓' : ''}</span>
+        <span class="checklist-section-caret">${collapsed ? '▶' : '▼'}</span>
       </div>
-      <div class="checklist-step-body" id="body-${st.id}" style="display:none">
-        ${st.instructions?`<div class="checklist-instructions">${st.instructions.replace(/\n/g,'<br>')}</div>`:''}
-        ${st.photoUrl?`<div class="checklist-template-photo" onclick="window.open('${st.photoUrl}','_blank')"><img src="${st.photoUrl}" alt="reference" /><span class="checklist-photo-label">Reference</span></div>`:''}
-        <div class="checklist-step-actions">
-          ${stepPhotoUrl
-            ? `<div class="checklist-step-photo" onclick="window.open('${stepPhotoUrl}','_blank')"><img src="${stepPhotoUrl}" /><span class="checklist-photo-label">Your photo</span></div>
-               <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="removeStepPhoto('${st.id}')">✕ Remove photo</button>`
-            : `<label class="btn-secondary btn" style="cursor:pointer;font-size:11px;padding:5px 10px">
-                 📷 Add photo
-                 <input type="file" accept="image/*" capture="environment" style="display:none" onchange="uploadStepPhoto(event,'${st.id}')">
-               </label>`
-          }
+      <div class="checklist-section-body">`;
+
+    secSteps.forEach((st, sIdx) => {
+      const globalIdx = runningStepIdx + sIdx;
+      const c = checklist[st.id] || {};
+      const isChecked = !!c.checked;
+      const stepPhotoUrl = c.photoUrl || "";
+      const inputField = st.inputField || null;
+      const inputValue = c.inputValue || "";
+      const unlocked = stepUnlocked(globalIdx);
+      const isNextUp = !isChecked && unlocked && (globalIdx === firstUnlockedIdx);
+      const lockedClass = unlocked ? "" : " locked";
+      const nextUpClass = isNextUp ? " next-up" : "";
+
+      // Substitute {A}/{B} in instructions, then escape would-be-HTML except our <strong>
+      // Note: substituteMeasurements already HTML-escapes the substituted value
+      // and emits <strong> safely. The template author writes plain text — we
+      // need to escape the rest of the instruction text first, then run substitution
+      // so {A}/{B} survive escaping. Do escape first, substitute second.
+      const instrHtml = st.instructions
+        ? substituteMeasurements(escapeHtml(st.instructions), p).replace(/\n/g,'<br>')
+        : "";
+
+      // Block rules surfaced as title attribute on disabled checkbox
+      const blockReasons = [];
+      if(!state.editing.poleId) blockReasons.push("Save the pole first");
+      if(!unlocked) blockReasons.push("Previous steps not yet checked");
+      if(!isChecked && st.requirePhoto && !c.photoUrl) blockReasons.push("Photo required first");
+      if(!isChecked && inputField && !inputValue) blockReasons.push(`Capture ${inputField.name} first`);
+      const checkboxBlocked = !isChecked && blockReasons.length > 0;
+      const checkboxAttrs = checkboxBlocked
+        ? `disabled title="${blockReasons.join(' · ')}"`
+        : "";
+
+      html += `<div class="checklist-step${isChecked ? ' checked' : ''}${lockedClass}${nextUpClass}" data-step-id="${st.id}">
+        <div class="checklist-step-header" onclick="toggleStepDetails('${st.id}')">
+          <input type="checkbox" class="checklist-checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation();toggleChecklistStep('${st.id}')" ${checkboxAttrs} />
+          <span class="checklist-step-num">${globalIdx + 1}.</span>
+          <span class="checklist-step-title">${escapeHtml(st.title || '(untitled step)')}</span>
+          ${st.requirePhoto ? '<span class="checklist-required" title="Photo required">📷*</span>' : ''}
+          ${inputField ? `<span class="checklist-required" style="color:var(--blue)" title="Captures ${inputField.name}">📝${inputField.name}</span>` : ''}
+          ${isChecked && c.checkedByName ? `<span class="checklist-meta">${escapeHtml(c.checkedByName)} · ${new Date(c.checkedAt || 0).toLocaleDateString()}</span>` : ''}
+          <span class="checklist-caret" id="caret-${st.id}">▶</span>
         </div>
-      </div>
-    </div>`;
+        <div class="checklist-step-body" id="body-${st.id}" style="display:${isNextUp ? '' : 'none'}">
+          ${instrHtml ? `<div class="checklist-instructions">${instrHtml}</div>` : ''}
+          ${st.photoUrl ? `<div class="checklist-template-photo" onclick="window.open('${st.photoUrl}','_blank')"><img src="${st.photoUrl}" alt="reference" /><span class="checklist-photo-label">Reference</span></div>` : ''}
+          ${(Array.isArray(st.referencePhotos) && st.referencePhotos.length)
+            ? st.referencePhotos.map((u, i) => `<div class="checklist-template-photo" onclick="window.open('${u}','_blank')"><img src="${u}" alt="ref ${i+1}" /><span class="checklist-photo-label">Ref ${i+1}</span></div>`).join('')
+            : ''}
+          ${inputField ? `
+            <div class="checklist-input-row">
+              <span class="checklist-input-label">${escapeHtml(inputField.label || inputField.name)}</span>
+              <input type="text" class="checklist-input-field" id="input-${st.id}"
+                value="${escapeHtml(inputValue)}"
+                placeholder="${escapeHtml(inputField.placeholder || '')}"
+                ${(!state.editing.poleId || !unlocked) ? 'disabled' : ''}
+                oninput="onStepInputChange('${st.id}')"
+                onblur="saveStepInput('${st.id}', true)" />
+              ${inputField.unit ? `<span class="checklist-input-unit">${escapeHtml(inputField.unit)}</span>` : ''}
+              <span class="checklist-input-saved" id="input-saved-${st.id}" style="display:${inputValue ? '' : 'none'}">✓ saved</span>
+            </div>
+          ` : ''}
+          <div class="checklist-step-actions">
+            ${stepPhotoUrl
+              ? `<div class="checklist-step-photo" onclick="window.open('${stepPhotoUrl}','_blank')"><img src="${stepPhotoUrl}" /><span class="checklist-photo-label">Your photo</span></div>
+                 <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="removeStepPhoto('${st.id}')" ${unlocked ? '' : 'disabled'}>✕ Remove photo</button>`
+              : `<label class="btn-secondary btn" style="cursor:${unlocked ? 'pointer' : 'not-allowed'};font-size:11px;padding:5px 10px;${unlocked ? '' : 'opacity:.5'}">
+                   📷 Add photo
+                   <input type="file" accept="image/*" capture="environment" style="display:none" onchange="uploadStepPhoto(event,'${st.id}')" ${unlocked ? '' : 'disabled'}>
+                 </label>`
+            }
+          </div>
+        </div>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+    runningStepIdx += secSteps.length;
   });
+
   wrap.innerHTML = html;
 }
+
+// Renders a kind:"reference" section (e.g. Terminology Reference)
+function renderTerminologySection(sec, p){
+  const collapsed = sec.collapsedByDefault !== false; // default true
+  const content = sec.content || {};
+  const diagramUrl = content.diagramUrl || "";
+  const terms = Array.isArray(content.terms) ? content.terms : [];
+
+  let inner = "";
+  if(diagramUrl){
+    inner += `<img class="checklist-term-diagram" src="${diagramUrl}" alt="Reference diagram" onclick="window.open('${diagramUrl}','_blank')" />`;
+  }
+  if(terms.length){
+    inner += `<div class="checklist-terms-grid">`;
+    terms.forEach(t => {
+      inner += `<div class="checklist-term">
+        <span class="checklist-term-label">${escapeHtml(t.label || '')}</span>
+        ${t.desc ? `<span class="checklist-term-desc">${escapeHtml(t.desc)}</span>` : ''}
+      </div>`;
+    });
+    inner += `</div>`;
+  }
+  if(!inner){
+    inner = `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:8px">No reference content yet.${state.isAdmin ? ' <span style="color:var(--amber);cursor:pointer;text-decoration:underline" onclick="openProceduresModal()">Add via admin</span>' : ''}</div>`;
+  }
+
+  return `<div class="checklist-section${collapsed ? ' collapsed' : ''}" data-section-id="${sec.id}">
+    <div class="checklist-section-header" onclick="toggleSectionGroup('${sec.id}')">
+      <span class="checklist-section-title">📖 ${escapeHtml(sec.title || 'Reference')}</span>
+      <span class="checklist-section-progress">reference</span>
+      <span class="checklist-section-caret">${collapsed ? '▶' : '▼'}</span>
+    </div>
+    <div class="checklist-section-body">${inner}</div>
+  </div>`;
+}
+
+// Lightweight HTML-escape used by the renderer.
+function escapeHtml(s){
+  if(s == null) return "";
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+window.toggleSectionGroup = (sectionId) => {
+  const wrap = document.querySelector(`.checklist-section[data-section-id="${sectionId}"]`);
+  if(!wrap) return;
+  wrap.classList.toggle("collapsed");
+  const caret = wrap.querySelector(".checklist-section-caret");
+  if(caret) caret.textContent = wrap.classList.contains("collapsed") ? "▶" : "▼";
+};
 
 window.toggleStepDetails = (stepId) => {
   const body = document.getElementById(`body-${stepId}`);
@@ -3714,9 +4310,28 @@ window.toggleChecklistStep = async (stepId) => {
   const current = (p.checklist || {})[stepId] || {};
   const newlyChecked = !current.checked;
 
+  // Forced sequencing: server-side belt-and-suspenders. UI already grays out
+  // locked steps; this guards against direct DOM tampering or stale event handlers.
+  if(newlyChecked){
+    const stepIdx = allSteps.findIndex(s => s.id === stepId);
+    const cl = p.checklist || {};
+    for(let i = 0; i < stepIdx; i++){
+      if(!cl[allSteps[i].id]?.checked){
+        toast(`Complete step ${i+1} (${allSteps[i].title}) first`, true);
+        return;
+      }
+    }
+  }
+
   // Block check if photo required but not yet attached
   if(newlyChecked && step.requirePhoto && !current.photoUrl){
     toast("This step requires a photo first 📷", true);
+    return;
+  }
+
+  // Block check if measurement-capture step has no input value yet
+  if(newlyChecked && step.inputField && !current.inputValue){
+    toast(`Capture ${step.inputField.name} (${step.inputField.label}) first`, true);
     return;
   }
 
@@ -3751,6 +4366,69 @@ window.toggleChecklistStep = async (stepId) => {
         toast("Status set to Completed — click Save to confirm");
       }
     }
+  }
+};
+
+// Per-step measurement input — debounced save with visual confirmation.
+// Writes checklist[stepId].inputValue. Used by steps with inputField (A/B).
+const __stepInputDebounce = {};
+window.onStepInputChange = (stepId) => {
+  // Hide the "saved" indicator while user is typing; re-show on successful save
+  const savedEl = document.getElementById(`input-saved-${stepId}`);
+  if(savedEl) savedEl.style.display = "none";
+  clearTimeout(__stepInputDebounce[stepId]);
+  __stepInputDebounce[stepId] = setTimeout(() => saveStepInput(stepId, false), 800);
+};
+
+window.saveStepInput = async (stepId, immediate) => {
+  clearTimeout(__stepInputDebounce[stepId]);
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid) return; // pole not saved yet — input field is disabled anyway
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const inputEl = document.getElementById(`input-${stepId}`);
+  if(!inputEl) return;
+  const newValue = inputEl.value.trim();
+  const current = (p.checklist || {})[stepId] || {};
+  if((current.inputValue || "") === newValue) {
+    // No change — still flash "saved" indicator if a value exists, on blur
+    const savedEl = document.getElementById(`input-saved-${stepId}`);
+    if(savedEl) savedEl.style.display = newValue ? "" : "none";
+    return;
+  }
+
+  const liveType = document.getElementById("mp-installType")?.value || p.installType;
+  const tpl = state.procedures[liveType];
+  const step = tpl ? getTemplateSteps(tpl).find(s => s.id === stepId) : null;
+  const measName = step?.inputField?.name || "";
+
+  const updated = { ...current, inputValue: newValue };
+  const newChecklist = { ...(p.checklist || {}), [stepId]: updated };
+
+  // History entry: log the measurement save (not noisy — only on actual change)
+  const historyEntry = buildHistoryEntry([{
+    field: "checklist",
+    from: current.inputValue || "(empty)",
+    to: `${measName ? measName + ' = ' : ''}${newValue || '(empty)'}`
+  }]);
+  const newHistory = [...(p.history || []), historyEntry].slice(-100);
+
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+    checklist: newChecklist,
+    history: newHistory,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+
+  // Re-render so {A}/{B} substitution in other steps updates and ref pill refreshes.
+  // But don't re-render mid-typing: only re-render on blur (immediate=true) or
+  // debounce-fire when input is not focused.
+  if(immediate || document.activeElement !== inputEl){
+    renderPoleChecklist({ ...p, checklist: newChecklist, history: newHistory });
+  } else {
+    // Quietly flash the saved indicator without re-render (input still focused)
+    const savedEl = document.getElementById(`input-saved-${stepId}`);
+    if(savedEl) savedEl.style.display = newValue ? "" : "none";
   }
 };
 
