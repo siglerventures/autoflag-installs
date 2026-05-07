@@ -154,6 +154,11 @@
   .form-row textarea{min-height:60px;resize:vertical;font-family:inherit}
   .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media (max-width:500px){.form-grid-2{grid-template-columns:1fr}}
+  .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  @media (max-width:500px){.form-grid-3{grid-template-columns:1fr}}
+  .form-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;align-items:end}
+  @media (max-width:700px){.form-grid-4{grid-template-columns:1fr 1fr}}
+  @media (max-width:500px){.form-grid-4{grid-template-columns:1fr}}
   .btn{padding:8px 14px;background:var(--amber);color:#1a1208;border-radius:var(--radius-sm);font-weight:600;font-size:13px}
   .btn:hover{background:var(--amber-bright)}
   .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
@@ -421,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.79</div>
+  <div class="ver">AutoFlag© · v1.81</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -487,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.79</span>
+    AutoFlag© <span>Rev v1.81</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -573,7 +578,7 @@
         <div class="form-row"><label>Flag Pole Height</label><input id="mp-serial" placeholder="e.g., 20 ft" /></div>
         <div class="form-row"><label>SIM / ICCID</label><input id="mp-sim" /></div>
       </div>
-      <div class="form-grid-2">
+      <div class="form-grid-3">
         <div class="form-row"><label>Flag Size</label><select id="mp-flagSize">
           <option value="">—</option>
           <option value="2x3">2x3</option>
@@ -589,36 +594,29 @@
           <option value="20x30">20x30</option>
         </select></div>
         <div class="form-row"><label>Serial #</label><input id="mp-fw" /></div>
-      </div>
-      <div class="form-grid-2">
         <div class="form-row"><label>SaaS plan</label><select id="mp-plan">
           <option value="">—</option>
           <option value="lte">LTE ($199/yr)</option>
           <option value="wifi">Wi-Fi ($149/yr)</option>
         </select></div>
-        <div class="form-row"></div>
       </div>
       <div class="form-row"><label>Address (site-level)</label><input id="mp-address" type="text" placeholder="123 Main St, City, ST 12345" /></div>
-      <div class="form-grid-2">
+      <div class="form-grid-4">
         <div class="form-row"><label>Latitude</label><input id="mp-lat" type="number" step="0.000001" /></div>
         <div class="form-row"><label>Longitude</label><input id="mp-lng" type="number" step="0.000001" /></div>
+        <button class="btn-secondary btn" type="button" onclick="usePhoneGPS()" style="font-size:11px;padding:8px 6px;height:38px" title="Use My Phone's GPS">📱 Phone GPS</button>
+        <button class="btn-secondary btn" type="button" onclick="useSiteCoords()" style="font-size:11px;padding:8px 6px;height:38px" title="Reset to Site Location">📍 Site Loc</button>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn-secondary btn" type="button" onclick="usePhoneGPS()" style="font-size:12px;padding:6px 12px">📱 Use My Phone GPS</button>
-        <button class="btn-secondary btn" type="button" onclick="useSiteCoords()" style="font-size:12px;padding:6px 12px">📍 Reset to Site Location</button>
-        <span id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic"></span>
-      </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Expected Install Date</label><input id="mp-expected-date" type="date" /></div>
+      <div id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:10px;min-height:14px"></div>
+      <div class="form-grid-4">
+        <div class="form-row"><label>Expected Install</label><input id="mp-expected-date" type="date" /></div>
+        <div class="form-row"><label>Completed Date</label><input id="mp-completed-date" type="date" /></div>
         <div class="form-row"><label>SaaS active</label><select id="mp-saas">
           <option value="">—</option>
           <option value="pending">Pending</option>
           <option value="active">Active</option>
           <option value="failed">Failed</option>
         </select></div>
-      </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Completed Date</label><input id="mp-completed-date" type="date" /></div>
         <div class="form-row"><label>Completed By</label><select id="mp-completed-by">
           <option value="">—</option>
         </select></div>
