@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.86</div>
+  <div class="ver">AutoFlag© · v1.87</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.86</span>
+    AutoFlag© <span>Rev v1.87</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2214,9 +2214,12 @@ function updateExpandToggleBtn(){
 }
 
 function renderCustomerDetail(c){
+  // Apply current top-bar filters (status, installType, search) so the page
+  // responds to filter chips just like Browse view does.
   const sites = Object.values(c.sites)
     .filter(s => !state.search || matchesSearch(c,s,null) || Object.values(s.poles).some(p => matchesSearch(c,s,p)))
     .sort((a,b)=> b.updatedAt - a.updatedAt);
+  const filterActive = state.filter.status !== "all" || state.filter.installType !== "all";
   let html = `<div class="breadcrumb">
     <a onclick="drillTo(null,null)">All customers</a>
     <span class="sep">›</span><strong>${c.name}</strong>
@@ -2233,14 +2236,25 @@ function renderCustomerDetail(c){
   if(sites.length===0) return html + `<div class="empty">No sites yet for ${c.name}.</div>`;
   html += `<div class="customer-grid">`;
   sites.forEach(s => {
-    const poles = Object.values(s.poles);
-    const filteredPoles = poles.filter(matchesStatusFilter);
+    const allPoles = Object.values(s.poles);
+    // Apply status + install type filters to poles for this site card.
+    const filteredPoles = allPoles
+      .filter(matchesStatusFilter)
+      .filter(p => state.filter.installType==='all' || p.installType===state.filter.installType);
+    // When filter is active, show filtered count + "of N total". When no filter,
+    // show plain count. "Done" stat counts completed+verified within the filtered set.
+    const totalCount = allPoles.length;
+    const visibleCount = filteredPoles.length;
+    const doneCount = filteredPoles.filter(p => p.status==='completed' || p.status==='verified').length;
+    const polesLabel = filterActive
+      ? `<div class="num">${visibleCount}<span style="color:var(--text-muted);font-size:60%;font-weight:400"> / ${totalCount}</span></div>`
+      : `<div class="num">${totalCount}</div>`;
     html += `<div class="customer-card" onclick="drillTo('${c.id}','${s.id}')">
       <h3>${s.name||'(unnamed site)'}</h3>
       <div style="font-size:12px;color:var(--text-dim)">${s.address||'No address'}</div>
       <div class="customer-meta">
-        <div class="stat-pill"><div class="num">${poles.length}</div><div class="lbl">Poles</div></div>
-        <div class="stat-pill"><div class="num">${poles.filter(p=>p.status==='installed'||p.status==='verified').length}</div><div class="lbl">Done</div></div>
+        <div class="stat-pill">${polesLabel}<div class="lbl">Poles${filterActive?' (filtered)':''}</div></div>
+        <div class="stat-pill"><div class="num">${doneCount}</div><div class="lbl">Done</div></div>
       </div>
     </div>`;
   });
@@ -2854,6 +2868,15 @@ function collectPoles(){
 }
 
 window.switchView = v => {
+  // Map toggle: if user clicks the Map tab while Map is already active,
+  // switch back to whatever view they had before (or Browse if none tracked).
+  // This makes the Map tab feel like a toggle: tap to open, tap again to close.
+  if(v === "map" && state.view === "map"){
+    v = state._prevView || "browse";
+  } else if(v !== "map"){
+    // Remember the last non-map view so re-tapping Map can return here
+    state._prevView = v;
+  }
   state.view = v;
   document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view===v));
   renderActive();
