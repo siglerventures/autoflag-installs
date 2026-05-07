@@ -421,7 +421,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.78</div>
+  <div class="ver">AutoFlag© · v1.79</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -487,7 +487,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.78</span>
+    AutoFlag© <span>Rev v1.79</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -574,12 +574,29 @@
         <div class="form-row"><label>SIM / ICCID</label><input id="mp-sim" /></div>
       </div>
       <div class="form-grid-2">
+        <div class="form-row"><label>Flag Size</label><select id="mp-flagSize">
+          <option value="">—</option>
+          <option value="2x3">2x3</option>
+          <option value="2.5x4">2.5x4</option>
+          <option value="3x5">3x5</option>
+          <option value="4x6">4x6</option>
+          <option value="5x8">5x8</option>
+          <option value="6x10">6x10</option>
+          <option value="8x12">8x12</option>
+          <option value="10x15">10x15</option>
+          <option value="12x18">12x18</option>
+          <option value="15x25">15x25</option>
+          <option value="20x30">20x30</option>
+        </select></div>
         <div class="form-row"><label>Serial #</label><input id="mp-fw" /></div>
+      </div>
+      <div class="form-grid-2">
         <div class="form-row"><label>SaaS plan</label><select id="mp-plan">
           <option value="">—</option>
           <option value="lte">LTE ($199/yr)</option>
           <option value="wifi">Wi-Fi ($149/yr)</option>
         </select></div>
+        <div class="form-row"></div>
       </div>
       <div class="form-row"><label>Address (site-level)</label><input id="mp-address" type="text" placeholder="123 Main St, City, ST 12345" /></div>
       <div class="form-grid-2">
@@ -1490,7 +1507,7 @@ async function patchNode(path, patch){  // update() preserves siblings, per 6.3.
 }
 
 // ==== Audit log helpers ====
-const TRACKED_FIELDS = ["label","status","installType","serial","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
+const TRACKED_FIELDS = ["label","status","installType","serial","flagSize","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
 
 function diffPole(before, after){
   const changes = [];
@@ -1533,7 +1550,7 @@ function fmtHistoryValue(v){
 function fmtHistoryField(f){
   const labels = {
     label:"Label", status:"Status", installType:"Install Type",
-    serial:"Flag Pole Height", sim:"SIM", fw:"Serial #", plan:"Plan", saas:"SaaS",
+    serial:"Flag Pole Height", flagSize:"Flag Size", sim:"SIM", fw:"Serial #", plan:"Plan", saas:"SaaS",
     lat:"Latitude", lng:"Longitude",
     expectedInstallDate:"Expected Install Date",
     completedDate:"Completed Date",
@@ -3040,6 +3057,7 @@ window.openPoleModal = (pid, cid, sid) => {
   if(verifiedOpt) verifiedOpt.style.display = state.isAdmin ? "" : "none";
   document.getElementById("mp-installType").value = p?.installType || "";
   document.getElementById("mp-serial").value = p?.serial || "";
+  document.getElementById("mp-flagSize").value = p?.flagSize || "";
   document.getElementById("mp-sim").value = p?.sim || "";
   document.getElementById("mp-fw").value = p?.fw || "";
   document.getElementById("mp-plan").value = p?.plan || "";
@@ -3475,6 +3493,7 @@ window.savePole = async () => {
     status: requestedStatus,
     installType: document.getElementById("mp-installType").value,
     serial: document.getElementById("mp-serial").value.trim(),
+    flagSize: document.getElementById("mp-flagSize").value,
     sim: document.getElementById("mp-sim").value.trim(),
     fw: document.getElementById("mp-fw").value.trim(),
     plan: document.getElementById("mp-plan").value,
