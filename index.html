@@ -426,7 +426,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.88</div>
+  <div class="ver">AutoFlag© · v1.89</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -492,7 +492,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.88</span>
+    AutoFlag© <span>Rev v1.89</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -705,9 +705,15 @@
 
       <div style="background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);padding:12px;margin-top:6px">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">+ Add new step</div>
+        <div class="form-row" id="proc-new-section-row" style="display:none"><label>Section</label><select id="proc-new-section"></select></div>
         <div class="form-row"><label>Step title *</label><input id="proc-new-title" placeholder="e.g., Mount control box to flagpole" /></div>
-        <div class="form-row"><label>Instructions</label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line." rows="3"></textarea></div>
+        <div class="form-row"><label>Instructions <span style="color:var(--text-muted);font-weight:normal">— use {A} or {B} to insert measurements</span></label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line. {A} and {B} get replaced with the captured measurement at render time." rows="3"></textarea></div>
         <div class="form-row"><label>Reference photo URL (optional)</label><input id="proc-new-photo" placeholder="https://... (paste URL or leave blank)" /></div>
+        <div class="form-row"><label>Capture measurement (optional)</label><select id="proc-new-input">
+          <option value="">— None —</option>
+          <option value="A">A — Halyard travel (ft)</option>
+          <option value="B">B — Flag height (in)</option>
+        </select></div>
         <div style="display:flex;align-items:center;gap:8px">
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
             <input type="checkbox" id="proc-new-required" />
@@ -1719,7 +1725,83 @@ window.removePerson = async (key) => {
 };
 
 // ==== Procedures admin (admin only) ====
+//
+// Rev 1.89: schema-aware. Templates may be stored in either shape:
+//   Legacy:  { steps:[...] }
+//   Sectioned (Rev A+):  { sections:[ {id,title,kind,collapsedByDefault,steps?,content?} ] }
+// Helpers below normalize on read so installer-facing code (Edit Pole modal)
+// keeps working regardless of which shape Firebase has for a given template.
+//
+// Section ids used by the renderer + step text substitution:
+//   "terminology"   — kind:"reference", no steps
+//   "preInstall"    — kind:"steps", contains the A and B input-field steps
+//   "halyardSetup"  — kind:"steps", instructions support {A}/{B} substitution
+//   "onsiteInstall" — kind:"steps"
+// Cylinder template intentionally omits the first three sections.
 let activeProcTab = "external";
+const SECTION_DEFS = [
+  { id:"terminology",   title:"Terminology Reference",       kind:"reference", collapsedByDefault:true  },
+  { id:"preInstall",    title:"Pre-Install Measurements",    kind:"steps",     collapsedByDefault:false },
+  { id:"halyardSetup",  title:"Halyard Setup Prior to Onsite", kind:"steps",   collapsedByDefault:false },
+  { id:"onsiteInstall", title:"Onsite Installation",         kind:"steps",     collapsedByDefault:false }
+];
+const SECTION_DEF_BY_ID = SECTION_DEFS.reduce((m,d)=>{ m[d.id]=d; return m; }, {});
+
+// Returns flat ordered list of all steps in the template, accepting either
+// legacy {steps:[]} or new {sections:[...]} shape. Each returned step is the
+// original step object (no copies — read-only consumers).
+function getTemplateSteps(tpl){
+  if(!tpl) return [];
+  if(Array.isArray(tpl.sections)){
+    const out = [];
+    tpl.sections.forEach(sec => {
+      if(sec && sec.kind === "steps" && Array.isArray(sec.steps)){
+        sec.steps.forEach(st => out.push(st));
+      }
+    });
+    return out;
+  }
+  return Array.isArray(tpl.steps) ? tpl.steps : [];
+}
+
+// Returns the sections array for admin rendering. For legacy templates,
+// synthesizes a single onsiteInstall section so the UI shape is uniform.
+function getTemplateSections(tpl){
+  if(!tpl) return [];
+  if(Array.isArray(tpl.sections)) return tpl.sections;
+  if(Array.isArray(tpl.steps) && tpl.steps.length){
+    return [{ id:"onsiteInstall", title:"Onsite Installation", kind:"steps", collapsedByDefault:false, steps: tpl.steps }];
+  }
+  return [];
+}
+
+// Reads A or B value for a pole by scanning its checklist for the step
+// whose template-defined inputField.name matches. Returns "" if not captured.
+function getPoleMeasurement(p, name){
+  if(!p || !p.checklist) return "";
+  const tpl = state.procedures[p.installType];
+  const steps = getTemplateSteps(tpl);
+  for(const st of steps){
+    if(st.inputField && st.inputField.name === name){
+      const v = p.checklist[st.id]?.inputValue;
+      if(v) return String(v);
+    }
+  }
+  return "";
+}
+
+// Substitutes {A} and {B} placeholders in instruction text with captured values.
+// If a value is not yet captured, leaves the placeholder intact so installers
+// know what's missing. HTML-escapes the substituted value to be safe.
+function substituteMeasurements(text, p){
+  if(!text || !p) return text || "";
+  return text.replace(/\{(A|B)\}/g, (m, name) => {
+    const v = getPoleMeasurement(p, name);
+    if(!v) return m;
+    const escaped = v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<strong>${escaped}</strong>`;
+  });
+}
 
 window.openProceduresModal = () => {
   if(!state.isAdmin) return;
@@ -1740,33 +1822,263 @@ function renderProcSteps(){
   const wrap = document.getElementById("procStepsList");
   if(!wrap) return;
   const tpl = state.procedures[activeProcTab];
-  const steps = tpl?.steps || [];
-  if(steps.length === 0){
-    wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:14px;background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm)">No steps defined yet for ${formatInstallType(activeProcTab)}. Add steps below.</div>`;
+  const isSectioned = !!(tpl && Array.isArray(tpl.sections));
+  const isLegacyWithData = !!(tpl && !isSectioned && Array.isArray(tpl.steps) && tpl.steps.length);
+  const sections = getTemplateSections(tpl);
+  const totalSteps = sections.reduce((n,s)=> n + (s.kind==="steps" ? (s.steps||[]).length : 0), 0);
+
+  let html = "";
+
+  // Migration banner (legacy → sectioned)
+  if(isLegacyWithData){
+    html += `<div style="background:#3a2f1f;border:1px solid var(--amber);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1;font-size:12px;color:var(--text-bright)">
+        <strong>⚠ Legacy flat-list format.</strong>
+        <span style="color:var(--text-dim)">This template hasn't been migrated to the new sectioned format yet.</span>
+      </div>
+      <button class="btn" style="font-size:11px;padding:5px 10px" onclick="migrateProcedureToSections('${activeProcTab}')">Migrate now</button>
+    </div>`;
+  }
+
+  if(sections.length === 0){
+    html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:14px;background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm)">
+      No sections defined yet for ${formatInstallType(activeProcTab)}.
+      <br><span style="font-size:11px">Use "+ Add section" below to start building.</span>
+    </div>`;
+  } else {
+    html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">${sections.length} section${sections.length===1?'':'s'} · ${totalSteps} step${totalSteps===1?'':'s'} total</div>`;
+
+    sections.forEach((sec, sIdx) => {
+      const secSteps = (sec.kind === "steps" && Array.isArray(sec.steps)) ? sec.steps : [];
+      const isReference = sec.kind === "reference";
+      const sectionLocked = !isSectioned; // legacy can't reorder/delete sections (only one synthesized)
+
+      html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
+        <div style="background:var(--surface2);padding:8px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <button class="btn-secondary btn" style="font-size:10px;padding:1px 5px" onclick="moveProcSection(${sIdx},-1)" ${sIdx===0||sectionLocked?'disabled style="opacity:.3"':''}>▲</button>
+            <button class="btn-secondary btn" style="font-size:10px;padding:1px 5px" onclick="moveProcSection(${sIdx},1)" ${sIdx===sections.length-1||sectionLocked?'disabled style="opacity:.3"':''}>▼</button>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--amber-bright)">${sIdx+1}. ${sec.title || sec.id}</div>
+            <div style="font-size:11px;color:var(--text-muted)">
+              ${isReference ? 'Reference content (no checkable steps)' : `${secSteps.length} step${secSteps.length===1?'':'s'}`}
+              ${sec.id === 'preInstall' ? ' · captures A &amp; B' : ''}
+              ${sec.id === 'halyardSetup' ? ' · uses {A} {B}' : ''}
+            </div>
+          </div>
+          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="deleteProcSection('${sec.id}')" ${sectionLocked?'disabled style="opacity:.3"':''}>✕</button>
+        </div>
+
+        <div style="padding:10px">`;
+
+      if(isReference){
+        const dUrl = sec.content?.diagramUrl || "";
+        const terms = Array.isArray(sec.content?.terms) ? sec.content.terms : [];
+        html += `<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">Reference diagram + term labels. Shown collapsed by default in the installer view.</div>`;
+        if(dUrl){
+          html += `<div style="margin-bottom:8px"><img src="${dUrl}" style="max-width:100%;max-height:160px;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${dUrl}','_blank')" /></div>`;
+        }
+        if(terms.length){
+          html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${terms.length} term${terms.length===1?'':'s'}</div>`;
+        }
+        html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px" onclick="editReferenceSection('${sec.id}')">✎ Edit reference content</button>
+        </div>`;
+      } else if(secSteps.length === 0){
+        html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:8px;background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);margin-bottom:8px">No steps in this section yet.</div>`;
+      } else {
+        secSteps.forEach((st, idx) => {
+          const refPhotos = Array.isArray(st.referencePhotos) ? st.referencePhotos : [];
+          const inputBadge = st.inputField ? ` <span style="color:var(--blue);font-size:11px" title="Captures input ${st.inputField.name}">📝${st.inputField.name}</span>` : '';
+          html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-bottom:6px">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep('${sec.id}',${idx},-1)" ${idx===0?'disabled style="opacity:.3"':''}>▲</button>
+                <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep('${sec.id}',${idx},1)" ${idx===secSteps.length-1?'disabled style="opacity:.3"':''}>▼</button>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:13px;color:var(--amber-bright);font-weight:600">${idx+1}. ${st.title || '(untitled)'}${st.requirePhoto?' <span style="color:var(--amber);font-size:11px" title="Photo required">📷*</span>':''}${inputBadge}</div>
+                ${st.instructions?`<div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap">${st.instructions}</div>`:''}
+                ${(st.photoUrl || refPhotos.length)?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
+                  ${st.photoUrl?`<img src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${st.photoUrl}','_blank')" title="Legacy reference photo" />`:''}
+                  ${refPhotos.map(u=>`<img src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${u}','_blank')" title="Reference photo" />`).join('')}
+                </div>`:''}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px" onclick="editProcStep('${sec.id}','${st.id}')">✎ Edit</button>
+                <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="deleteProcStep('${sec.id}','${st.id}')">✕ Delete</button>
+              </div>
+            </div>
+          </div>`;
+        });
+      }
+
+      // Per-section "add step" button (steps sections only)
+      if(!isReference){
+        html += `<div style="text-align:right;margin-top:4px">
+          <button class="btn-secondary btn" style="font-size:11px;padding:4px 10px" onclick="addStepInSection('${sec.id}')">+ Step in this section</button>
+        </div>`;
+      }
+
+      html += `</div></div>`;
+    });
+  }
+
+  // Section adder (sectioned templates only — legacy must migrate first)
+  if(isSectioned || !isLegacyWithData){
+    const presentIds = sections.map(s => s.id);
+    const available = SECTION_DEFS.filter(d => !presentIds.includes(d.id));
+    if(available.length){
+      html += `<div style="background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);padding:10px;margin-top:8px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">+ Add section</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${available.map(d => `<button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="addProcedureSection('${d.id}')">${d.title}</button>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  wrap.innerHTML = html;
+
+  // Drive the "+ Add new step" panel: section dropdown only relevant when sectioned
+  const adderSectionRow = document.getElementById("proc-new-section-row");
+  const adderSectionSel = document.getElementById("proc-new-section");
+  if(adderSectionRow && adderSectionSel){
+    const stepSections = sections.filter(s => s.kind === "steps");
+    if(isSectioned && stepSections.length){
+      adderSectionRow.style.display = "";
+      adderSectionSel.innerHTML = stepSections.map(s => `<option value="${s.id}">${s.title}</option>`).join('');
+    } else {
+      adderSectionRow.style.display = "none";
+      adderSectionSel.innerHTML = "";
+    }
+  }
+}
+
+// One-click conversion: legacy { steps: [...] } -> { sections: [{id:"onsiteInstall", ...}] }
+window.migrateProcedureToSections = async (type) => {
+  const tpl = state.procedures[type];
+  if(!tpl || Array.isArray(tpl.sections)) return toast("Already in sectioned format", true);
+  if(!Array.isArray(tpl.steps) || tpl.steps.length === 0){
+    // Empty legacy — just initialize with no sections; admin can add them
+    if(!confirm("This template has no steps. Initialize with empty sections?")) return;
+    await patchNode(`autoflag/procedures/${type}`, {
+      sections: [],
+      updatedAt: Date.now(),
+      updatedBy: state.user.uid
+    });
+    toast("Migrated — add sections to start");
     return;
   }
-  let html = `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">${steps.length} step${steps.length===1?'':'s'}</div>`;
-  steps.forEach((st, idx) => {
-    html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:6px">
-      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep(${idx},-1)" ${idx===0?'disabled style="opacity:.3"':''}>▲</button>
-          <button class="btn-secondary btn" style="font-size:10px;padding:2px 6px" onclick="moveProcStep(${idx},1)" ${idx===steps.length-1?'disabled style="opacity:.3"':''}>▼</button>
-        </div>
-        <div style="flex:1">
-          <div style="font-size:13px;color:var(--amber-bright);font-weight:600">${idx+1}. ${st.title || '(untitled)'}${st.requirePhoto?' <span style="color:var(--amber);font-size:11px">📷*</span>':''}</div>
-          ${st.instructions?`<div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap">${st.instructions}</div>`:''}
-          ${st.photoUrl?`<div style="margin-top:6px"><img src="${st.photoUrl}" style="width:120px;height:80px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${st.photoUrl}','_blank')" /></div>`:''}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px" onclick="editProcStep('${st.id}')">✎ Edit</button>
-          <button class="btn-secondary btn" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="deleteProcStep('${st.id}')">✕ Delete</button>
-        </div>
-      </div>
-    </div>`;
+  if(!confirm(`Migrate "${formatInstallType(type)}" to sectioned format?\n\nAll ${tpl.steps.length} existing steps will be placed under "Onsite Installation". Existing pole checklists stay intact (step IDs preserved). Reversible by deleting the section.`)) return;
+  const newSections = [{
+    id:"onsiteInstall",
+    title:"Onsite Installation",
+    kind:"steps",
+    collapsedByDefault:false,
+    steps: tpl.steps.map(s => ({ ...s, referencePhotos: Array.isArray(s.referencePhotos) ? s.referencePhotos : [], inputField: s.inputField || null }))
+  }];
+  await patchNode(`autoflag/procedures/${type}`, {
+    sections: newSections,
+    steps: null, // clear legacy field
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
   });
-  wrap.innerHTML = html;
-}
+  toast("✓ Migrated to sectioned format");
+};
+
+// === Section CRUD ===
+window.addProcedureSection = async (sectionId) => {
+  const def = SECTION_DEF_BY_ID[sectionId];
+  if(!def) return toast("Unknown section", true);
+  const tpl = state.procedures[activeProcTab] || {};
+  // If legacy, migrate first
+  if(!Array.isArray(tpl.sections) && Array.isArray(tpl.steps) && tpl.steps.length){
+    return toast("Migrate to sectioned format first (button at top)", true);
+  }
+  const sections = Array.isArray(tpl.sections) ? [...tpl.sections] : [];
+  if(sections.find(s => s.id === sectionId)) return toast("Section already exists", true);
+  const newSec = { id:def.id, title:def.title, kind:def.kind, collapsedByDefault:def.collapsedByDefault };
+  if(def.kind === "steps") newSec.steps = [];
+  if(def.kind === "reference") newSec.content = { diagramUrl:"", terms:[] };
+  sections.push(newSec);
+  // Re-order to canonical order (terminology, preInstall, halyardSetup, onsiteInstall)
+  const canonOrder = SECTION_DEFS.map(d => d.id);
+  sections.sort((a,b) => canonOrder.indexOf(a.id) - canonOrder.indexOf(b.id));
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+  toast(`Section "${def.title}" added`);
+};
+
+window.deleteProcSection = async (sectionId) => {
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl || !Array.isArray(tpl.sections)) return;
+  const sec = tpl.sections.find(s => s.id === sectionId);
+  if(!sec) return;
+  const stepCount = (sec.kind === "steps" && Array.isArray(sec.steps)) ? sec.steps.length : 0;
+  if(!confirm(`Delete section "${sec.title}"?${stepCount?` All ${stepCount} steps in it will be removed. Existing pole checklists with these steps will lose check state for those steps.`:''}`)) return;
+  const newSections = tpl.sections.filter(s => s.id !== sectionId);
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections: newSections,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+  toast("Section deleted");
+};
+
+window.moveProcSection = async (idx, dir) => {
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl || !Array.isArray(tpl.sections)) return;
+  const sections = [...tpl.sections];
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= sections.length) return;
+  [sections[idx], sections[newIdx]] = [sections[newIdx], sections[idx]];
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+};
+
+window.editReferenceSection = async (sectionId) => {
+  const tpl = state.procedures[activeProcTab];
+  const sec = tpl?.sections?.find(s => s.id === sectionId);
+  if(!sec || sec.kind !== "reference") return;
+  const newDiagram = prompt("Diagram image URL (blank to remove):", sec.content?.diagramUrl || "");
+  if(newDiagram === null) return;
+  // Terms: simple line-per-term editor "Term: description"
+  const termsText = (sec.content?.terms || []).map(t => `${t.label}: ${t.desc || ''}`).join("\n");
+  const newTermsText = prompt("Terms (one per line, format: \"Label: description\"):", termsText);
+  if(newTermsText === null) return;
+  const terms = newTermsText.split("\n").map(line => {
+    const [label, ...rest] = line.split(":");
+    return label && label.trim() ? { label: label.trim(), desc: rest.join(":").trim() } : null;
+  }).filter(Boolean);
+  const newSections = tpl.sections.map(s => s.id === sectionId
+    ? { ...s, content: { diagramUrl: newDiagram.trim(), terms } }
+    : s
+  );
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+  toast("Reference content updated");
+};
+
+// === Step CRUD (section-aware) ===
+//
+// Signatures changed from Rev 1.88 to take a sectionId as the first arg.
+// For legacy templates, sectionId is ignored — operations target tpl.steps.
+
+// Preselects the "+ Add new step" form's section dropdown to a specific section.
+window.addStepInSection = (sectionId) => {
+  const sel = document.getElementById("proc-new-section");
+  if(sel){
+    sel.value = sectionId;
+    document.getElementById("proc-new-title")?.focus();
+  }
+};
 
 window.addProcedureStep = async () => {
   const title = document.getElementById("proc-new-title").value.trim();
@@ -1774,62 +2086,171 @@ window.addProcedureStep = async () => {
   const instructions = document.getElementById("proc-new-instructions").value.trim();
   const photoUrl = document.getElementById("proc-new-photo").value.trim();
   const requirePhoto = document.getElementById("proc-new-required").checked;
+  const inputName = document.getElementById("proc-new-input").value;
+  const sectionId = document.getElementById("proc-new-section").value || "onsiteInstall";
   const stepId = `step_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-  const newStep = { id: stepId, title, instructions, photoUrl, requirePhoto };
-  const current = state.procedures[activeProcTab] || { steps: [] };
-  const newSteps = [...(current.steps || []), newStep];
-  await patchNode(`autoflag/procedures/${activeProcTab}`, {
-    steps: newSteps,
-    updatedAt: Date.now(),
-    updatedBy: state.user.uid
-  });
+  const newStep = {
+    id: stepId,
+    title,
+    instructions,
+    photoUrl,
+    requirePhoto,
+    referencePhotos: [],
+    inputField: inputName ? { name: inputName, label: inputName === "A" ? "Halyard travel (A)" : "Flag height (B)", unit: inputName === "A" ? "ft" : "in", placeholder: inputName === "A" ? "e.g., 20" : "e.g., 36" } : null
+  };
+  const tpl = state.procedures[activeProcTab] || {};
+
+  if(Array.isArray(tpl.sections)){
+    const sections = tpl.sections.map(s => {
+      if(s.id !== sectionId) return s;
+      if(s.kind !== "steps") return s;
+      return { ...s, steps: [...(s.steps || []), newStep] };
+    });
+    if(!sections.find(s => s.id === sectionId && s.kind === "steps")) return toast("Pick a valid section first", true);
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } else {
+    // Legacy flat list — only when template hasn't been migrated
+    const newSteps = [...(tpl.steps || []), newStep];
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  }
+
   document.getElementById("proc-new-title").value = "";
   document.getElementById("proc-new-instructions").value = "";
   document.getElementById("proc-new-photo").value = "";
   document.getElementById("proc-new-required").checked = false;
+  document.getElementById("proc-new-input").value = "";
   toast("Step added");
 };
 
-window.editProcStep = async (stepId) => {
+window.editProcStep = async (sectionIdOrStepId, stepIdMaybe) => {
+  // Back-compat: if called with one arg, it's the legacy stepId-only form.
   const tpl = state.procedures[activeProcTab];
-  const step = tpl?.steps?.find(s => s.id === stepId);
+  if(!tpl) return;
+  const sectionId = (stepIdMaybe !== undefined) ? sectionIdOrStepId : null;
+  const stepId = (stepIdMaybe !== undefined) ? stepIdMaybe : sectionIdOrStepId;
+
+  let step = null;
+  if(sectionId && Array.isArray(tpl.sections)){
+    const sec = tpl.sections.find(s => s.id === sectionId);
+    step = sec?.steps?.find(s => s.id === stepId);
+  } else {
+    step = (tpl.steps || []).find(s => s.id === stepId);
+  }
   if(!step) return;
+
   const newTitle = prompt("Step title:", step.title);
   if(newTitle === null) return;
-  const newInstructions = prompt("Instructions (multi-line OK):", step.instructions || "");
+  const newInstructions = prompt("Instructions (use {A} and {B} for measurements):", step.instructions || "");
   if(newInstructions === null) return;
   const newPhoto = prompt("Reference photo URL (blank to remove):", step.photoUrl || "");
   if(newPhoto === null) return;
+  const refPhotosText = (Array.isArray(step.referencePhotos) ? step.referencePhotos : []).join("\n");
+  const newRefPhotosText = prompt("Additional reference photo URLs (one per line):", refPhotosText);
+  if(newRefPhotosText === null) return;
+  const newRefPhotos = newRefPhotosText.split("\n").map(s => s.trim()).filter(Boolean);
   const newRequired = confirm("Require a photo before this step can be checked off?\n\nOK = Required, Cancel = Not required");
-  const updated = { ...step, title: newTitle.trim(), instructions: newInstructions.trim(), photoUrl: newPhoto.trim(), requirePhoto: newRequired };
-  const newSteps = tpl.steps.map(s => s.id === stepId ? updated : s);
-  await patchNode(`autoflag/procedures/${activeProcTab}`, {
-    steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
-  });
+  const currentInput = step.inputField?.name || "";
+  const newInputName = prompt("Capture measurement on this step? Enter \"A\", \"B\", or blank for none:", currentInput);
+  if(newInputName === null) return;
+  const cleanInput = newInputName.trim().toUpperCase();
+  const inputField = (cleanInput === "A" || cleanInput === "B")
+    ? { name: cleanInput, label: cleanInput === "A" ? "Halyard travel (A)" : "Flag height (B)", unit: cleanInput === "A" ? "ft" : "in", placeholder: cleanInput === "A" ? "e.g., 20" : "e.g., 36" }
+    : null;
+
+  const updated = {
+    ...step,
+    title: newTitle.trim(),
+    instructions: newInstructions.trim(),
+    photoUrl: newPhoto.trim(),
+    referencePhotos: newRefPhotos,
+    requirePhoto: newRequired,
+    inputField
+  };
+
+  if(sectionId && Array.isArray(tpl.sections)){
+    const sections = tpl.sections.map(s => s.id === sectionId
+      ? { ...s, steps: (s.steps || []).map(st => st.id === stepId ? updated : st) }
+      : s
+    );
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } else {
+    const newSteps = (tpl.steps || []).map(s => s.id === stepId ? updated : s);
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  }
   toast("Step updated");
 };
 
-window.deleteProcStep = async (stepId) => {
+window.deleteProcStep = async (sectionIdOrStepId, stepIdMaybe) => {
   const tpl = state.procedures[activeProcTab];
-  const step = tpl?.steps?.find(s => s.id === stepId);
+  if(!tpl) return;
+  const sectionId = (stepIdMaybe !== undefined) ? sectionIdOrStepId : null;
+  const stepId = (stepIdMaybe !== undefined) ? stepIdMaybe : sectionIdOrStepId;
+
+  let step = null;
+  if(sectionId && Array.isArray(tpl.sections)){
+    const sec = tpl.sections.find(s => s.id === sectionId);
+    step = sec?.steps?.find(s => s.id === stepId);
+  } else {
+    step = (tpl.steps || []).find(s => s.id === stepId);
+  }
   if(!step) return;
   if(!confirm(`Delete step "${step.title}"? Existing pole checklists with this step will lose the check state.`)) return;
-  const newSteps = tpl.steps.filter(s => s.id !== stepId);
-  await patchNode(`autoflag/procedures/${activeProcTab}`, {
-    steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
-  });
+
+  if(sectionId && Array.isArray(tpl.sections)){
+    const sections = tpl.sections.map(s => s.id === sectionId
+      ? { ...s, steps: (s.steps || []).filter(st => st.id !== stepId) }
+      : s
+    );
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } else {
+    const newSteps = (tpl.steps || []).filter(s => s.id !== stepId);
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  }
   toast("Step deleted");
 };
 
-window.moveProcStep = async (idx, dir) => {
+window.moveProcStep = async (sectionIdOrIdx, idxOrDir, dirMaybe) => {
   const tpl = state.procedures[activeProcTab];
-  const steps = [...(tpl?.steps || [])];
-  const newIdx = idx + dir;
-  if(newIdx < 0 || newIdx >= steps.length) return;
-  [steps[idx], steps[newIdx]] = [steps[newIdx], steps[idx]];
-  await patchNode(`autoflag/procedures/${activeProcTab}`, {
-    steps, updatedAt: Date.now(), updatedBy: state.user.uid
-  });
+  if(!tpl) return;
+  // 3-arg form: (sectionId, idx, dir). 2-arg form (legacy): (idx, dir).
+  const isThreeArg = (typeof sectionIdOrIdx === "string");
+  const sectionId = isThreeArg ? sectionIdOrIdx : null;
+  const idx = isThreeArg ? idxOrDir : sectionIdOrIdx;
+  const dir = isThreeArg ? dirMaybe : idxOrDir;
+
+  if(sectionId && Array.isArray(tpl.sections)){
+    const sections = tpl.sections.map(s => {
+      if(s.id !== sectionId) return s;
+      const steps = [...(s.steps || [])];
+      const newIdx = idx + dir;
+      if(newIdx < 0 || newIdx >= steps.length) return s;
+      [steps[idx], steps[newIdx]] = [steps[newIdx], steps[idx]];
+      return { ...s, steps };
+    });
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } else {
+    const steps = [...(tpl.steps || [])];
+    const newIdx = idx + dir;
+    if(newIdx < 0 || newIdx >= steps.length) return;
+    [steps[idx], steps[newIdx]] = [steps[newIdx], steps[idx]];
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      steps, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  }
 };
 
 // Re-render proc steps when procedures data updates — handled inside subscribeProcedures
@@ -3216,7 +3637,10 @@ function renderPoleChecklist(p){
     return;
   }
   const tpl = state.procedures[liveType];
-  if(!tpl || !Array.isArray(tpl.steps) || tpl.steps.length === 0){
+  // Schema-aware: accept either legacy {steps:[]} or new {sections:[...]} shape.
+  // Rev 1.89 still renders flat for installer; Rev B will add sectioned UI.
+  const stepsForRender = getTemplateSteps(tpl);
+  if(!tpl || stepsForRender.length === 0){
     wrap.innerHTML = `<div style="text-align:center;padding:14px;color:var(--text-muted);font-size:12px">
       No procedure defined for <strong>${formatInstallType(liveType)}</strong> yet.
       ${state.isAdmin ? '<br><span style="color:var(--amber);cursor:pointer;text-decoration:underline" onclick="openProceduresModal()">📋 Edit procedures</span>' : '<br>Ask an admin to create one.'}
@@ -3227,13 +3651,13 @@ function renderPoleChecklist(p){
   }
 
   const checklist = (p && p.checklist) || {};
-  const total = tpl.steps.length;
-  const checked = tpl.steps.filter(st => checklist[st.id]?.checked).length;
+  const total = stepsForRender.length;
+  const checked = stepsForRender.filter(st => checklist[st.id]?.checked).length;
   progressEl.textContent = `(${checked}/${total} done)`;
   typeEl.textContent = `${formatInstallType(liveType)} procedure`;
 
   let html = "";
-  tpl.steps.forEach((st, idx) => {
+  stepsForRender.forEach((st, idx) => {
     const c = checklist[st.id] || {};
     const isChecked = !!c.checked;
     const stepPhotoUrl = c.photoUrl || "";
@@ -3282,7 +3706,9 @@ window.toggleChecklistStep = async (stepId) => {
   const liveType = document.getElementById("mp-installType")?.value || p.installType;
   const tpl = state.procedures[liveType];
   if(!tpl) return;
-  const step = tpl.steps.find(s => s.id === stepId);
+  // Schema-aware step lookup (legacy or sectioned)
+  const allSteps = getTemplateSteps(tpl);
+  const step = allSteps.find(s => s.id === stepId);
   if(!step) return;
 
   const current = (p.checklist || {})[stepId] || {};
@@ -3314,7 +3740,7 @@ window.toggleChecklistStep = async (stepId) => {
 
   // Auto-prompt to advance status if all required steps are now checked
   if(newlyChecked){
-    const allRequiredDone = tpl.steps.every(s => {
+    const allRequiredDone = allSteps.every(s => {
       if(!s.requirePhoto && !s.required) return newChecklist[s.id]?.checked;
       // Treat all steps as required for completion, but flagged ones are explicitly enforced above
       return newChecklist[s.id]?.checked;
@@ -3858,8 +4284,9 @@ function buildAIContext(){
           // Compact pole — include checklist progress as fraction-only summary
           const cl = p.checklist || {};
           const tpl = state.procedures[p.installType];
-          const totalSteps = tpl?.steps?.length || 0;
-          const checkedSteps = totalSteps ? tpl.steps.filter(st => cl[st.id]?.checked).length : 0;
+          const tplSteps = getTemplateSteps(tpl);
+          const totalSteps = tplSteps.length;
+          const checkedSteps = totalSteps ? tplSteps.filter(st => cl[st.id]?.checked).length : 0;
           return [pid, {
             id:pid, label:p.label, status:p.status, installType:p.installType,
             // serial=Flag Pole Height, fw=Serial #, flagSize=physical flag dimensions
@@ -3874,11 +4301,22 @@ function buildAIContext(){
       };
     });
   });
-  // Include procedure templates so the AI can answer "what's next on Pole X"
+  // Include procedure templates so the AI can answer "what's next on Pole X".
+  // Schema-aware: flatten sectioned templates, fall back to legacy steps[].
+  const procExport = (type) => {
+    const tpl = state.procedures[type];
+    return getTemplateSteps(tpl).map(s => ({
+      id: s.id,
+      title: s.title,
+      instructions: s.instructions,
+      requirePhoto: s.requirePhoto,
+      ...(s.inputField ? { captures: s.inputField.name } : {})
+    }));
+  };
   out._procedures = {
-    external: state.procedures.external?.steps?.map(s => ({ id:s.id, title:s.title, instructions:s.instructions, requirePhoto:s.requirePhoto })) || [],
-    internal: state.procedures.internal?.steps?.map(s => ({ id:s.id, title:s.title, instructions:s.instructions, requirePhoto:s.requirePhoto })) || [],
-    cylinder: state.procedures.cylinder?.steps?.map(s => ({ id:s.id, title:s.title, instructions:s.instructions, requirePhoto:s.requirePhoto })) || []
+    external: procExport("external"),
+    internal: procExport("internal"),
+    cylinder: procExport("cylinder")
   };
   return out;
 }
@@ -4028,14 +4466,21 @@ window.mergeJSON = (ev) => {
           if(!["external","internal","cylinder"].includes(type)) return;
           // Procedures merge: only import if no procedure exists for that type yet (don't overwrite admin's edits)
           if(!state.procedures[type]){
-            updates[`autoflag/procedures/${type}`] = {
+            // Schema-aware: import either {sections:[...]} or legacy {steps:[...]}.
+            const isSectioned = Array.isArray(tpl.sections);
+            const payload = {
               type,
               name: tpl.name || "",
-              steps: Array.isArray(tpl.steps) ? tpl.steps : [],
               createdAt: tpl.createdAt || Date.now(),
               updatedAt: Date.now(),
               importedAt: Date.now()
             };
+            if(isSectioned){
+              payload.sections = tpl.sections;
+            } else {
+              payload.steps = Array.isArray(tpl.steps) ? tpl.steps : [];
+            }
+            updates[`autoflag/procedures/${type}`] = payload;
             stats.addedProcedures++;
           } else {
             stats.skipped++;
