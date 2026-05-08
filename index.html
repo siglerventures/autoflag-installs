@@ -532,7 +532,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.93</div>
+  <div class="ver">AutoFlag© · v1.94</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -599,7 +599,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.93</span>
+    AutoFlag© <span>Rev v1.94</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1038,7 +1038,7 @@ const state = {
   data: { customers: {} },           // { customerId: {name, sites:{siteId:{poles:{poleId:{...}}}}} }
   view: "browse",                    // browse | kanban | list | map | installs
   installsTab: "external",           // External | Internal | Cylinder — sub-tab on Installs view
-  installsCollapsed: new Set(),      // section ids the user has manually collapsed in Installs view (default: all expanded)
+  installsExpanded: new Set(),       // section ids the user has manually expanded in Installs view (default: all collapsed)
   drillCustomer: null, drillSite: null,
   expanded: { customers: new Set(), sites: new Set() }, // accordion state
   editing: { type:null, customerId:null, siteId:null, poleId:null },
@@ -2028,7 +2028,12 @@ function renderProcSteps(){
           html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${terms.length} term${terms.length===1?'':'s'}</div>`;
         }
         html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-          <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();editReferenceSection('${sec.id}')">✎ Edit reference content</button>
+          <label class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px;cursor:pointer" onclick="event.stopPropagation()">
+            📷 ${dUrl ? 'Replace diagram' : 'Upload diagram'}
+            <input type="file" accept="image/*" style="display:none" onchange="uploadReferenceDiagram(event,'${sec.id}')" />
+          </label>
+          ${dUrl ? `<button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();removeReferenceDiagram('${sec.id}')">✕ Remove diagram</button>` : ''}
+          <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();editReferenceSection('${sec.id}')">✎ Edit terms / paste URL</button>
         </div>`;
       } else if(secSteps.length === 0){
         html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:8px;background:var(--surface2);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm);margin-bottom:8px">No steps in this section yet.</div>`;
@@ -2055,10 +2060,20 @@ function renderProcSteps(){
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;color:var(--amber-bright);font-weight:600">${idx+1}. ${escapeHtml(st.title || '(untitled)')}${st.requirePhoto?' <span style="color:var(--amber);font-size:11px" title="Photo required">📷*</span>':''}${inputBadge}</div>
                 ${st.instructions?`<div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap">${escapeHtml(st.instructions)}</div>`:''}
-                ${(st.photoUrl || refPhotos.length)?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
-                  ${st.photoUrl?`<img data-no-drag draggable="false" src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="event.stopPropagation();window.open('${st.photoUrl}','_blank')" title="Legacy reference photo" />`:''}
-                  ${refPhotos.map(u=>`<img data-no-drag draggable="false" src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="event.stopPropagation();window.open('${u}','_blank')" title="Reference photo" />`).join('')}
-                </div>`:''}
+                <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">
+                  ${st.photoUrl?`<div style="position:relative">
+                    <img data-no-drag draggable="false" src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);display:block" onclick="event.stopPropagation();window.open('${st.photoUrl}','_blank')" title="Legacy reference photo" />
+                    <span data-no-drag style="position:absolute;top:1px;right:1px;background:rgba(0,0,0,0.6);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">legacy</span>
+                  </div>`:''}
+                  ${refPhotos.map(u=>`<div style="position:relative">
+                    <img data-no-drag draggable="false" src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);display:block" onclick="event.stopPropagation();window.open('${u}','_blank')" title="Reference photo (click to view)" />
+                    <button data-no-drag draggable="false" onclick="event.stopPropagation();removeStepReferencePhoto('${sec.id}','${st.id}','${u.replace(/'/g,"\\'")}')" style="position:absolute;top:1px;right:1px;background:rgba(178,40,40,0.85);color:#fff;border:none;font-size:11px;padding:0 5px;border-radius:3px;cursor:pointer;line-height:1.4" title="Remove">✕</button>
+                  </div>`).join('')}
+                  <label data-no-drag class="btn-secondary btn" draggable="false" style="font-size:11px;padding:4px 8px;cursor:pointer;height:fit-content;align-self:center" onclick="event.stopPropagation()">
+                    📷 Add ref
+                    <input type="file" accept="image/*" style="display:none" onchange="uploadStepReferencePhoto(event,'${sec.id}','${st.id}')" />
+                  </label>
+                </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
                 <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();editProcStep('${sec.id}','${st.id}')">✎ Edit</button>
@@ -2219,6 +2234,156 @@ window.editReferenceSection = async (sectionId) => {
     sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
   });
   toast("Reference content updated");
+};
+
+// Upload a diagram image to FB Storage for a reference section.
+// Path: autoflag/procedures/{type}/diagrams/{sectionId}_{timestamp}_{name}
+// Writes the resulting download URL to sections[sectionId].content.diagramUrl.
+window.uploadReferenceDiagram = async (ev, sectionId) => {
+  const f = ev.target.files?.[0];
+  ev.target.value = "";
+  if(!f) return;
+  if(!state.isAdmin) return toast("Admin only", true);
+  const tpl = state.procedures[activeProcTab];
+  const sec = tpl?.sections?.find(s => s.id === sectionId);
+  if(!sec || sec.kind !== "reference") return;
+  toast("Uploading diagram...");
+  try{
+    const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `autoflag/procedures/${activeProcTab}/diagrams/${sectionId}_${Date.now()}_${safeName}`;
+    const sr = sref(storage, path);
+    await uploadBytes(sr, f);
+    const url = await getDownloadURL(sr);
+    // Preserve any existing terms; just swap the diagramUrl
+    const oldDiagramUrl = sec.content?.diagramUrl || "";
+    const terms = Array.isArray(sec.content?.terms) ? sec.content.terms : [];
+    const newSections = tpl.sections.map(s => s.id === sectionId
+      ? { ...s, content: { diagramUrl: url, terms } }
+      : s
+    );
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+    // Best-effort delete of replaced image from Storage
+    if(oldDiagramUrl){
+      try{
+        const oldPath = decodeURIComponent(oldDiagramUrl.split("/o/")[1].split("?")[0]);
+        deleteObject(sref(storage, oldPath)).catch(()=>{});
+      }catch(_){}
+    }
+    toast("✓ Diagram uploaded");
+  }catch(e){ toast("Upload failed: " + e.message, true); }
+};
+
+window.removeReferenceDiagram = async (sectionId) => {
+  if(!confirm("Remove this diagram?")) return;
+  if(!state.isAdmin) return toast("Admin only", true);
+  const tpl = state.procedures[activeProcTab];
+  const sec = tpl?.sections?.find(s => s.id === sectionId);
+  if(!sec || sec.kind !== "reference") return;
+  const oldDiagramUrl = sec.content?.diagramUrl || "";
+  const terms = Array.isArray(sec.content?.terms) ? sec.content.terms : [];
+  const newSections = tpl.sections.map(s => s.id === sectionId
+    ? { ...s, content: { diagramUrl: "", terms } }
+    : s
+  );
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+  if(oldDiagramUrl){
+    try{
+      const oldPath = decodeURIComponent(oldDiagramUrl.split("/o/")[1].split("?")[0]);
+      deleteObject(sref(storage, oldPath)).catch(()=>{});
+    }catch(_){}
+  }
+  toast("Diagram removed");
+};
+
+// Upload a step reference photo to FB Storage. Appends to step.referencePhotos[].
+// Path: autoflag/procedures/{type}/refs/{stepId}_{timestamp}_{name}
+window.uploadStepReferencePhoto = async (ev, sectionId, stepId) => {
+  const f = ev.target.files?.[0];
+  ev.target.value = "";
+  if(!f) return;
+  if(!state.isAdmin) return toast("Admin only", true);
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl) return;
+  toast("Uploading reference photo...");
+  try{
+    const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `autoflag/procedures/${activeProcTab}/refs/${stepId}_${Date.now()}_${safeName}`;
+    const sr = sref(storage, path);
+    await uploadBytes(sr, f);
+    const url = await getDownloadURL(sr);
+
+    if(Array.isArray(tpl.sections)){
+      const newSections = tpl.sections.map(s => {
+        if(s.id !== sectionId) return s;
+        if(s.kind !== "steps") return s;
+        return {
+          ...s,
+          steps: (s.steps || []).map(st => st.id === stepId
+            ? { ...st, referencePhotos: [...(Array.isArray(st.referencePhotos) ? st.referencePhotos : []), url] }
+            : st
+          )
+        };
+      });
+      await patchNode(`autoflag/procedures/${activeProcTab}`, {
+        sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
+      });
+    } else {
+      // Legacy flat
+      const newSteps = (tpl.steps || []).map(st => st.id === stepId
+        ? { ...st, referencePhotos: [...(Array.isArray(st.referencePhotos) ? st.referencePhotos : []), url] }
+        : st
+      );
+      await patchNode(`autoflag/procedures/${activeProcTab}`, {
+        steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+      });
+    }
+    toast("✓ Reference photo added");
+  }catch(e){ toast("Upload failed: " + e.message, true); }
+};
+
+window.removeStepReferencePhoto = async (sectionId, stepId, url) => {
+  if(!confirm("Remove this reference photo?")) return;
+  if(!state.isAdmin) return toast("Admin only", true);
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl) return;
+
+  if(Array.isArray(tpl.sections)){
+    const newSections = tpl.sections.map(s => {
+      if(s.id !== sectionId) return s;
+      if(s.kind !== "steps") return s;
+      return {
+        ...s,
+        steps: (s.steps || []).map(st => st.id === stepId
+          ? { ...st, referencePhotos: (Array.isArray(st.referencePhotos) ? st.referencePhotos : []).filter(u => u !== url) }
+          : st
+        )
+      };
+    });
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } else {
+    const newSteps = (tpl.steps || []).map(st => st.id === stepId
+      ? { ...st, referencePhotos: (Array.isArray(st.referencePhotos) ? st.referencePhotos : []).filter(u => u !== url) }
+      : st
+    );
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  }
+
+  // Best-effort delete from Storage
+  if(url && url.includes("/o/")){
+    try{
+      const oldPath = decodeURIComponent(url.split("/o/")[1].split("?")[0]);
+      deleteObject(sref(storage, oldPath)).catch(()=>{});
+    }catch(_){}
+  }
+  toast("Reference photo removed");
 };
 
 // === Step CRUD (section-aware) ===
@@ -3850,7 +4015,7 @@ function renderInstalls(){
   // Render each section
   let runningStepIdx = 0;
   sections.forEach(sec => {
-    const collapsed = state.installsCollapsed.has(`${activeType}/${sec.id}`);
+    const collapsed = !state.installsExpanded.has(`${activeType}/${sec.id}`);
     if(sec.kind === "reference"){
       html += renderInstallsReferenceSection(sec, collapsed);
       return;
@@ -3943,8 +4108,8 @@ window.switchInstallsTab = (type) => {
 
 window.toggleInstallsSection = (sectionId) => {
   const key = `${state.installsTab}/${sectionId}`;
-  if(state.installsCollapsed.has(key)) state.installsCollapsed.delete(key);
-  else state.installsCollapsed.add(key);
+  if(state.installsExpanded.has(key)) state.installsExpanded.delete(key);
+  else state.installsExpanded.add(key);
   renderActive();
 };
 
