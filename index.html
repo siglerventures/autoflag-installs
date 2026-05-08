@@ -483,7 +483,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.91</div>
+  <div class="ver">AutoFlag© · v1.92</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -549,7 +549,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.91</span>
+    AutoFlag© <span>Rev v1.92</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1796,6 +1796,10 @@ window.removePerson = async (key) => {
 //   "onsiteInstall" — kind:"steps"
 // Cylinder template intentionally omits the first three sections.
 let activeProcTab = "external";
+// Tracks which sections are currently expanded in the admin UI. Keyed by `${tabId}/${sectionId}`.
+// Sections default to collapsed; once expanded they stay expanded across re-renders within
+// the session (Firebase pushes new templates on every keystroke save). Cleared on full reload.
+const procExpandedSections = new Set();
 const SECTION_DEFS = [
   { id:"terminology",   title:"Terminology Reference",       kind:"reference", collapsedByDefault:true  },
   { id:"preInstall",    title:"Pre-Install Measurements",    kind:"steps",     collapsedByDefault:false },
@@ -1875,6 +1879,19 @@ window.switchProcTab = (type) => {
   renderProcSteps();
 };
 
+// Toggles a section's expanded state in the admin view. Click-through-safe:
+// clicks on action buttons (data-no-drag) and post-drag clicks are ignored.
+window.toggleProcSection = (sectionId, ev) => {
+  // Ignore if click came from an action button or its descendants
+  if(ev && procIsActionTarget && procIsActionTarget(ev.target)) return;
+  // Ignore if a drag just finished (kanban-style suppress window)
+  if(procDrag && procDrag.suppressClickUntil && Date.now() < procDrag.suppressClickUntil) return;
+  const key = `${activeProcTab}/${sectionId}`;
+  if(procExpandedSections.has(key)) procExpandedSections.delete(key);
+  else procExpandedSections.add(key);
+  renderProcSteps();
+};
+
 function renderProcSteps(){
   const wrap = document.getElementById("procStepsList");
   if(!wrap) return;
@@ -1924,11 +1941,15 @@ function renderProcSteps(){
            ontouchend="procSectionTouchEnd(event)"`
         : '';
 
+      const expandKey = `${activeProcTab}/${sec.id}`;
+      const isExpanded = procExpandedSections.has(expandKey);
+
       html += `<div class="proc-section-wrap" data-section-id="${sec.id}" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
-        <div class="proc-section-row${sectionDraggable ? '' : ''}" data-section-id="${sec.id}" ${sectionDragAttrs} style="background:var(--surface2);padding:8px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);${sectionDraggable ? '' : 'cursor:default'}">
+        <div class="proc-section-row" data-section-id="${sec.id}" ${sectionDragAttrs} onclick="toggleProcSection('${sec.id}', event)" style="background:var(--surface2);padding:8px 10px;display:flex;align-items:center;gap:8px;${isExpanded ? 'border-bottom:1px solid var(--border);' : ''}cursor:pointer">
           ${sectionDraggable ? `<span style="color:var(--text-muted);font-size:14px;flex-shrink:0" title="Drag to reorder">⋮⋮</span>` : ''}
+          <span style="color:var(--text-muted);font-size:11px;flex-shrink:0;width:10px;text-align:center" title="${isExpanded ? 'Collapse' : 'Expand'}">${isExpanded ? '▼' : '▶'}</span>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:var(--amber-bright)">${sIdx+1}. ${escapeHtml(sec.title || sec.id)}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--amber-bright)">${escapeHtml(sec.title || sec.id)}</div>
             <div style="font-size:11px;color:var(--text-muted)">
               ${isReference ? 'Reference content (no checkable steps)' : `${secSteps.length} step${secSteps.length===1?'':'s'}`}
               ${sec.id === 'preInstall' ? ' · captures A &amp; B' : ''}
@@ -1938,7 +1959,7 @@ function renderProcSteps(){
           <button class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();deleteProcSection('${sec.id}')" ${sectionLocked?'disabled style="opacity:.3"':''}>✕</button>
         </div>
 
-        <div style="padding:10px">`;
+        <div style="padding:10px;display:${isExpanded ? '' : 'none'}">`;
 
       if(isReference){
         const dUrl = sec.content?.diagramUrl || "";
