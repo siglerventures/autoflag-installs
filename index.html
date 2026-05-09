@@ -129,6 +129,10 @@
   .proc-section-row.proc-insert-after{border-bottom:3px solid var(--amber);margin-bottom:-2px}
   .proc-step-row.proc-insert-before{border-top:3px solid var(--amber);margin-top:-2px}
   .proc-step-row.proc-insert-after{border-bottom:3px solid var(--amber);margin-bottom:-2px}
+  /* Term cards reorder via drag (Rev 1.97) */
+  .proc-term-card.proc-row-dragging{opacity:0.4}
+  .proc-term-card.proc-insert-before{box-shadow:-3px 0 0 0 var(--amber)}
+  .proc-term-card.proc-insert-after{box-shadow:3px 0 0 0 var(--amber)}
   /* Touch ghost (mobile long-press) */
   .proc-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:0.85;transform:rotate(2deg);box-shadow:0 8px 30px rgba(0,0,0,.6);background:var(--surface2);border:1px solid var(--amber);border-radius:var(--radius-sm);padding:10px;max-width:90vw}
   /* Buttons inside drag rows must not initiate drag — also reset cursor */
@@ -543,7 +547,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.96</div>
+  <div class="ver">AutoFlag© · v1.97</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -607,7 +611,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.96</span>
+    AutoFlag© <span>Rev v1.97</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2059,8 +2063,22 @@ function renderProcSteps(){
         } else {
           html += `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:8px">`;
           terms.forEach((t, tIdx) => {
-            html += `<div class="proc-term-card" data-section-id="${sec.id}" data-term-idx="${tIdx}" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;display:flex;flex-direction:column;gap:6px">
+            // Term cards draggable when there's more than one in the section
+            const termDraggable = terms.length > 1;
+            const termDragAttrs = termDraggable
+              ? `draggable="true"
+                 ondragstart="procTermDragStart(event,'${sec.id}',${tIdx})"
+                 ondragover="procTermDragOver(event,'${sec.id}',${tIdx})"
+                 ondragleave="procTermDragLeave(event)"
+                 ondrop="procTermDrop(event,'${sec.id}',${tIdx})"
+                 ondragend="procDragEnd(event)"
+                 ontouchstart="procTermTouchStart(event,'${sec.id}',${tIdx})"
+                 ontouchmove="procTermTouchMove(event)"
+                 ontouchend="procTermTouchEnd(event)"`
+              : '';
+            html += `<div class="proc-term-card" data-section-id="${sec.id}" data-term-idx="${tIdx}" ${termDragAttrs} style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;display:flex;flex-direction:column;gap:6px;${termDraggable ? '' : 'cursor:default'}">
               <div style="display:flex;align-items:center;gap:6px">
+                ${termDraggable ? `<span style="color:var(--text-muted);font-size:14px;flex-shrink:0;cursor:grab;user-select:none" title="Drag to reorder">⋮⋮</span>` : ''}
                 <input type="text" class="proc-term-label" id="term-label-${sec.id}-${tIdx}"
                   value="${escapeHtml(t.label || '')}"
                   placeholder="Term label (e.g., Truck)"
@@ -2768,9 +2786,10 @@ window.moveProcStep = async (sectionIdOrIdx, idxOrDir, dirMaybe) => {
 // Action buttons (✎ ✕ + Step + Section) carry data-no-drag + draggable=false + event.stopPropagation()
 // so clicks don't initiate drag.
 const procDrag = {
-  type: null,           // "section" | "step"
-  sectionId: null,      // section being dragged (type="section") OR parent of step (type="step")
+  type: null,           // "section" | "step" | "term"
+  sectionId: null,      // section being dragged, OR parent section of step/term
   stepId: null,         // step being dragged (type="step")
+  termIdx: null,        // term index being dragged (type="term")
   el: null,             // the DOM row currently being dragged
   // Touch state
   touchActive: false,
@@ -2782,7 +2801,7 @@ const procDrag = {
 };
 
 function clearProcDropMarkers(){
-  document.querySelectorAll(".proc-section-row.proc-insert-before, .proc-section-row.proc-insert-after, .proc-step-row.proc-insert-before, .proc-step-row.proc-insert-after")
+  document.querySelectorAll(".proc-section-row.proc-insert-before, .proc-section-row.proc-insert-after, .proc-step-row.proc-insert-before, .proc-step-row.proc-insert-after, .proc-term-card.proc-insert-before, .proc-term-card.proc-insert-after")
     .forEach(el => { el.classList.remove("proc-insert-before"); el.classList.remove("proc-insert-after"); });
 }
 function clearProcDragState(){
@@ -2793,6 +2812,7 @@ function clearProcDragState(){
   procDrag.type = null;
   procDrag.sectionId = null;
   procDrag.stepId = null;
+  procDrag.termIdx = null;
   procDrag.el = null;
   procDrag.ghost = null;
   procDrag.touchActive = false;
@@ -2937,12 +2957,85 @@ async function applyProcStepReorder(sectionId, draggedStepId, dropOnStepId, abov
   }
 }
 
+// ---- Term card drag handlers (Rev 1.97, Terminology Reference reorder) ----
+// Term cards use horizontal drop indicators (left/right of target) since they're
+// laid out in a CSS grid (auto-fit, minmax 240px) — multiple cards per row.
+window.procTermDragStart = (ev, sectionId, termIdx) => {
+  ev.stopPropagation();
+  // Persist any in-flight term-edit keystrokes before the drag remounts the DOM
+  saveReferenceTerms(sectionId, true);
+  procDrag.type = "term";
+  procDrag.sectionId = sectionId;
+  procDrag.termIdx = termIdx;
+  procDrag.el = ev.currentTarget;
+  ev.currentTarget.classList.add("proc-row-dragging");
+  if(ev.dataTransfer){
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", `term:${termIdx}`);
+  }
+};
+window.procTermDragOver = (ev, sectionId, termIdx) => {
+  if(procDrag.type !== "term") return;
+  if(procDrag.sectionId !== sectionId) return;        // cross-section term drag is a no-op
+  if(procDrag.termIdx === termIdx) return;            // self-drop is a no-op
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".proc-term-card.proc-insert-before, .proc-term-card.proc-insert-after")
+    .forEach(el => { el.classList.remove("proc-insert-before"); el.classList.remove("proc-insert-after"); });
+  const target = ev.currentTarget;
+  const rect = target.getBoundingClientRect();
+  // Horizontal drop position: left half = before, right half = after.
+  const leftHalf = (ev.clientX - rect.left) < rect.width / 2;
+  target.classList.add(leftHalf ? "proc-insert-before" : "proc-insert-after");
+};
+window.procTermDragLeave = (ev) => {
+  if(ev.currentTarget.contains(ev.relatedTarget)) return;
+  ev.currentTarget.classList.remove("proc-insert-before");
+  ev.currentTarget.classList.remove("proc-insert-after");
+};
+window.procTermDrop = async (ev, dropSectionId, dropTermIdx) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(procDrag.type !== "term" || procDrag.termIdx == null){ clearProcDragState(); return; }
+  if(procDrag.sectionId !== dropSectionId){ clearProcDragState(); return; }
+  if(procDrag.termIdx === dropTermIdx){ clearProcDragState(); return; }
+  const before = ev.currentTarget.classList.contains("proc-insert-before");
+  await applyProcTermReorder(procDrag.sectionId, procDrag.termIdx, dropTermIdx, before);
+  clearProcDragState();
+};
+
+async function applyProcTermReorder(sectionId, fromIdx, toIdxRaw, before){
+  if(!state.isAdmin) return;
+  const tpl = state.procedures[activeProcTab];
+  const sec = tpl?.sections?.find(s => s.id === sectionId);
+  if(!sec || sec.kind !== "reference") return;
+  const terms = Array.isArray(sec.content?.terms) ? [...sec.content.terms] : [];
+  if(fromIdx < 0 || fromIdx >= terms.length) return;
+  const [moved] = terms.splice(fromIdx, 1);
+  // Adjust target index since splice shifted later items down by one
+  let toIdx = toIdxRaw;
+  if(toIdx > fromIdx) toIdx -= 1;
+  if(!before) toIdx += 1;
+  if(toIdx < 0) toIdx = 0;
+  if(toIdx > terms.length) toIdx = terms.length;
+  terms.splice(toIdx, 0, moved);
+  const newSections = tpl.sections.map(s => s.id === sectionId
+    ? { ...s, content: { ...(s.content || {}), terms } }
+    : s
+  );
+  await patchNode(`autoflag/procedures/${activeProcTab}`, {
+    sections: newSections, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+}
+
 window.procDragEnd = (ev) => {
   if(procDrag.el) procDrag.el.classList.remove("proc-row-dragging");
   clearProcDropMarkers();
   procDrag.type = null;
   procDrag.sectionId = null;
   procDrag.stepId = null;
+  procDrag.termIdx = null;
   procDrag.el = null;
 };
 
@@ -3105,6 +3198,86 @@ window.procStepTouchEnd = async (ev) => {
     const rect = target.getBoundingClientRect();
     const above = (y - rect.top) < rect.height / 2;
     await applyProcStepReorder(procDrag.sectionId, procDrag.stepId, target.dataset.stepId, above);
+  }
+  clearProcDragState();
+  procDrag.suppressClickUntil = Date.now() + 300;
+};
+
+// ---- Term card touch handlers (Rev 1.97) ----
+window.procTermTouchStart = (ev, sectionId, termIdx) => {
+  if(ev.touches.length !== 1) return;
+  if(procIsActionTarget(ev.target)) return; // tap on label input / desc / ✕ should not initiate drag
+  ev.stopPropagation();
+  // Persist any in-flight edits before drag
+  saveReferenceTerms(sectionId, true);
+  const t = ev.touches[0];
+  procDrag.type = "term";
+  procDrag.sectionId = sectionId;
+  procDrag.termIdx = termIdx;
+  procDrag.el = ev.currentTarget;
+  procDrag.startX = t.clientX;
+  procDrag.startY = t.clientY;
+  procDrag.lastTouchX = t.clientX;
+  procDrag.lastTouchY = t.clientY;
+  procDrag.touchActive = false;
+  procDrag.longPressTimer = setTimeout(() => {
+    procDrag.touchActive = true;
+    procDrag.el.classList.add("proc-row-dragging");
+    if(navigator.vibrate) navigator.vibrate(40);
+    const r = procDrag.el.getBoundingClientRect();
+    const g = procDrag.el.cloneNode(true);
+    g.classList.add("proc-ghost");
+    g.style.width = r.width + "px";
+    g.style.left = r.left + "px";
+    g.style.top = r.top + "px";
+    document.body.appendChild(g);
+    procDrag.ghost = g;
+  }, 350);
+};
+
+window.procTermTouchMove = (ev) => {
+  if(ev.touches.length !== 1) return;
+  const t = ev.touches[0];
+  procDrag.lastTouchX = t.clientX;
+  procDrag.lastTouchY = t.clientY;
+  if(!procDrag.touchActive){
+    const dx = t.clientX - procDrag.startX;
+    const dy = t.clientY - procDrag.startY;
+    if(Math.abs(dx) > 10 || Math.abs(dy) > 10){
+      clearTimeout(procDrag.longPressTimer);
+      procDrag.longPressTimer = null;
+      procDrag.type = null;
+      procDrag.el = null;
+    }
+    return;
+  }
+  ev.preventDefault();
+  if(procDrag.ghost){
+    procDrag.ghost.style.left = (t.clientX - 100) + "px";
+    procDrag.ghost.style.top = (t.clientY - 20) + "px";
+  }
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  document.querySelectorAll(".proc-term-card.proc-insert-before, .proc-term-card.proc-insert-after")
+    .forEach(c => { c.classList.remove("proc-insert-before"); c.classList.remove("proc-insert-after"); });
+  const target = el?.closest(".proc-term-card");
+  if(target && target.dataset.sectionId === procDrag.sectionId && Number(target.dataset.termIdx) !== procDrag.termIdx){
+    const rect = target.getBoundingClientRect();
+    const leftHalf = (t.clientX - rect.left) < rect.width / 2;
+    target.classList.add(leftHalf ? "proc-insert-before" : "proc-insert-after");
+  }
+};
+
+window.procTermTouchEnd = async (ev) => {
+  clearTimeout(procDrag.longPressTimer);
+  if(!procDrag.touchActive){ clearProcDragState(); return; }
+  ev.preventDefault();
+  const x = procDrag.lastTouchX, y = procDrag.lastTouchY;
+  const el = document.elementFromPoint(x, y);
+  const target = el?.closest(".proc-term-card");
+  if(target && target.dataset.sectionId === procDrag.sectionId && Number(target.dataset.termIdx) !== procDrag.termIdx){
+    const rect = target.getBoundingClientRect();
+    const leftHalf = (x - rect.left) < rect.width / 2;
+    await applyProcTermReorder(procDrag.sectionId, procDrag.termIdx, Number(target.dataset.termIdx), leftHalf);
   }
   clearProcDragState();
   procDrag.suppressClickUntil = Date.now() + 300;
