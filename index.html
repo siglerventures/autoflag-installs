@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.04" />
+<meta name="app-rev" content="2.05" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -708,7 +708,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.04</div>
+  <div class="ver">AutoFlag© · v2.05</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -730,7 +730,7 @@
   <div class="top-row" style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch">
     <div class="filter-bar" id="filterBar" style="flex:0 0 auto;border-bottom:none;padding:0;background:transparent;overflow:visible"></div>
     <div class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0">
-      <button class="view-tab" data-view="home" onclick="goHome()" title="Home (no reload)">🏡 Home</button>
+      <button class="view-tab" data-view="home" id="homeBtnTop" onclick="softGoBrowse()" title="Back to Browse" style="display:none">🏡 Home</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
     </div>
@@ -777,7 +777,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.04</span>
+    <span>v2.05</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
@@ -3574,7 +3574,25 @@ function renderFilterBar(){
 // filter back to "all". Matches the behavior of customer-row stat chips.
 // "All" itself doesn't toggle (clicking "All" while active does nothing).
 window.setStatusFilter = s => {
-  state.filter.status = (state.filter.status === s && s !== "all") ? "all" : s;
+  const newFilter = (state.filter.status === s && s !== "all") ? "all" : s;
+  state.filter.status = newFilter;
+  // Rev 2.05: when a non-"all" status filter is activated, auto-expand any
+  // customer + site that has at least one matching pole, so the matching poles
+  // are visible without the user having to click into each row. Mirrors
+  // filterByStatus() behavior but works across ALL customers, not just one.
+  if(newFilter !== "all"){
+    Object.values(state.data.customers || {}).forEach(c => {
+      let matchInCustomer = false;
+      Object.values(c.sites || {}).forEach(site => {
+        const matchInSite = Object.values(site.poles || {}).some(p => p.status === newFilter);
+        if(matchInSite){
+          state.expanded.sites.add(site.id);
+          matchInCustomer = true;
+        }
+      });
+      if(matchInCustomer) state.expanded.customers.add(c.id);
+    });
+  }
   renderActive();
 };
 window.setCustomerFilter = c => {
@@ -3582,7 +3600,23 @@ window.setCustomerFilter = c => {
   renderActive();
 };
 window.setInstallTypeFilter = t => {
-  state.filter.installType = (state.filter.installType === t && t !== "all") ? "all" : t;
+  const newFilter = (state.filter.installType === t && t !== "all") ? "all" : t;
+  state.filter.installType = newFilter;
+  // Rev 2.05: same auto-expand for install-type filter (External / Internal /
+  // Cylinder) — clicking any narrows the visible set, expand matching rows.
+  if(newFilter !== "all"){
+    Object.values(state.data.customers || {}).forEach(c => {
+      let matchInCustomer = false;
+      Object.values(c.sites || {}).forEach(site => {
+        const matchInSite = Object.values(site.poles || {}).some(p => p.installType === newFilter);
+        if(matchInSite){
+          state.expanded.sites.add(site.id);
+          matchInCustomer = true;
+        }
+      });
+      if(matchInCustomer) state.expanded.customers.add(c.id);
+    });
+  }
   renderActive();
 };
 
@@ -4090,9 +4124,15 @@ window.drillTo = (customerId, siteId) => {
   renderActive();
 };
 window.goHome = () => {
-  // Rev 2.04: Soft navigation (no reload). Reset to default Browse view.
-  // The logo's <a href> still does a hard reload — this button skips that.
+  // Hard reload — guarantees full reset regardless of current view, modals, drill state, map instance, etc.
+  // Strips URL hash so reload lands on the default home view.
   if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+  location.reload();
+};
+
+// Rev 2.05: Soft "go to Browse" used by the in-Installs Home button (different
+// from the logo's hard reload). Resets drill state and tab UI without reloading.
+window.softGoBrowse = () => {
   state.drillCustomer = null;
   state.drillSite = null;
   state.expandedTbRows?.clear?.();
@@ -5430,19 +5470,35 @@ window.saveTbItem = async (kind, id) => {
     patch[k] = pending[k];
   });
 
-  // Apply link field changes — read all DOM link rows and rebuild the array
-  // (this handles link edits + ordering correctly)
+  // Apply link field changes — read all DOM link rows and rebuild the array.
+  // Rev 2.05 fix: in display mode the URL renders as <a class="tb-link-url-display">
+  // (no .value property), in edit mode as <input class="tb-link-url">. Read each
+  // link row's URL from whichever element is present; fall back to the stored
+  // current.links[idx].url if neither found. This bug was breaking ALL saves on
+  // items that had any links rendered (price/notes edits never persisted because
+  // .value on the anchor returned undefined, throwing TypeError mid-save).
   const card = document.querySelector(`[data-item-id="${id}"][data-kind="${kind}"]`);
   if(card){
     const linkRows = card.querySelectorAll(".tb-link-row");
     if(linkRows.length > 0){
       const newLinks = [];
-      linkRows.forEach(row => {
+      linkRows.forEach((row, rIdx) => {
         const labelEl = row.querySelector(".tb-link-label");
-        const urlEl = row.querySelector(".tb-link-url");
-        if(!labelEl || !urlEl) return;
-        const label = labelEl.value.trim();
-        const url = urlEl.value.trim();
+        const urlInput = row.querySelector("input.tb-link-url");
+        const urlAnchor = row.querySelector("a.tb-link-url-display");
+        if(!labelEl) return;
+        const label = (labelEl.value || "").trim();
+        let url;
+        if(urlInput){
+          url = (urlInput.value || "").trim();
+        } else if(urlAnchor){
+          // Display mode — pull the live URL from the anchor's href (or fall back
+          // to the stored value, both should match).
+          url = (urlAnchor.getAttribute("href") || current.links?.[rIdx]?.url || "").trim();
+        } else {
+          // No URL element at all (shouldn't happen, but be defensive)
+          url = (current.links?.[rIdx]?.url || "").trim();
+        }
         if(!label && !url) return; // skip empty rows
         newLinks.push({ label, url });
       });
@@ -5942,6 +5998,11 @@ window.switchView = v => {
 // stays in sync with state.installsTab and state.bomTab.
 function renderInstallsSubTabsInline(){
   const el = document.getElementById("installsSubTabsInline");
+  // Home button shows only when Installs is the active view (Rev 2.05 — Phil:
+  // home button on the homepage is redundant; it's only useful as an exit ramp
+  // from Installs back to Browse).
+  const homeBtn = document.getElementById("homeBtnTop");
+  if(homeBtn) homeBtn.style.display = (state.view === "installs") ? "" : "none";
   if(!el) return;
   if(state.view !== "installs"){
     el.style.display = "none";
