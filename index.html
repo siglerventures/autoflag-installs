@@ -70,6 +70,17 @@
   .view-tab.active{background:var(--amber);color:#1a1208;border-color:var(--amber);font-weight:600}
   .view-tab:not(.active):hover{border-color:var(--amber-dim);color:var(--amber)}
 
+  /* Mini view tabs — small inline strip used inside Browse/Kanban/List view headers (Rev 1.96) */
+  .view-header-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .view-header-strip-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .view-header-strip-right{display:flex;align-items:center;gap:6px}
+  .mini-tabs{display:flex;gap:3px}
+  .mini-tab{padding:2px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;white-space:nowrap;transition:background .12s, color .12s, border-color .12s}
+  .mini-tab:hover{border-color:var(--amber-dim);color:var(--amber)}
+  .mini-tab.active{background:var(--amber);color:#1a1208;border-color:var(--amber);font-weight:600}
+  .mini-expand-btn{padding:2px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;white-space:nowrap;transition:border-color .12s,color .12s}
+  .mini-expand-btn:hover{border-color:var(--amber-dim);color:var(--amber)}
+
   /* ==== Filter bar ==== */
   .filter-bar{display:flex;gap:6px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:wrap}
   .chip{padding:4px 12px;background:var(--surface2);border:1px solid var(--amber-dim);border-radius:var(--radius-pill);font-size:13px;color:var(--text-dim);white-space:nowrap;cursor:pointer}
@@ -532,7 +543,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.95</div>
+  <div class="ver">AutoFlag© · v1.96</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -549,17 +560,14 @@
     </button>
   </header>
 
-  <!-- Combined view tabs + filter bar on one row. View tabs sit immediately after Type chips, not far-right. -->
+  <!-- Combined view tabs + filter bar on one row. Top-row tabs are now Map + Installs only;
+       Browse/Kanban/List + Expand were moved into each view's header strip in Rev 1.96. -->
   <div class="top-row" style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch">
     <div class="filter-bar" id="filterBar" style="flex:0 0 auto;border-bottom:none;padding:0;background:transparent;overflow:visible"></div>
     <div class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0">
-      <button class="view-tab active" data-view="browse" onclick="switchView('browse')">📋 Browse</button>
-      <button class="view-tab" data-view="kanban" onclick="switchView('kanban')">📊 Kanban</button>
-      <button class="view-tab" data-view="list" onclick="switchView('list')">📑 List</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
     </div>
-    <button class="btn-secondary btn" id="expandToggleBtn" style="flex-shrink:0;font-size:11px;padding:5px 12px" onclick="toggleExpandCollapse()">Expand</button>
   </div>
 
   <!-- AI photo panel + thinking + chat thread (no longer wrapped in ai-bar div) -->
@@ -599,7 +607,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.95</span>
+    AutoFlag© <span>Rev v1.96</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="forceRTDBReconnect('manual')">🔄 Reconnect</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -3128,12 +3136,12 @@ window.renderActive = () => {
   }
   state.search = newSearch;
   renderFilterBar();
-  // Hide filter bar + Expand toggle on Installs view (they're pole-data controls, not relevant to a procedure reference)
+  // Hide filter bar on Installs view (pole-data control, not relevant to a procedure reference).
+  // Expand toggle was moved into Browse's view-header strip in Rev 1.96 — only renders on Browse,
+  // so no need to hide it elsewhere.
   const filterBar = document.getElementById("filterBar");
-  const expandBtn = document.getElementById("expandToggleBtn");
   const onInstalls = (state.view === "installs");
   if(filterBar) filterBar.style.display = onInstalls ? "none" : "";
-  if(expandBtn) expandBtn.style.display = onInstalls ? "none" : "";
   const main = document.getElementById("main");
   if(state.view === "browse")        main.innerHTML = renderBrowse();
   else if(state.view === "kanban")   main.innerHTML = renderKanban();
@@ -3212,6 +3220,26 @@ window.filterByType = (installType, customerId) => {
 };
 
 // ==== BROWSE: accordion tree (Customer → Sites → Poles inline) ====
+// Mini view-switcher strip rendered inside Browse/Kanban/List view content.
+// Replaces the top-row Browse/Kanban/List buttons (now top row holds only Map + Installs).
+//   leftContent   — optional HTML to show on the left side of the strip (e.g., "4 customers" count)
+//   showExpand    — Browse-only: include the Expand/Collapse toggle button on the right
+function renderViewHeaderStrip({ leftContent = "", showExpand = false } = {}){
+  const tabs = [
+    { id: "browse", label: "📋 Browse" },
+    { id: "kanban", label: "📊 Kanban" },
+    { id: "list",   label: "📑 List" }
+  ];
+  const tabsHtml = tabs.map(t =>
+    `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`
+  ).join('');
+  const leftHtml = leftContent ? `<div class="view-header-strip-left">${leftContent}<div class="mini-tabs">${tabsHtml}</div></div>` : `<div class="mini-tabs">${tabsHtml}</div>`;
+  const expandHtml = showExpand
+    ? `<div class="view-header-strip-right"><button class="mini-expand-btn" id="expandToggleBtn" onclick="toggleExpandCollapse()">Expand</button></div>`
+    : '';
+  return `<div class="view-header-strip">${leftHtml}${expandHtml}</div>`;
+}
+
 function renderBrowse(){
   // If user has drilled into a specific site/customer, keep the drill-down view
   if(state.drillSite){
@@ -3236,11 +3264,10 @@ function renderBrowse(){
       );
     })
     .sort((a,b)=> a.name.localeCompare(b.name));
-  if(list.length===0) return `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
+  if(list.length===0) return renderViewHeaderStrip({ showExpand: true }) + `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
 
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>
-  </div>`;
+  const countHtml = `<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>`;
+  let html = renderViewHeaderStrip({ leftContent: countHtml, showExpand: true });
 
   html += `<div class="tree">`;
   // Mobile detection done at render time. resize listener (added once below)
@@ -3680,7 +3707,8 @@ function renderKanban(){
     });
     return { status:s, label:STATUS_LABELS[s], poles: colPoles };
   });
-  let html = `<div class="kanban">`;
+  let html = renderViewHeaderStrip();
+  html += `<div class="kanban">`;
   cols.forEach(col => {
     html += `<div class="kanban-col" data-status="${col.status}"
       ondragover="kanbanDragOver(event,'${col.status}')"
@@ -3991,7 +4019,7 @@ function getCompletedByName(key){
 
 function renderList(){
   const allPoles = collectPoles();
-  if(allPoles.length===0) return `<div class="empty">No poles match.</div>`;
+  if(allPoles.length===0) return renderViewHeaderStrip() + `<div class="empty">No poles match.</div>`;
 
   // Sort according to current column/direction
   const dir = _listSort.dir === "asc" ? 1 : -1;
@@ -4018,7 +4046,8 @@ function renderList(){
   const ind = col => _listSort.col === col ? (_listSort.dir === "asc" ? " ▲" : " ▼") : "";
   const th = (col, label) => `<th onclick="setListSort('${col}')" style="cursor:pointer;user-select:none">${label}${ind(col)}</th>`;
 
-  let html = `<table class="list-table"><thead><tr>
+  let html = renderViewHeaderStrip();
+  html += `<table class="list-table"><thead><tr>
     ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
   sorted.forEach(({c,s,p}) => {
