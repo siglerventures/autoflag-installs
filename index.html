@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.00" />
+<meta name="app-rev" content="2.01" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -257,6 +257,10 @@
 
   /* ==== Installs view (Rev 1.93 — read-only procedure reference) ==== */
   .installs-wrap{padding:16px;max-width:900px;margin:0 auto}
+  .installs-wrap.wide{max-width:1800px}
+  /* When the installs view is in wide mode (Tools/BOM), let <main> stretch too.
+     :has() lets us widen main only when a wide installs-wrap is rendered inside. */
+  main:has(.installs-wrap.wide){max-width:1800px}
   .installs-tabs{display:flex;gap:4px;background:var(--surface);padding:4px;border-radius:var(--radius-sm);margin-bottom:14px;border:1px solid var(--border);position:sticky;top:0;z-index:5}
   .installs-tab{flex:1;background:transparent;color:var(--text-dim);border:none;padding:8px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s, color .15s}
   .installs-tab:hover{background:var(--surface2);color:var(--text)}
@@ -339,7 +343,10 @@
   .tb-cell-num-computed{font-family:monospace;text-align:right;color:var(--green);font-weight:600;white-space:nowrap}
   .tb-cell-cost-per-install{font-family:monospace;text-align:right;color:var(--amber-bright);font-weight:700;white-space:nowrap}
   .tb-cell-category{color:var(--amber);text-transform:lowercase;font-size:11px}
-  .tb-cell-notes{color:var(--text-dim);font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+  .tb-cell-notes{color:var(--text-dim);font-style:italic;font-size:11px;line-height:1.4}
+  /* Notes column expands to absorb leftover horizontal space (Rev 2.01).
+     Cells wrap to multiple lines rather than truncating. */
+  .tb-table th.tb-col-notes, .tb-table td.tb-col-notes{white-space:normal}
   .tb-cell-updated{color:var(--text-muted);font-size:10px;white-space:nowrap}
   .tb-cell-thumb{width:36px;height:36px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center}
   .tb-cell-thumb img{width:100%;height:100%;object-fit:cover}
@@ -690,7 +697,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.00</div>
+  <div class="ver">AutoFlag© · v2.01</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -754,7 +761,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.00</span>
+    <span>v2.01</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
@@ -4563,8 +4570,11 @@ function renderInstalls(){
   const isTools = activeType === "tools";
   const isBom   = activeType === "bom";
 
-  // Top header — sub-tab switcher (always present)
-  let html = `<div class="installs-wrap">
+  // Top header — sub-tab switcher (always present).
+  // Tools/BOM views get .wide class which expands max-width to 1800px and lets
+  // tables fill available space (Rev 2.01).
+  const wrapClass = (isTools || isBom) ? "installs-wrap wide" : "installs-wrap";
+  let html = `<div class="${wrapClass}">
     <div class="installs-tabs">
       ${types.map(t => `<button class="installs-tab ${t.id===activeType?'active':''}" onclick="switchInstallsTab('${t.id}')">${t.label}</button>`).join('')}
     </div>`;
@@ -4760,12 +4770,12 @@ function renderToolsView(){
     <table class="tb-table">
       <thead>
         <tr>
-          <th class="${sortClass('name')}" onclick="setTbSort('tools','name')" style="min-width:160px">Name${sortInd('name')}</th>
+          <th class="${sortClass('name')}" onclick="setTbSort('tools','name')" style="width:240px">Name${sortInd('name')}</th>
           <th class="tb-hide-mobile" style="width:50px">Image</th>
           <th class="${sortClass('price')} tb-hide-mobile" onclick="setTbSort('tools','price')" style="text-align:right;width:80px">Price${sortInd('price')}</th>
-          <th class="${sortClass('category')}" onclick="setTbSort('tools','category')" style="width:110px">Category${sortInd('category')}</th>
+          <th class="${sortClass('category')}" onclick="setTbSort('tools','category')" style="width:120px">Category${sortInd('category')}</th>
           <th class="tb-hide-mobile" style="width:80px">Sources</th>
-          <th class="tb-hide-mobile" style="min-width:140px">Notes</th>
+          <th class="tb-hide-mobile tb-col-notes" style="width:auto">Notes</th>
           <th class="${sortClass('updatedAt')} tb-hide-mobile" onclick="setTbSort('tools','updatedAt')" style="width:90px">Updated${sortInd('updatedAt')}</th>
         </tr>
       </thead>
@@ -4804,7 +4814,7 @@ function renderToolRow(id, item){
     <td class="tb-cell-num tb-hide-mobile">$${(item.price || 0).toFixed(2)}</td>
     <td class="tb-cell-category">${escapeHtml(item.category || "—")}</td>
     <td class="tb-cell-sources tb-hide-mobile">${links.length > 0 ? `<span class="src-count">${links.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
-    <td class="tb-cell-notes tb-hide-mobile">${escapeHtml(item.notes || "")}</td>
+    <td class="tb-cell-notes tb-hide-mobile tb-col-notes">${escapeHtml(item.notes || "")}</td>
     <td class="tb-cell-updated tb-hide-mobile">${updatedDate}</td>
   </tr>`;
 
@@ -4923,15 +4933,15 @@ function renderBomView(){
     <table class="tb-table">
       <thead>
         <tr>
-          <th class="${sortClass('name')}" onclick="setTbSort('bom','name')" style="min-width:160px">Name${sortInd('name')}</th>
+          <th class="${sortClass('name')}" onclick="setTbSort('bom','name')" style="width:240px">Name${sortInd('name')}</th>
           <th class="tb-hide-mobile" style="width:50px">Image</th>
           <th class="${sortClass('qty')} tb-hide-mobile" onclick="setTbSort('bom','qty')" style="text-align:right;width:60px">Qty${sortInd('qty')}</th>
           <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('bom','packCost')" style="text-align:right;width:75px">Pack$${sortInd('packCost')}</th>
           <th class="${sortClass('costPerUnit')} tb-hide-mobile" onclick="setTbSort('bom','costPerUnit')" style="text-align:right;width:80px">$/each${sortInd('costPerUnit')}</th>
           <th class="${sortClass('qtyPerUnit')} tb-hide-mobile" onclick="setTbSort('bom','qtyPerUnit')" style="text-align:right;width:75px">Per install${sortInd('qtyPerUnit')}</th>
-          <th class="${sortClass('costPerAssembly')}" onclick="setTbSort('bom','costPerAssembly')" style="text-align:right;width:90px">Cost/install${sortInd('costPerAssembly')}</th>
+          <th class="${sortClass('costPerAssembly')}" onclick="setTbSort('bom','costPerAssembly')" style="text-align:right;width:100px">Cost/install${sortInd('costPerAssembly')}</th>
           <th class="tb-hide-mobile" style="width:80px">Sources</th>
-          <th class="tb-hide-mobile" style="min-width:140px">Notes</th>
+          <th class="tb-hide-mobile tb-col-notes" style="width:auto">Notes</th>
           <th class="${sortClass('updatedAt')} tb-hide-mobile" onclick="setTbSort('bom','updatedAt')" style="width:90px">Updated${sortInd('updatedAt')}</th>
         </tr>
       </thead>
@@ -4978,7 +4988,7 @@ function renderPartRow(id, item){
     <td class="tb-cell-num tb-hide-mobile">${qtyPerUnit}</td>
     <td class="tb-cell-cost-per-install">$${costPerAssembly.toFixed(2)}</td>
     <td class="tb-cell-sources tb-hide-mobile">${links.length > 0 ? `<span class="src-count">${links.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
-    <td class="tb-cell-notes tb-hide-mobile">${escapeHtml(item.notes || "")}</td>
+    <td class="tb-cell-notes tb-hide-mobile tb-col-notes">${escapeHtml(item.notes || "")}</td>
     <td class="tb-cell-updated tb-hide-mobile">${updatedDate}</td>
   </tr>`;
 
