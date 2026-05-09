@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="1.99" />
+<meta name="app-rev" content="2.00" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -304,7 +304,7 @@
     .installs-step-photo{width:calc(50% - 4px);height:120px}
   }
 
-  /* ==== Tools + BOM (Rev 1.99) ==== */
+  /* ==== Tools + BOM (Rev 1.99 / Rev 2.00 spreadsheet) ==== */
   .tb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .tb-summary{font-size:12px;color:var(--text-muted);padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
   .tb-summary strong{color:var(--amber-bright)}
@@ -315,61 +315,80 @@
   .tb-bom-subtab:hover{background:var(--surface);color:var(--text)}
   .tb-bom-subtab.active{background:var(--amber);color:var(--bg)}
 
-  .tb-category-header{font-size:12px;font-weight:700;color:var(--amber-bright);text-transform:uppercase;letter-spacing:.5px;padding:6px 0 4px;margin:14px 0 6px;border-bottom:1px solid var(--border)}
-  .tb-category-header:first-child{margin-top:0}
+  /* Search bar above table */
+  .tb-search-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .tb-search{flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:6px 14px;color:var(--text);font-size:13px}
+  .tb-search:focus{border-color:var(--amber-dim);outline:none}
+  .tb-search-meta{font-size:11px;color:var(--text-muted);font-style:italic;flex-shrink:0}
 
-  .tools-grid, .parts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
-  @media (max-width:480px){.tools-grid, .parts-grid{grid-template-columns:1fr}}
+  /* Spreadsheet table */
+  .tb-table{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;font-size:12px}
+  .tb-table th{background:var(--surface2);padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
+  .tb-table th:hover{color:var(--amber);background:var(--surface3)}
+  .tb-table th.sort-active{color:var(--amber-bright)}
+  .tb-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .tb-table tr.tb-row{cursor:pointer;transition:background .12s}
+  .tb-table tr.tb-row:hover td{background:var(--surface2)}
+  .tb-table tr.tb-row.expanded td{background:var(--surface2)}
+  .tb-table tr.tb-detail-row td{padding:0;background:var(--surface3);border-bottom:1px solid var(--border)}
+  .tb-detail-inner{padding:14px 16px;display:flex;gap:14px;flex-wrap:wrap}
 
-  .tools-item-card, .parts-item-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;display:flex;flex-direction:column;gap:8px;position:relative;transition:border-color .15s}
-  .tools-item-card:hover, .parts-item-card:hover{border-color:var(--amber-dim)}
-  .tools-item-card.tb-row-dragging, .parts-item-card.tb-row-dragging{opacity:0.4}
-  .tools-item-card.tb-insert-before, .parts-item-card.tb-insert-before{box-shadow:-3px 0 0 0 var(--amber)}
-  .tools-item-card.tb-insert-after, .parts-item-card.tb-insert-after{box-shadow:3px 0 0 0 var(--amber)}
+  /* Cell types */
+  .tb-cell-name{font-weight:600;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-cell-num{font-family:monospace;text-align:right;color:var(--text);white-space:nowrap}
+  .tb-cell-num-computed{font-family:monospace;text-align:right;color:var(--green);font-weight:600;white-space:nowrap}
+  .tb-cell-cost-per-install{font-family:monospace;text-align:right;color:var(--amber-bright);font-weight:700;white-space:nowrap}
+  .tb-cell-category{color:var(--amber);text-transform:lowercase;font-size:11px}
+  .tb-cell-notes{color:var(--text-dim);font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+  .tb-cell-updated{color:var(--text-muted);font-size:10px;white-space:nowrap}
+  .tb-cell-thumb{width:36px;height:36px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .tb-cell-thumb img{width:100%;height:100%;object-fit:cover}
+  .tb-cell-thumb.empty{color:var(--text-muted);font-size:14px}
+  .tb-cell-sources{font-size:11px;color:var(--blue)}
+  .tb-cell-sources .src-count{background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:var(--radius-pill);font-size:10px}
+  .tb-row.expanded .tb-row-caret{transform:rotate(90deg)}
+  .tb-row-caret{display:inline-block;color:var(--text-muted);font-size:9px;transition:transform .15s;margin-right:4px}
 
-  .tb-card-top{display:flex;gap:8px;align-items:flex-start}
-  .tb-drag-handle{color:var(--text-muted);font-size:14px;cursor:grab;user-select:none;flex-shrink:0;line-height:1.5}
-  .tb-card-image{width:80px;height:80px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center}
-  .tb-card-image.empty{border:1px dashed var(--border-dashed);color:var(--text-muted);font-size:11px;text-align:center;padding:4px;cursor:pointer}
-  .tb-card-image.empty:hover{border-color:var(--amber);color:var(--amber)}
-  .tb-card-image.empty.drag-over{border-color:var(--amber);background:rgba(212,134,10,0.08);color:var(--amber)}
-  .tb-card-image img{width:100%;height:100%;object-fit:cover;cursor:pointer}
-  .tb-card-image-remove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
-  .tb-card-image-replace{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:10px;padding:2px 5px;border-radius:3px;cursor:pointer}
+  /* Detail panel (when row expanded) */
+  .tb-detail-image{width:120px;height:120px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface);border:1px solid var(--border);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center}
+  .tb-detail-image.empty{border:1px dashed var(--border-dashed);cursor:pointer;color:var(--text-muted);font-size:11px;text-align:center;padding:6px}
+  .tb-detail-image.empty:hover{border-color:var(--amber);color:var(--amber)}
+  .tb-detail-image.empty.drag-over{border-color:var(--amber);background:rgba(212,134,10,0.08);color:var(--amber)}
+  .tb-detail-image img{width:100%;height:100%;object-fit:cover;cursor:pointer}
+  .tb-detail-image-remove{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .tb-detail-image-replace{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:10px;padding:3px 6px;border-radius:3px;cursor:pointer}
 
-  .tb-card-fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
-  .tb-field-name{background:var(--surface2);border:1px solid var(--border);color:var(--amber-bright);font-weight:700;font-size:13px;padding:5px 7px;border-radius:var(--radius-sm);width:100%}
-  .tb-field-name:focus{border-color:var(--amber-dim);outline:none}
-  .tb-field-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
-  .tb-field-num{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 6px;border-radius:var(--radius-sm);width:70px}
-  .tb-field-num:focus{border-color:var(--amber-dim);outline:none}
-  .tb-field-text{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 7px;border-radius:var(--radius-sm);flex:1;min-width:0}
-  .tb-field-text:focus{border-color:var(--amber-dim);outline:none}
-  .tb-field-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
-  .tb-cost-display{font-size:11px;color:var(--green);font-weight:600;margin-left:auto;flex-shrink:0}
-  .tb-cost-assembly{font-size:11px;color:var(--amber-bright);font-weight:700}
+  .tb-detail-fields{flex:1;min-width:240px;display:flex;flex-direction:column;gap:8px}
+  .tb-detail-row-fields{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tb-detail-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+  .tb-detail-input{background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:12px;padding:5px 8px;border-radius:var(--radius-sm)}
+  .tb-detail-input:focus{border-color:var(--amber-dim);outline:none}
+  .tb-detail-input.name{font-weight:700;color:var(--amber-bright);font-size:14px;width:100%}
+  .tb-detail-input.num{width:80px;font-family:monospace;text-align:right}
+  .tb-detail-input.text{flex:1;min-width:120px}
+  .tb-detail-textarea{background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);resize:vertical;font-family:inherit;line-height:1.4;min-height:50px;width:100%}
+  .tb-detail-textarea:focus{border-color:var(--amber-dim);outline:none}
+  .tb-detail-cost-display{font-family:monospace;color:var(--green);font-weight:600;font-size:12px}
+  .tb-detail-cost-assembly{font-family:monospace;color:var(--amber-bright);font-weight:700;font-size:13px}
+  .tb-detail-actions{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);gap:8px;flex-wrap:wrap}
+  .tb-detail-meta{font-size:10px;color:var(--text-muted);font-style:italic}
+  .tb-verify-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap}
+  .tb-verify-btn:hover{border-color:var(--green);color:var(--green)}
+  .tb-verify-btn.verified{color:var(--green);border-color:var(--green)}
+  .tb-delete-btn{background:transparent;border:1px solid var(--red);color:var(--red);font-size:11px;padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer}
+  .tb-delete-btn:hover{background:var(--red);color:#fff}
 
-  .tb-card-notes{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);font-size:12px;padding:5px 7px;border-radius:var(--radius-sm);width:100%;resize:vertical;font-family:inherit;line-height:1.4;min-height:32px}
-  .tb-card-notes:focus{border-color:var(--amber-dim);outline:none}
-
-  .tb-links-section{display:flex;flex-direction:column;gap:4px}
+  /* Links subsection in detail panel */
+  .tb-links-section{display:flex;flex-direction:column;gap:5px;width:100%}
   .tb-links-header{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
-  .tb-link-row{display:flex;gap:4px;align-items:center}
-  .tb-link-label{background:var(--surface2);border:1px solid var(--border);color:var(--amber);font-size:11px;padding:3px 6px;border-radius:var(--radius-sm);width:80px;flex-shrink:0}
-  .tb-link-url{background:var(--surface2);border:1px solid var(--border);color:var(--blue);font-size:11px;padding:3px 6px;border-radius:var(--radius-sm);flex:1;min-width:0;font-family:monospace}
-  .tb-link-verify-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:10px;padding:3px 7px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;white-space:nowrap}
-  .tb-link-verify-btn:hover{border-color:var(--green);color:var(--green)}
-  .tb-link-verify-btn.verified{color:var(--green);border-color:var(--green)}
-  .tb-link-open-btn{background:transparent;border:1px solid var(--border);color:var(--blue);font-size:11px;padding:3px 7px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;text-decoration:none}
+  .tb-link-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+  .tb-link-label{background:var(--surface);border:1px solid var(--border);color:var(--amber);font-size:11px;padding:4px 8px;border-radius:var(--radius-sm);width:90px;flex-shrink:0}
+  .tb-link-url{background:var(--surface);border:1px solid var(--border);color:var(--blue);font-size:11px;padding:4px 8px;border-radius:var(--radius-sm);flex:1;min-width:120px;font-family:monospace}
+  .tb-link-open-btn{background:transparent;border:1px solid var(--border);color:var(--blue);font-size:11px;padding:4px 9px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;text-decoration:none}
   .tb-link-open-btn:hover{border-color:var(--blue);background:rgba(110,163,217,0.08)}
   .tb-link-remove-btn{background:transparent;border:none;color:var(--red);font-size:14px;padding:0 4px;cursor:pointer;flex-shrink:0}
-  .tb-link-add-btn{font-size:10px;color:var(--amber);background:transparent;border:1px dashed var(--border-dashed);padding:3px 8px;border-radius:var(--radius-sm);cursor:pointer;align-self:flex-start;text-transform:uppercase;letter-spacing:.5px}
+  .tb-link-add-btn{font-size:10px;color:var(--amber);background:transparent;border:1px dashed var(--border-dashed);padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer;align-self:flex-start;text-transform:uppercase;letter-spacing:.5px;cursor:pointer}
   .tb-link-add-btn:hover{border-color:var(--amber);background:rgba(212,134,10,0.06)}
-
-  .tb-card-actions{display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid var(--border);gap:8px}
-  .tb-card-meta{font-size:10px;color:var(--text-muted);font-style:italic}
-  .tb-delete-btn{background:transparent;border:1px solid var(--red);color:var(--red);font-size:11px;padding:4px 9px;border-radius:var(--radius-sm);cursor:pointer}
-  .tb-delete-btn:hover{background:var(--red);color:#fff}
 
   .tb-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px;background:var(--surface);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm)}
   .tb-empty .hint{color:var(--amber);cursor:pointer;text-decoration:underline;display:inline-block;margin-top:6px}
@@ -378,6 +397,19 @@
   .tb-total-label{color:var(--text);font-weight:600}
   .tb-total-value{color:var(--green);font-weight:700;font-size:16px}
   .tb-total-meta{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+
+  /* ==== Tools/BOM mobile compact rendering ==== */
+  /* On mobile, hide most spreadsheet columns and show a name + 1 stat per row.
+     Tap row to expand for full edit. Detail panel stacks vertically. */
+  @media (max-width:768px){
+    .tb-table{font-size:13px}
+    .tb-table th, .tb-table td{padding:7px 8px}
+    .tb-table th.tb-hide-mobile, .tb-table td.tb-hide-mobile{display:none}
+    .tb-cell-name{max-width:none;white-space:normal}
+    .tb-detail-inner{flex-direction:column}
+    .tb-detail-image{width:100%;max-width:200px;height:140px}
+    .tb-detail-input.num{width:100%;max-width:120px}
+  }
 
   /* ==== Tree (accordion Browse) ==== */
   .tree{display:flex;flex-direction:column;gap:4px}
@@ -451,11 +483,17 @@
     /* Footer wraps to two lines on mobile rather than horizontal scroll. */
     footer{flex-wrap:wrap;justify-content:center;gap:6px;padding:10px 12px}
 
-    /* Filter bar: scroll horizontally instead of wrapping into 3 rows */
+    /* Filter bar: scroll horizontally instead of wrapping into 3 rows.
+       Rev 2.00: chips sized to match mini-tabs (~10px uppercase) for cleaner
+       mobile look, per Phil's request. Tap-target shrunk; trade-off accepted. */
     .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
-    .filter-bar .chip{flex-shrink:0;min-height:36px;padding:7px 14px;font-size:13px;display:inline-flex;align-items:center}
+    .filter-bar .chip{flex-shrink:0;min-height:24px;padding:3px 10px;font-size:10px;display:inline-flex;align-items:center;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
     .filter-label{display:none}                    /* category obvious from chip context */
     .filter-sep{width:4px}
+
+    /* Logo shrink on mobile (Rev 2.00) — was 20px serif. Now compact. */
+    .logo{font-size:14px;letter-spacing:.2px}
+    .logo small{font-size:9px;margin-left:3px}
 
     /* Tap targets — minimum 40-48px */
     .btn{min-height:40px;padding:10px 16px;font-size:14px}
@@ -652,7 +690,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.99</div>
+  <div class="ver">AutoFlag© · v2.00</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -716,7 +754,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.99</span>
+    <span>v2.00</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
@@ -1174,6 +1212,12 @@ const state = {
   tools: {},
   parts: { external: {}, internal: {}, cylinder: {} },
   bomTab: "external",  // active install type for BOM tab
+  // Rev 2.00 spreadsheet view state
+  toolsSort: { col: "displayOrder", dir: "asc" },
+  bomSort: { col: "displayOrder", dir: "asc" },
+  toolsSearch: "",
+  bomSearch: "",
+  expandedTbRows: new Set(),  // keys: "tool:<id>" or "part:<id>"
   filter: { status:"all", customer:"all", installType:"all" },
   search: "",
   aiHistory: [],
@@ -4669,28 +4713,39 @@ function nextDisplayOrder(itemsObj){
   return (last.displayOrder ?? 0) + 10;
 }
 
-// ===== TOOLS VIEW =====
+// ===== TOOLS VIEW (Rev 2.00 — spreadsheet) =====
 function renderToolsView(){
   const itemsArr = sortAndFilterItems(state.tools);
   const totalCost = itemsArr.reduce((sum, [_, t]) => sum + (Number(t.price) || 0), 0);
 
-  // Group by category (free-text); items without category go under "Uncategorized"
-  const groups = {};
-  itemsArr.forEach(([id, t]) => {
-    const cat = (t.category || "uncategorized").trim() || "uncategorized";
-    if(!groups[cat]) groups[cat] = [];
-    groups[cat].push([id, t]);
-  });
-  // Sort category names: "uncategorized" last, others alphabetical
-  const catNames = Object.keys(groups).sort((a, b) => {
-    if(a === "uncategorized") return 1;
-    if(b === "uncategorized") return -1;
-    return a.localeCompare(b);
+  // Apply search filter (matches name, category, notes)
+  const search = (state.toolsSearch || "").trim().toLowerCase();
+  const filtered = search
+    ? itemsArr.filter(([_, t]) => {
+        const hay = [t.name, t.category, t.notes, ...(t.links || []).map(l => l.label)].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(search);
+      })
+    : itemsArr;
+
+  // Apply sort
+  const sortCol = state.toolsSort.col;
+  const sortDir = state.toolsSort.dir === "asc" ? 1 : -1;
+  const sorted = [...filtered].sort((a, b) => {
+    const va = tbToolSortValue(a[1], sortCol);
+    const vb = tbToolSortValue(b[1], sortCol);
+    if(typeof va === "string") return va.localeCompare(vb) * sortDir;
+    return ((va || 0) - (vb || 0)) * sortDir;
   });
 
   let html = `<div class="tb-toolbar">
-    <div class="tb-summary"><strong>${itemsArr.length}</strong> tool${itemsArr.length===1?'':'s'} in kit · <strong>$${totalCost.toFixed(2)}</strong> total kit value</div>
+    <div class="tb-summary"><strong>${itemsArr.length}</strong> tool${itemsArr.length===1?'':'s'} · <strong>$${totalCost.toFixed(2)}</strong> total kit value${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
     ${state.isAdmin ? `<button class="tb-add-btn" onclick="addToolItem()">+ Add Tool</button>` : ''}
+  </div>`;
+
+  html += `<div class="tb-search-row">
+    <input type="text" class="tb-search" placeholder="🔍 Search tools..." value="${escapeHtml(state.toolsSearch || "")}"
+      oninput="onTbSearchChange('tools', this.value)" />
+    ${search ? `<span class="tb-search-meta">Showing ${sorted.length} of ${itemsArr.length}</span>` : ''}
   </div>`;
 
   if(itemsArr.length === 0){
@@ -4698,16 +4753,32 @@ function renderToolsView(){
     return html;
   }
 
-  catNames.forEach(cat => {
-    const items = groups[cat];
-    const label = cat === "uncategorized" ? "Uncategorized" : cat.charAt(0).toUpperCase() + cat.slice(1);
-    html += `<div class="tb-category-header">${escapeHtml(label)} <span style="color:var(--text-muted);font-weight:normal;font-size:10px">(${items.length})</span></div>`;
-    html += `<div class="tools-grid">`;
-    items.forEach(([id, item]) => {
-      html += renderToolCard(id, item, items.length > 1);
+  // Spreadsheet table
+  const sortInd = col => sortCol === col ? (state.toolsSort.dir === "asc" ? " ▲" : " ▼") : "";
+  const sortClass = col => sortCol === col ? "sort-active" : "";
+  html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table class="tb-table">
+      <thead>
+        <tr>
+          <th class="${sortClass('name')}" onclick="setTbSort('tools','name')" style="min-width:160px">Name${sortInd('name')}</th>
+          <th class="tb-hide-mobile" style="width:50px">Image</th>
+          <th class="${sortClass('price')} tb-hide-mobile" onclick="setTbSort('tools','price')" style="text-align:right;width:80px">Price${sortInd('price')}</th>
+          <th class="${sortClass('category')}" onclick="setTbSort('tools','category')" style="width:110px">Category${sortInd('category')}</th>
+          <th class="tb-hide-mobile" style="width:80px">Sources</th>
+          <th class="tb-hide-mobile" style="min-width:140px">Notes</th>
+          <th class="${sortClass('updatedAt')} tb-hide-mobile" onclick="setTbSort('tools','updatedAt')" style="width:90px">Updated${sortInd('updatedAt')}</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  if(sorted.length === 0){
+    html += `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">No tools match "${escapeHtml(search)}"</td></tr>`;
+  } else {
+    sorted.forEach(([id, item]) => {
+      html += renderToolRow(id, item);
     });
-    html += `</div>`;
-  });
+  }
+  html += `</tbody></table></div>`;
 
   html += `<div class="tb-total-footer">
     <span class="tb-total-label">Total Tool Kit Value</span>
@@ -4718,90 +4789,111 @@ function renderToolsView(){
   return html;
 }
 
-function renderToolCard(id, item, draggable){
-  const adminEdit = state.isAdmin;
+function renderToolRow(id, item){
+  const expanded = state.expandedTbRows.has(`tool:${id}`);
   const links = Array.isArray(item.links) ? item.links : [];
-  const verified = item.lastVerifiedAt ? new Date(item.lastVerifiedAt).toLocaleDateString() : null;
+  const updatedDate = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString([], {month:'numeric',day:'numeric',year:'2-digit'}) : "—";
 
-  const dragAttrs = (adminEdit && draggable) ? `draggable="true"
-    ondragstart="tbCardDragStart(event,'tool','${id}')"
-    ondragover="tbCardDragOver(event,'tool','${id}')"
-    ondragleave="tbCardDragLeave(event)"
-    ondrop="tbCardDrop(event,'tool','${id}')"
-    ondragend="tbCardDragEnd(event)"
-    ontouchstart="tbCardTouchStart(event,'tool','${id}')"
-    ontouchmove="tbCardTouchMove(event)"
-    ontouchend="tbCardTouchEnd(event)"` : '';
+  let html = `<tr class="tb-row ${expanded?'expanded':''}" onclick="toggleTbRow('tool','${id}',event)">
+    <td class="tb-cell-name"><span class="tb-row-caret">▶</span>${escapeHtml(item.name || '(unnamed)')}</td>
+    <td class="tb-hide-mobile">
+      ${item.imageUrl
+        ? `<div class="tb-cell-thumb"><img src="${item.imageUrl}" alt="" /></div>`
+        : `<div class="tb-cell-thumb empty">📷</div>`}
+    </td>
+    <td class="tb-cell-num tb-hide-mobile">$${(item.price || 0).toFixed(2)}</td>
+    <td class="tb-cell-category">${escapeHtml(item.category || "—")}</td>
+    <td class="tb-cell-sources tb-hide-mobile">${links.length > 0 ? `<span class="src-count">${links.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+    <td class="tb-cell-notes tb-hide-mobile">${escapeHtml(item.notes || "")}</td>
+    <td class="tb-cell-updated tb-hide-mobile">${updatedDate}</td>
+  </tr>`;
 
-  let html = `<div class="tools-item-card" data-item-id="${id}" data-kind="tool" ${dragAttrs}>`;
-
-  // Top row: drag handle, image, fields
-  html += `<div class="tb-card-top">`;
-  if(adminEdit && draggable) html += `<span class="tb-drag-handle" data-no-drag title="Drag to reorder">⋮⋮</span>`;
-
-  // Image cell
-  html += renderItemImage(id, item, "tool", adminEdit);
-
-  // Fields cell
-  html += `<div class="tb-card-fields">`;
-  if(adminEdit){
-    html += `<input type="text" class="tb-field-name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Tool name"
-      oninput="onTbFieldChange('tool','${id}','name',this.value)"
-      onblur="saveTbItem('tool','${id}')" />`;
-    html += `<div class="tb-field-row">
-      <span class="tb-field-label">$</span>
-      <input type="number" step="0.01" class="tb-field-num" data-no-drag value="${item.price ?? 0}" placeholder="0.00"
-        oninput="onTbFieldChange('tool','${id}','price',parseFloat(this.value)||0)"
-        onblur="saveTbItem('tool','${id}')" />
-      <span class="tb-field-label">Cat:</span>
-      <input type="text" class="tb-field-text" data-no-drag value="${escapeHtml(item.category || '')}" placeholder="e.g., drilling"
-        oninput="onTbFieldChange('tool','${id}','category',this.value)"
-        onblur="saveTbItem('tool','${id}')" style="max-width:140px" />
-    </div>`;
-  } else {
-    html += `<div style="font-weight:700;color:var(--amber-bright);font-size:13px">${escapeHtml(item.name || '(unnamed)')}</div>`;
-    html += `<div style="font-size:12px;color:var(--text-dim)">$${(item.price || 0).toFixed(2)}${item.category ? ` · ${escapeHtml(item.category)}` : ''}</div>`;
+  if(expanded){
+    html += `<tr class="tb-detail-row"><td colspan="7">${renderToolDetailPanel(id, item)}</td></tr>`;
   }
-  html += `</div></div>`;
-
-  // Notes
-  if(adminEdit){
-    html += `<textarea class="tb-card-notes" data-no-drag rows="2" placeholder="Notes (optional)"
-      oninput="onTbFieldChange('tool','${id}','notes',this.value)"
-      onblur="saveTbItem('tool','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
-  } else if(item.notes){
-    html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic">${escapeHtml(item.notes)}</div>`;
-  }
-
-  // Links
-  html += renderItemLinks(id, item, "tool", adminEdit);
-
-  // Footer (admin: meta + delete)
-  if(adminEdit){
-    html += `<div class="tb-card-actions">
-      <span class="tb-card-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
-      <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('tool','${id}')">✕ Delete</button>
-    </div>`;
-  }
-
-  html += `</div>`;
   return html;
 }
 
-// ===== BOM VIEW =====
+function renderToolDetailPanel(id, item){
+  const adminEdit = state.isAdmin;
+  const verified = item.lastVerifiedAt ? new Date(item.lastVerifiedAt).toLocaleDateString() : null;
+
+  let html = `<div class="tb-detail-inner" data-item-id="${id}" data-kind="tool" onclick="event.stopPropagation()">`;
+
+  // Image
+  html += renderTbDetailImage(id, item, "tool", adminEdit);
+
+  // Fields
+  html += `<div class="tb-detail-fields">`;
+  if(adminEdit){
+    html += `<input type="text" class="tb-detail-input name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Tool name"
+      oninput="onTbFieldChange('tool','${id}','name',this.value)"
+      onblur="saveTbItem('tool','${id}')" />`;
+    html += `<div class="tb-detail-row-fields">
+      <span class="tb-detail-label">$ Price</span>
+      <input type="number" step="0.01" class="tb-detail-input num" data-no-drag value="${item.price ?? 0}" placeholder="0.00"
+        oninput="onTbFieldChange('tool','${id}','price',parseFloat(this.value)||0)"
+        onblur="saveTbItem('tool','${id}')" />
+      <span class="tb-detail-label">Category</span>
+      <input type="text" class="tb-detail-input text" data-no-drag value="${escapeHtml(item.category || '')}" placeholder="e.g., drilling"
+        oninput="onTbFieldChange('tool','${id}','category',this.value)"
+        onblur="saveTbItem('tool','${id}')" />
+    </div>`;
+    html += `<textarea class="tb-detail-textarea" data-no-drag rows="2" placeholder="Notes (optional)"
+      oninput="onTbFieldChange('tool','${id}','notes',this.value)"
+      onblur="saveTbItem('tool','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
+  } else {
+    if(item.notes) html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic">${escapeHtml(item.notes)}</div>`;
+  }
+
+  // Links
+  html += renderTbDetailLinks(id, item, "tool", adminEdit);
+
+  if(adminEdit){
+    html += `<div class="tb-detail-actions">
+      <span class="tb-detail-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
+      <div style="display:flex;gap:6px">
+        <button class="tb-verify-btn ${item.lastVerifiedAt?'verified':''}" data-no-drag onclick="verifyTbLink('tool','${id}')">${item.lastVerifiedAt ? '✓ Re-verify' : '✓ Mark Verified'}</button>
+        <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('tool','${id}')">✕ Delete</button>
+      </div>
+    </div>`;
+  }
+
+  html += `</div></div>`;
+  return html;
+}
+
+// ===== BOM VIEW (Rev 2.00 — spreadsheet) =====
 function renderBomView(){
   const installType = state.bomTab || "external";
   const itemsObj = state.parts[installType] || {};
   const itemsArr = sortAndFilterItems(itemsObj);
 
-  // Compute total install parts cost = sum(costPerUnit × qtyPerUnit) where costPerUnit = packCost / qty
   const totalInstallCost = itemsArr.reduce((sum, [_, p]) => {
     const qty = Number(p.qty) || 1;
     const packCost = Number(p.packCost) || 0;
     const qtyPerUnit = Number(p.qtyPerUnit) || 1;
-    const costPerUnit = qty > 0 ? packCost / qty : 0;
-    return sum + (costPerUnit * qtyPerUnit);
+    return sum + ((qty > 0 ? packCost / qty : 0) * qtyPerUnit);
   }, 0);
+
+  // Apply search filter
+  const search = (state.bomSearch || "").trim().toLowerCase();
+  const filtered = search
+    ? itemsArr.filter(([_, p]) => {
+        const hay = [p.name, p.material, p.notes, ...(p.links || []).map(l => l.label)].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(search);
+      })
+    : itemsArr;
+
+  // Apply sort
+  const sortCol = state.bomSort.col;
+  const sortDir = state.bomSort.dir === "asc" ? 1 : -1;
+  const sorted = [...filtered].sort((a, b) => {
+    const va = tbPartSortValue(a[1], sortCol);
+    const vb = tbPartSortValue(b[1], sortCol);
+    if(typeof va === "string") return va.localeCompare(vb) * sortDir;
+    return ((va || 0) - (vb || 0)) * sortDir;
+  });
 
   let html = `<div class="tb-bom-subtabs">
     ${["external","internal","cylinder"].map(t =>
@@ -4810,8 +4902,14 @@ function renderBomView(){
   </div>`;
 
   html += `<div class="tb-toolbar">
-    <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} in BOM · <strong>$${totalInstallCost.toFixed(2)}</strong> per install</div>
+    <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} · <strong>$${totalInstallCost.toFixed(2)}</strong> per install${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
     ${state.isAdmin ? `<button class="tb-add-btn" onclick="addPartItem()">+ Add Part</button>` : ''}
+  </div>`;
+
+  html += `<div class="tb-search-row">
+    <input type="text" class="tb-search" placeholder="🔍 Search ${formatInstallType(installType)} BOM..." value="${escapeHtml(state.bomSearch || "")}"
+      oninput="onTbSearchChange('bom', this.value)" />
+    ${search ? `<span class="tb-search-meta">Showing ${sorted.length} of ${itemsArr.length}</span>` : ''}
   </div>`;
 
   if(itemsArr.length === 0){
@@ -4819,11 +4917,34 @@ function renderBomView(){
     return html;
   }
 
-  html += `<div class="parts-grid">`;
-  itemsArr.forEach(([id, item]) => {
-    html += renderPartCard(id, item, itemsArr.length > 1);
-  });
-  html += `</div>`;
+  const sortInd = col => sortCol === col ? (state.bomSort.dir === "asc" ? " ▲" : " ▼") : "";
+  const sortClass = col => sortCol === col ? "sort-active" : "";
+  html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table class="tb-table">
+      <thead>
+        <tr>
+          <th class="${sortClass('name')}" onclick="setTbSort('bom','name')" style="min-width:160px">Name${sortInd('name')}</th>
+          <th class="tb-hide-mobile" style="width:50px">Image</th>
+          <th class="${sortClass('qty')} tb-hide-mobile" onclick="setTbSort('bom','qty')" style="text-align:right;width:60px">Qty${sortInd('qty')}</th>
+          <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('bom','packCost')" style="text-align:right;width:75px">Pack$${sortInd('packCost')}</th>
+          <th class="${sortClass('costPerUnit')} tb-hide-mobile" onclick="setTbSort('bom','costPerUnit')" style="text-align:right;width:80px">$/each${sortInd('costPerUnit')}</th>
+          <th class="${sortClass('qtyPerUnit')} tb-hide-mobile" onclick="setTbSort('bom','qtyPerUnit')" style="text-align:right;width:75px">Per install${sortInd('qtyPerUnit')}</th>
+          <th class="${sortClass('costPerAssembly')}" onclick="setTbSort('bom','costPerAssembly')" style="text-align:right;width:90px">Cost/install${sortInd('costPerAssembly')}</th>
+          <th class="tb-hide-mobile" style="width:80px">Sources</th>
+          <th class="tb-hide-mobile" style="min-width:140px">Notes</th>
+          <th class="${sortClass('updatedAt')} tb-hide-mobile" onclick="setTbSort('bom','updatedAt')" style="width:90px">Updated${sortInd('updatedAt')}</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  if(sorted.length === 0){
+    html += `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">No parts match "${escapeHtml(search)}"</td></tr>`;
+  } else {
+    sorted.forEach(([id, item]) => {
+      html += renderPartRow(id, item);
+    });
+  }
+  html += `</tbody></table></div>`;
 
   html += `<div class="tb-total-footer">
     <span class="tb-total-label">Total ${formatInstallType(installType)} Install Parts Cost</span>
@@ -4834,7 +4955,40 @@ function renderBomView(){
   return html;
 }
 
-function renderPartCard(id, item, draggable){
+function renderPartRow(id, item){
+  const expanded = state.expandedTbRows.has(`part:${id}`);
+  const links = Array.isArray(item.links) ? item.links : [];
+  const qty = Number(item.qty) || 1;
+  const packCost = Number(item.packCost) || 0;
+  const qtyPerUnit = Number(item.qtyPerUnit) || 1;
+  const costPerUnit = qty > 0 ? packCost / qty : 0;
+  const costPerAssembly = costPerUnit * qtyPerUnit;
+  const updatedDate = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString([], {month:'numeric',day:'numeric',year:'2-digit'}) : "—";
+
+  let html = `<tr class="tb-row ${expanded?'expanded':''}" onclick="toggleTbRow('part','${id}',event)">
+    <td class="tb-cell-name"><span class="tb-row-caret">▶</span>${escapeHtml(item.name || '(unnamed)')}</td>
+    <td class="tb-hide-mobile">
+      ${item.imageUrl
+        ? `<div class="tb-cell-thumb"><img src="${item.imageUrl}" alt="" /></div>`
+        : `<div class="tb-cell-thumb empty">📷</div>`}
+    </td>
+    <td class="tb-cell-num tb-hide-mobile">${qty}</td>
+    <td class="tb-cell-num tb-hide-mobile">$${packCost.toFixed(2)}</td>
+    <td class="tb-cell-num-computed tb-hide-mobile">$${costPerUnit.toFixed(4)}</td>
+    <td class="tb-cell-num tb-hide-mobile">${qtyPerUnit}</td>
+    <td class="tb-cell-cost-per-install">$${costPerAssembly.toFixed(2)}</td>
+    <td class="tb-cell-sources tb-hide-mobile">${links.length > 0 ? `<span class="src-count">${links.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+    <td class="tb-cell-notes tb-hide-mobile">${escapeHtml(item.notes || "")}</td>
+    <td class="tb-cell-updated tb-hide-mobile">${updatedDate}</td>
+  </tr>`;
+
+  if(expanded){
+    html += `<tr class="tb-detail-row"><td colspan="10">${renderPartDetailPanel(id, item)}</td></tr>`;
+  }
+  return html;
+}
+
+function renderPartDetailPanel(id, item){
   const adminEdit = state.isAdmin;
   const qty = Number(item.qty) || 1;
   const packCost = Number(item.packCost) || 0;
@@ -4843,126 +4997,158 @@ function renderPartCard(id, item, draggable){
   const costPerAssembly = costPerUnit * qtyPerUnit;
   const verified = item.lastVerifiedAt ? new Date(item.lastVerifiedAt).toLocaleDateString() : null;
 
-  const dragAttrs = (adminEdit && draggable) ? `draggable="true"
-    ondragstart="tbCardDragStart(event,'part','${id}')"
-    ondragover="tbCardDragOver(event,'part','${id}')"
-    ondragleave="tbCardDragLeave(event)"
-    ondrop="tbCardDrop(event,'part','${id}')"
-    ondragend="tbCardDragEnd(event)"
-    ontouchstart="tbCardTouchStart(event,'part','${id}')"
-    ontouchmove="tbCardTouchMove(event)"
-    ontouchend="tbCardTouchEnd(event)"` : '';
+  let html = `<div class="tb-detail-inner" data-item-id="${id}" data-kind="part" onclick="event.stopPropagation()">`;
+  html += renderTbDetailImage(id, item, "part", adminEdit);
 
-  let html = `<div class="parts-item-card" data-item-id="${id}" data-kind="part" ${dragAttrs}>`;
-
-  html += `<div class="tb-card-top">`;
-  if(adminEdit && draggable) html += `<span class="tb-drag-handle" data-no-drag title="Drag to reorder">⋮⋮</span>`;
-
-  html += renderItemImage(id, item, "part", adminEdit);
-
-  html += `<div class="tb-card-fields">`;
+  html += `<div class="tb-detail-fields">`;
   if(adminEdit){
-    html += `<input type="text" class="tb-field-name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Part name"
+    html += `<input type="text" class="tb-detail-input name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Part name"
       oninput="onTbFieldChange('part','${id}','name',this.value)"
       onblur="saveTbItem('part','${id}')" />`;
 
-    // Cost row: qty + packCost (stored), costPerUnit (computed display)
-    html += `<div class="tb-field-row">
-      <span class="tb-field-label">Qty/pack:</span>
-      <input type="number" step="1" min="1" class="tb-field-num" data-no-drag value="${qty}" style="width:60px"
+    html += `<div class="tb-detail-row-fields">
+      <span class="tb-detail-label">Qty/pack</span>
+      <input type="number" step="1" min="1" class="tb-detail-input num" data-no-drag value="${qty}"
         oninput="onTbFieldChange('part','${id}','qty',parseFloat(this.value)||1)"
-        onblur="saveTbItem('part','${id}')" title="How many come in a pack (1 if not pack-priced)" />
-      <span class="tb-field-label">Pack $:</span>
-      <input type="number" step="0.01" class="tb-field-num" data-no-drag value="${packCost.toFixed(2)}" style="width:75px"
+        onblur="saveTbItem('part','${id}')" title="Pack size — how many come per pack" />
+      <span class="tb-detail-label">Pack $</span>
+      <input type="number" step="0.01" class="tb-detail-input num" data-no-drag value="${packCost.toFixed(2)}"
         oninput="onTbFieldChange('part','${id}','packCost',parseFloat(this.value)||0)"
         onblur="saveTbItem('part','${id}')" title="Cost per pack" />
-      <span class="tb-cost-display" title="Computed: pack cost ÷ qty">@ $${costPerUnit.toFixed(4)}/ea</span>
+      <span class="tb-detail-cost-display">$${costPerUnit.toFixed(4)}/each</span>
     </div>`;
 
-    // Per-install row: qtyPerUnit + computed cost-per-assembly + material
-    html += `<div class="tb-field-row">
-      <span class="tb-field-label">Per install:</span>
-      <input type="number" step="1" min="0" class="tb-field-num" data-no-drag value="${qtyPerUnit}" style="width:60px"
+    html += `<div class="tb-detail-row-fields">
+      <span class="tb-detail-label">Per install</span>
+      <input type="number" step="1" min="0" class="tb-detail-input num" data-no-drag value="${qtyPerUnit}"
         oninput="onTbFieldChange('part','${id}','qtyPerUnit',parseFloat(this.value)||1)"
-        onblur="saveTbItem('part','${id}')" title="Quantity required per AutoFlag install" />
-      <span class="tb-cost-assembly">= $${costPerAssembly.toFixed(2)}</span>
-      <span class="tb-field-label" style="margin-left:8px">Material:</span>
-      <input type="text" class="tb-field-text" data-no-drag value="${escapeHtml(item.material || '')}" placeholder="—" style="max-width:120px"
+        onblur="saveTbItem('part','${id}')" title="Quantity used per install" />
+      <span class="tb-detail-cost-assembly">= $${costPerAssembly.toFixed(2)}/install</span>
+      <span class="tb-detail-label" style="margin-left:auto">Material</span>
+      <input type="text" class="tb-detail-input text" data-no-drag value="${escapeHtml(item.material || '')}" placeholder="—" style="max-width:140px"
         oninput="onTbFieldChange('part','${id}','material',this.value)"
         onblur="saveTbItem('part','${id}')" />
     </div>`;
-  } else {
-    // Read-only render for non-admins
-    html += `<div style="font-weight:700;color:var(--amber-bright);font-size:13px">${escapeHtml(item.name || '(unnamed)')}</div>`;
-    html += `<div style="font-size:12px;color:var(--text-dim)">${qtyPerUnit}× per install · $${costPerAssembly.toFixed(2)}${item.material ? ` · ${escapeHtml(item.material)}` : ''}</div>`;
-    html += `<div style="font-size:11px;color:var(--text-muted)">Pack: ${qty} for $${packCost.toFixed(2)} = $${costPerUnit.toFixed(4)}/ea</div>`;
-  }
-  html += `</div></div>`;
 
-  // Notes
-  if(adminEdit){
-    html += `<textarea class="tb-card-notes" data-no-drag rows="2" placeholder="Notes (optional)"
+    html += `<textarea class="tb-detail-textarea" data-no-drag rows="2" placeholder="Notes (optional)"
       oninput="onTbFieldChange('part','${id}','notes',this.value)"
       onblur="saveTbItem('part','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
-  } else if(item.notes){
-    html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic">${escapeHtml(item.notes)}</div>`;
+  } else {
+    html += `<div style="font-size:13px;color:var(--text-bright);font-weight:600">${escapeHtml(item.name || '(unnamed)')}</div>`;
+    html += `<div style="font-size:12px;color:var(--text-dim)">${qtyPerUnit}× per install · $${costPerAssembly.toFixed(2)}${item.material ? ` · ${escapeHtml(item.material)}` : ''}</div>`;
+    html += `<div style="font-size:11px;color:var(--text-muted)">Pack: ${qty} for $${packCost.toFixed(2)} = $${costPerUnit.toFixed(4)}/ea</div>`;
+    if(item.notes) html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic;margin-top:4px">${escapeHtml(item.notes)}</div>`;
   }
 
-  // Links
-  html += renderItemLinks(id, item, "part", adminEdit);
+  html += renderTbDetailLinks(id, item, "part", adminEdit);
 
   if(adminEdit){
-    html += `<div class="tb-card-actions">
-      <span class="tb-card-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
-      <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('part','${id}')">✕ Delete</button>
+    html += `<div class="tb-detail-actions">
+      <span class="tb-detail-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
+      <div style="display:flex;gap:6px">
+        <button class="tb-verify-btn ${item.lastVerifiedAt?'verified':''}" data-no-drag onclick="verifyTbLink('part','${id}')">${item.lastVerifiedAt ? '✓ Re-verify' : '✓ Mark Verified'}</button>
+        <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('part','${id}')">✕ Delete</button>
+      </div>
     </div>`;
   }
 
-  html += `</div>`;
+  html += `</div></div>`;
   return html;
 }
 
-// ===== Image cell (shared between tools and parts) =====
-function renderItemImage(id, item, kind, adminEdit){
+// Sort key extractors — handles computed fields for parts
+function tbToolSortValue(item, col){
+  if(col === "displayOrder") return item.displayOrder ?? 9999;
+  if(col === "name") return (item.name || "").toLowerCase();
+  if(col === "category") return (item.category || "zzz_uncategorized").toLowerCase();
+  if(col === "price") return Number(item.price) || 0;
+  if(col === "updatedAt") return Number(item.updatedAt) || 0;
+  return 0;
+}
+function tbPartSortValue(item, col){
+  if(col === "displayOrder") return item.displayOrder ?? 9999;
+  if(col === "name") return (item.name || "").toLowerCase();
+  if(col === "qty") return Number(item.qty) || 0;
+  if(col === "packCost") return Number(item.packCost) || 0;
+  if(col === "qtyPerUnit") return Number(item.qtyPerUnit) || 0;
+  if(col === "costPerUnit"){
+    const q = Number(item.qty) || 1;
+    return q > 0 ? (Number(item.packCost) || 0) / q : 0;
+  }
+  if(col === "costPerAssembly"){
+    const q = Number(item.qty) || 1;
+    const pu = q > 0 ? (Number(item.packCost) || 0) / q : 0;
+    return pu * (Number(item.qtyPerUnit) || 1);
+  }
+  if(col === "updatedAt") return Number(item.updatedAt) || 0;
+  return 0;
+}
+
+// ===== Spreadsheet UI handlers =====
+window.setTbSort = (which, col) => {
+  const k = which === "tools" ? "toolsSort" : "bomSort";
+  if(state[k].col === col){
+    state[k].dir = state[k].dir === "asc" ? "desc" : "asc";
+  } else {
+    state[k].col = col;
+    state[k].dir = "asc";
+  }
+  renderActive();
+};
+
+const __tbSearchDebounce = {};
+window.onTbSearchChange = (which, value) => {
+  // Debounce render so each keystroke doesn't blow away the input focus
+  const k = which === "tools" ? "toolsSearch" : "bomSearch";
+  state[k] = value;
+  clearTimeout(__tbSearchDebounce[which]);
+  __tbSearchDebounce[which] = setTimeout(() => renderActive(), 250);
+};
+
+window.toggleTbRow = (kind, id, ev) => {
+  // Don't toggle if user clicked an interactive element inside the row
+  if(ev && tbIsActionTarget && tbIsActionTarget(ev.target)) return;
+  const key = `${kind}:${id}`;
+  if(state.expandedTbRows.has(key)) state.expandedTbRows.delete(key);
+  else state.expandedTbRows.add(key);
+  renderActive();
+};
+
+// ===== Image cell (detail panel — full-size editable) =====
+function renderTbDetailImage(id, item, kind, adminEdit){
   const url = item.imageUrl || "";
   if(url){
     if(adminEdit){
-      return `<div class="tb-card-image" data-no-drag>
+      return `<div class="tb-detail-image" data-no-drag>
         <img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" />
-        <button class="tb-card-image-remove" data-no-drag onclick="removeTbImage('${kind}','${id}')" title="Remove image">×</button>
-        <label class="tb-card-image-replace" data-no-drag style="cursor:pointer" title="Replace">
+        <button class="tb-detail-image-remove" data-no-drag onclick="removeTbImage('${kind}','${id}')" title="Remove image">×</button>
+        <label class="tb-detail-image-replace" data-no-drag style="cursor:pointer" title="Replace">
           📷
           <input type="file" accept="image/*" style="display:none" onchange="uploadTbImage(event,'${kind}','${id}')" />
         </label>
       </div>`;
     }
-    return `<div class="tb-card-image"><img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" /></div>`;
+    return `<div class="tb-detail-image"><img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" /></div>`;
   }
   if(adminEdit){
-    return `<label class="tb-card-image empty" data-no-drag
+    return `<label class="tb-detail-image empty" data-no-drag
       ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
       ondragleave="this.classList.remove('drag-over')"
       ondrop="handleTbImageDrop(event,'${kind}','${id}')"
       style="cursor:pointer" title="Click, drop, or paste an image">
-      <span>📷<br>Add image</span>
+      <span>📷<br>Click, drop, or<br>Ctrl+V paste</span>
       <input type="file" accept="image/*" style="display:none" onchange="uploadTbImage(event,'${kind}','${id}')" />
     </label>`;
   }
-  return `<div class="tb-card-image empty"><span style="color:var(--text-muted);font-size:10px">No image</span></div>`;
+  return `<div class="tb-detail-image empty"><span style="color:var(--text-muted);font-size:11px">No image</span></div>`;
 }
 
-// ===== Links section (shared) =====
-function renderItemLinks(id, item, kind, adminEdit){
+// ===== Links subsection (inside detail panel) =====
+function renderTbDetailLinks(id, item, kind, adminEdit){
   const links = Array.isArray(item.links) ? item.links : [];
-  let html = `<div class="tb-links-section">`;
-  if(links.length === 0 && !adminEdit){
-    return ''; // hide entirely for non-admins if no links
-  }
-  if(adminEdit){
-    html += `<div class="tb-links-header">Sources <span style="color:var(--text-muted)">(${links.length})</span></div>`;
-  } else {
-    html += `<div class="tb-links-header">Sources</div>`;
-  }
+  if(links.length === 0 && !adminEdit) return '';
+  let html = `<div class="tb-links-section">
+    <div class="tb-links-header">Sources <span style="color:var(--text-muted)">(${links.length})</span></div>`;
   links.forEach((link, lIdx) => {
     const url = link?.url || "";
     const label = link?.label || "";
@@ -4975,11 +5161,9 @@ function renderItemLinks(id, item, kind, adminEdit){
           oninput="onTbLinkFieldChange('${kind}','${id}',${lIdx},'url',this.value)"
           onblur="saveTbItem('${kind}','${id}')" />
         ${url ? `<a href="${url}" target="_blank" rel="noopener" class="tb-link-open-btn" data-no-drag onclick="event.stopPropagation()">↗ Open</a>` : ''}
-        <button class="tb-link-verify-btn" data-no-drag onclick="verifyTbLink('${kind}','${id}')" title="Mark all sources verified now">${item.lastVerifiedAt ? '✓' : '✓ Verify'}</button>
         <button class="tb-link-remove-btn" data-no-drag onclick="removeTbLink('${kind}','${id}',${lIdx})" title="Remove this source">×</button>
       </div>`;
     } else {
-      // Non-admin read-only
       if(url){
         html += `<div class="tb-link-row">
           <span class="tb-link-label" style="background:transparent;border:none">${escapeHtml(label)}</span>
