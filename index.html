@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.02" />
+<meta name="app-rev" content="2.03" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -330,7 +330,11 @@
   .tb-table th{background:var(--surface2);padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
   .tb-table th:hover{color:var(--amber);background:var(--surface3)}
   .tb-table th.sort-active{color:var(--amber-bright)}
-  .tb-table td{padding:4px 10px;border-bottom:1px solid var(--border);vertical-align:middle;height:36px}
+  /* Rev 2.03: enforce compact row height. line-height controls text-line height;
+     padding controls cell breathing room. Both kept tight so all rows are ~32px
+     regardless of whether image cell is empty or filled. */
+  .tb-table td{padding:3px 10px;border-bottom:1px solid var(--border);vertical-align:middle;line-height:1.3;font-size:12px}
+  .tb-table tr.tb-row{height:32px}
   .tb-table tr.tb-row{cursor:pointer;transition:background .12s}
   .tb-table tr.tb-row:hover td{background:var(--surface2)}
   .tb-table tr.tb-row.expanded td{background:var(--surface2)}
@@ -343,14 +347,15 @@
   .tb-cell-num-computed{font-family:monospace;text-align:right;color:var(--green);font-weight:600;white-space:nowrap}
   .tb-cell-cost-per-install{font-family:monospace;text-align:right;color:var(--amber-bright);font-weight:700;white-space:nowrap}
   .tb-cell-category{color:var(--amber);text-transform:lowercase;font-size:11px}
-  .tb-cell-notes{color:var(--text-dim);font-style:italic;font-size:11px;line-height:1.4}
+  .tb-cell-notes{color:var(--text-dim);font-style:italic;font-size:11px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Notes column expands to absorb leftover horizontal space (Rev 2.01).
-     Cells wrap to multiple lines rather than truncating. */
-  .tb-table th.tb-col-notes, .tb-table td.tb-col-notes{white-space:normal}
+     Single-line truncated with ellipsis on the row (Rev 2.03 — to keep all rows
+     the same compact height). Full notes visible when row is expanded. */
+  .tb-table th.tb-col-notes{white-space:normal}
   .tb-cell-updated{color:var(--text-muted);font-size:10px;white-space:nowrap}
-  .tb-cell-thumb{width:28px;height:28px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .tb-cell-thumb{width:24px;height:24px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center}
   .tb-cell-thumb img{width:100%;height:100%;object-fit:cover}
-  .tb-cell-thumb.empty{color:var(--text-muted);font-size:11px}
+  .tb-cell-thumb.empty{color:var(--text-muted);font-size:10px}
   .tb-cell-sources{font-size:11px;color:var(--blue)}
   .tb-cell-sources .src-count{background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:var(--radius-pill);font-size:10px}
   .tb-row.expanded .tb-row-caret{transform:rotate(90deg)}
@@ -391,6 +396,12 @@
   .tb-link-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
   .tb-link-label{background:var(--surface);border:1px solid var(--border);color:var(--amber);font-size:11px;padding:4px 8px;border-radius:var(--radius-sm);width:90px;flex-shrink:0}
   .tb-link-url{background:var(--surface);border:1px solid var(--border);color:var(--blue);font-size:11px;padding:4px 8px;border-radius:var(--radius-sm);flex:1;min-width:120px;font-family:monospace}
+  /* Rev 2.03: URL displayed as clickable link (no edit input border).
+     Click opens URL in new tab; ✎ button next to it swaps to edit mode. */
+  .tb-link-url-display{display:inline-block;flex:1;min-width:120px;padding:4px 8px;font-family:monospace;font-size:11px;color:var(--blue);text-decoration:none;border-radius:var(--radius-sm);background:var(--surface);border:1px solid transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+  .tb-link-url-display:hover{border-color:var(--blue);background:rgba(110,163,217,0.06);text-decoration:underline}
+  .tb-link-edit-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:4px 7px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0}
+  .tb-link-edit-btn:hover{border-color:var(--amber);color:var(--amber)}
   .tb-link-open-btn{background:transparent;border:1px solid var(--border);color:var(--blue);font-size:11px;padding:4px 9px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;text-decoration:none}
   .tb-link-open-btn:hover{border-color:var(--blue);background:rgba(110,163,217,0.08)}
   .tb-link-remove-btn{background:transparent;border:none;color:var(--red);font-size:14px;padding:0 4px;cursor:pointer;flex-shrink:0}
@@ -697,7 +708,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.02</div>
+  <div class="ver">AutoFlag© · v2.03</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -761,7 +772,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.02</span>
+    <span>v2.03</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
@@ -1225,6 +1236,7 @@ const state = {
   toolsSearch: "",
   bomSearch: "",
   expandedTbRows: new Set(),  // keys: "tool:<id>" or "part:<id>"
+  editingTbUrl: null,  // Rev 2.03: which URL is in edit mode (key: "kind:id:linkIdx")
   filter: { status:"all", customer:"all", installType:"all" },
   search: "",
   aiHistory: [],
@@ -4984,7 +4996,7 @@ function renderPartRow(id, item){
     </td>
     <td class="tb-cell-num tb-hide-mobile">${qty}</td>
     <td class="tb-cell-num tb-hide-mobile">$${packCost.toFixed(2)}</td>
-    <td class="tb-cell-num-computed tb-hide-mobile">$${costPerUnit.toFixed(4)}</td>
+    <td class="tb-cell-num-computed tb-hide-mobile">$${costPerUnit.toFixed(2)}</td>
     <td class="tb-cell-num tb-hide-mobile">${qtyPerUnit}</td>
     <td class="tb-cell-cost-per-install">$${costPerAssembly.toFixed(2)}</td>
     <td class="tb-cell-sources tb-hide-mobile">${links.length > 0 ? `<span class="src-count">${links.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
@@ -5025,7 +5037,7 @@ function renderPartDetailPanel(id, item){
       <input type="number" step="0.01" class="tb-detail-input num" data-no-drag value="${packCost.toFixed(2)}"
         oninput="onTbFieldChange('part','${id}','packCost',parseFloat(this.value)||0)"
         onblur="saveTbItem('part','${id}')" title="Cost per pack" />
-      <span class="tb-detail-cost-display">$${costPerUnit.toFixed(4)}/each</span>
+      <span class="tb-detail-cost-display">$${costPerUnit.toFixed(2)}/each</span>
     </div>`;
 
     html += `<div class="tb-detail-row-fields">
@@ -5046,7 +5058,7 @@ function renderPartDetailPanel(id, item){
   } else {
     html += `<div style="font-size:13px;color:var(--text-bright);font-weight:600">${escapeHtml(item.name || '(unnamed)')}</div>`;
     html += `<div style="font-size:12px;color:var(--text-dim)">${qtyPerUnit}× per install · $${costPerAssembly.toFixed(2)}${item.material ? ` · ${escapeHtml(item.material)}` : ''}</div>`;
-    html += `<div style="font-size:11px;color:var(--text-muted)">Pack: ${qty} for $${packCost.toFixed(2)} = $${costPerUnit.toFixed(4)}/ea</div>`;
+    html += `<div style="font-size:11px;color:var(--text-muted)">Pack: ${qty} for $${packCost.toFixed(2)} = $${costPerUnit.toFixed(2)}/ea</div>`;
     if(item.notes) html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic;margin-top:4px">${escapeHtml(item.notes)}</div>`;
   }
 
@@ -5119,8 +5131,37 @@ window.toggleTbRow = (kind, id, ev) => {
   // Don't toggle if user clicked an interactive element inside the row
   if(ev && tbIsActionTarget && tbIsActionTarget(ev.target)) return;
   const key = `${kind}:${id}`;
-  if(state.expandedTbRows.has(key)) state.expandedTbRows.delete(key);
-  else state.expandedTbRows.add(key);
+  if(state.expandedTbRows.has(key)){
+    // Already open — close it.
+    state.expandedTbRows.delete(key);
+  } else {
+    // Rev 2.03: opening a row auto-closes any other open rows of the same kind.
+    // Cross-kind (a tool open while user clicks a part) stays in separate Sets only
+    // if user navigates between Tools and BOM tabs — within the same view we keep
+    // single-row-open behavior.
+    state.expandedTbRows.clear();
+    state.expandedTbRows.add(key);
+  }
+  state.editingTbUrl = null; // exit any URL edit mode when toggling
+  renderActive();
+};
+
+// Rev 2.03: URL edit toggle. URLs render as clickable links by default; ✎ button
+// swaps a row to input mode for that URL.
+window.editTbLinkUrl = (editKey) => {
+  state.editingTbUrl = editKey;
+  renderActive();
+  // Focus the freshly-rendered input
+  setTimeout(() => {
+    const inp = document.querySelector(".tb-link-url:not(.tb-link-url-display)");
+    if(inp){ inp.focus(); inp.select?.(); }
+  }, 30);
+};
+
+window.finishEditTbLinkUrl = async (kind, id) => {
+  // Save the in-flight edit, then exit edit mode and re-render as link.
+  await saveTbItem(kind, id);
+  state.editingTbUrl = null;
   renderActive();
 };
 
@@ -5163,14 +5204,21 @@ function renderTbDetailLinks(id, item, kind, adminEdit){
     const url = link?.url || "";
     const label = link?.label || "";
     if(adminEdit){
+      const editKey = `${kind}:${id}:${lIdx}`;
+      const isEditingUrl = state.editingTbUrl === editKey;
+      const urlField = (url && !isEditingUrl)
+        // Default: render URL as clickable link. ✎ button swaps to edit mode.
+        ? `<a href="${url}" target="_blank" rel="noopener" class="tb-link-url tb-link-url-display" data-no-drag onclick="event.stopPropagation()" title="Click to open · ✎ to edit">${escapeHtml(url)}</a>
+           <button class="tb-link-edit-btn" data-no-drag onclick="event.stopPropagation();editTbLinkUrl('${editKey}')" title="Edit URL">✎</button>`
+        // Edit mode (or empty URL): editable input
+        : `<input type="text" class="tb-link-url" data-no-drag value="${escapeHtml(url)}" placeholder="https://..." ${isEditingUrl ? "autofocus" : ""}
+            oninput="onTbLinkFieldChange('${kind}','${id}',${lIdx},'url',this.value)"
+            onblur="finishEditTbLinkUrl('${kind}','${id}')" />`;
       html += `<div class="tb-link-row">
         <input type="text" class="tb-link-label" data-no-drag value="${escapeHtml(label)}" placeholder="Label"
           oninput="onTbLinkFieldChange('${kind}','${id}',${lIdx},'label',this.value)"
           onblur="saveTbItem('${kind}','${id}')" />
-        <input type="text" class="tb-link-url" data-no-drag value="${escapeHtml(url)}" placeholder="https://..."
-          oninput="onTbLinkFieldChange('${kind}','${id}',${lIdx},'url',this.value)"
-          onblur="saveTbItem('${kind}','${id}')" />
-        ${url ? `<a href="${url}" target="_blank" rel="noopener" class="tb-link-open-btn" data-no-drag onclick="event.stopPropagation()">↗ Open</a>` : ''}
+        ${urlField}
         <button class="tb-link-remove-btn" data-no-drag onclick="removeTbLink('${kind}','${id}',${lIdx})" title="Remove this source">×</button>
       </div>`;
     } else {
