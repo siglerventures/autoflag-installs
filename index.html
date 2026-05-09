@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.03" />
+<meta name="app-rev" content="2.04" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -708,7 +708,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.03</div>
+  <div class="ver">AutoFlag© · v2.04</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -730,9 +730,14 @@
   <div class="top-row" style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch">
     <div class="filter-bar" id="filterBar" style="flex:0 0 auto;border-bottom:none;padding:0;background:transparent;overflow:visible"></div>
     <div class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0">
+      <button class="view-tab" data-view="home" onclick="goHome()" title="Home (no reload)">🏡 Home</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
     </div>
+    <!-- Rev 2.04: Installs sub-tabs render here inline when state.view === "installs".
+         The renderInstallsSubTabs() function fills this; renderActive() repaints it
+         on view changes / sub-tab switches. -->
+    <div id="installsSubTabsInline" class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0;display:none;border-left:1px solid var(--border);padding-left:12px;margin-left:4px"></div>
   </div>
 
   <!-- AI photo panel + thinking + chat thread (no longer wrapped in ai-bar div) -->
@@ -772,7 +777,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.03</span>
+    <span>v2.04</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
@@ -1229,12 +1234,15 @@ const state = {
   // tools: { itemId: {...} }   parts: { external: {itemId:{...}}, internal: {...}, cylinder: {...} }
   tools: {},
   parts: { external: {}, internal: {}, cylinder: {} },
-  bomTab: "external",  // active install type for BOM tab
+  mechParts: {},  // Rev 2.04: universal Mechanical BOM (the AutoFlag device internals)
+  bomTab: "external",  // active install type for Install BOM
   // Rev 2.00 spreadsheet view state
   toolsSort: { col: "displayOrder", dir: "asc" },
   bomSort: { col: "displayOrder", dir: "asc" },
+  mechSort: { col: "displayOrder", dir: "asc" },
   toolsSearch: "",
   bomSearch: "",
+  mechSearch: "",
   expandedTbRows: new Set(),  // keys: "tool:<id>" or "part:<id>"
   editingTbUrl: null,  // Rev 2.03: which URL is in edit mode (key: "kind:id:linkIdx")
   filter: { status:"all", customer:"all", installType:"all" },
@@ -1918,23 +1926,33 @@ function subscribeToolsAndParts(){
     const v = snap.val();
     state.tools = v && typeof v === "object" ? v : {};
     if(state.view === "installs" && state.installsTab === "tools"){
-      // Skip re-render if a tool card field is focused (debounced save guard)
-      const focusedInsideAdmin = document.activeElement?.closest?.(".tools-item-card");
-      if(!focusedInsideAdmin) renderActive();
+      // Skip re-render if any tb-input field is focused (preserves typing while debounced save runs)
+      const focusedInsideTb = document.activeElement?.closest?.(".tb-detail-inner, .tb-search");
+      if(!focusedInsideTb) renderActive();
     }
   }, err => console.error("Tools subscribe error:", err));
 
-  // Parts (per install-type)
+  // Install BOM parts (per install-type)
   ["external","internal","cylinder"].forEach(installType => {
     onValue(ref(db, `autoflag/parts/${installType}`), snap => {
       const v = snap.val();
       state.parts[installType] = v && typeof v === "object" ? v : {};
-      if(state.view === "installs" && state.installsTab === "bom" && state.bomTab === installType){
-        const focusedInsideAdmin = document.activeElement?.closest?.(".parts-item-card");
-        if(!focusedInsideAdmin) renderActive();
+      if(state.view === "installs" && state.installsTab === "installbom" && state.bomTab === installType){
+        const focusedInsideTb = document.activeElement?.closest?.(".tb-detail-inner, .tb-search");
+        if(!focusedInsideTb) renderActive();
       }
-    }, err => console.error(`Parts subscribe error (${installType}):`, err));
+    }, err => console.error(`Install BOM parts subscribe error (${installType}):`, err));
   });
+
+  // Mechanical BOM (universal — the AutoFlag device internals)
+  onValue(ref(db, "autoflag/mechanical-parts"), snap => {
+    const v = snap.val();
+    state.mechParts = v && typeof v === "object" ? v : {};
+    if(state.view === "installs" && state.installsTab === "mechbom"){
+      const focusedInsideTb = document.activeElement?.closest?.(".tb-detail-inner, .tb-search");
+      if(!focusedInsideTb) renderActive();
+    }
+  }, err => console.error("Mechanical BOM subscribe error:", err));
 }
 
 // ==== People management (admin only) ====
@@ -3520,6 +3538,8 @@ window.renderActive = () => {
   }
   state.search = newSearch;
   renderFilterBar();
+  // Rev 2.04: Installs sub-tabs render inline in the top bar when Installs view is active.
+  if(typeof renderInstallsSubTabsInline === "function") renderInstallsSubTabsInline();
   // Hide filter bar on Installs view (pole-data control, not relevant to a procedure reference).
   // Expand toggle was moved into Browse's view-header strip in Rev 1.96 — only renders on Browse,
   // so no need to hide it elsewhere.
@@ -4070,10 +4090,14 @@ window.drillTo = (customerId, siteId) => {
   renderActive();
 };
 window.goHome = () => {
-  // Hard reload — guarantees full reset regardless of current view, modals, drill state, map instance, etc.
-  // Strips URL hash so reload lands on the default home view.
+  // Rev 2.04: Soft navigation (no reload). Reset to default Browse view.
+  // The logo's <a href> still does a hard reload — this button skips that.
   if(location.hash) history.replaceState(null, "", location.pathname + location.search);
-  location.reload();
+  state.drillCustomer = null;
+  state.drillSite = null;
+  state.expandedTbRows?.clear?.();
+  state.editingTbUrl = null;
+  switchView("browse");
 };
 
 // ==== KANBAN ====
@@ -4571,34 +4595,30 @@ function collectPoles(){
 //   - Reference photos shown inline; per-installer "your photo" UI absent
 //   - Forced sequencing not relevant — every step is browseable in any order
 function renderInstalls(){
-  const types = [
-    { id: "external", label: "🪢 External" },
-    { id: "internal", label: "🧵 Internal" },
-    { id: "cylinder", label: "🛢 Cylinder" },
-    { id: "tools",    label: "🔨 Tools" },
-    { id: "bom",      label: "🏗️ BOM" }
-  ];
   const activeType = state.installsTab || "external";
-  const isTools = activeType === "tools";
-  const isBom   = activeType === "bom";
+  const isTools     = activeType === "tools";
+  const isInstallBom = activeType === "installbom";
+  const isMechBom   = activeType === "mechbom";
 
-  // Top header — sub-tab switcher (always present).
-  // Tools/BOM views get .wide class which expands max-width to 1800px and lets
-  // tables fill available space (Rev 2.01).
-  const wrapClass = (isTools || isBom) ? "installs-wrap wide" : "installs-wrap";
-  let html = `<div class="${wrapClass}">
-    <div class="installs-tabs">
-      ${types.map(t => `<button class="installs-tab ${t.id===activeType?'active':''}" onclick="switchInstallsTab('${t.id}')">${t.label}</button>`).join('')}
-    </div>`;
+  // Rev 2.04: Sub-tab switcher moved to the top bar (renderInstallsSubTabsInline).
+  // The in-view installs-tabs strip is gone — body just renders the active section.
+  // Wide mode (1800px) for any data-table view.
+  const wrapClass = (isTools || isInstallBom || isMechBom) ? "installs-wrap wide" : "installs-wrap";
+  let html = `<div class="${wrapClass}">`;
 
-  // Dispatch to specialized renderers for Tools / BOM
+  // Dispatch to specialized renderers
   if(isTools){
     html += renderToolsView();
     html += `</div>`;
     return html;
   }
-  if(isBom){
-    html += renderBomView();
+  if(isInstallBom){
+    html += renderInstallBomView();
+    html += `</div>`;
+    return html;
+  }
+  if(isMechBom){
+    html += renderMechBomView();
     html += `</div>`;
     return html;
   }
@@ -4886,7 +4906,7 @@ function renderToolDetailPanel(id, item){
 }
 
 // ===== BOM VIEW (Rev 2.00 — spreadsheet) =====
-function renderBomView(){
+function renderInstallBomView(){
   const installType = state.bomTab || "external";
   const itemsObj = state.parts[installType] || {};
   const itemsArr = sortAndFilterItems(itemsObj);
@@ -4963,7 +4983,7 @@ function renderBomView(){
     html += `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">No parts match "${escapeHtml(search)}"</td></tr>`;
   } else {
     sorted.forEach(([id, item]) => {
-      html += renderPartRow(id, item);
+      html += renderPartRow(id, item, "part");
     });
   }
   html += `</tbody></table></div>`;
@@ -4977,8 +4997,123 @@ function renderBomView(){
   return html;
 }
 
-function renderPartRow(id, item){
-  const expanded = state.expandedTbRows.has(`part:${id}`);
+// ===== MECHANICAL BOM (Rev 2.04) =====
+// Universal — single list of parts that go INTO the AutoFlag device itself (PCB,
+// enclosure, motors, sensors, fasteners, etc). Same schema as Install BOM parts
+// but the per-unit semantic is "per device" not "per install". Stored at
+// /autoflag/mechanical-parts/{itemId}.
+function renderMechBomView(){
+  const itemsArr = sortAndFilterItems(state.mechParts);
+  const totalDeviceCost = itemsArr.reduce((sum, [_, p]) => {
+    const qty = Number(p.qty) || 1;
+    const packCost = Number(p.packCost) || 0;
+    const qtyPerUnit = Number(p.qtyPerUnit) || 1;
+    return sum + ((qty > 0 ? packCost / qty : 0) * qtyPerUnit);
+  }, 0);
+
+  const search = (state.mechSearch || "").trim().toLowerCase();
+  const filtered = search
+    ? itemsArr.filter(([_, p]) => {
+        const hay = [p.name, p.material, p.notes, ...(p.links || []).map(l => l.label)].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(search);
+      })
+    : itemsArr;
+
+  const sortCol = state.mechSort.col;
+  const sortDir = state.mechSort.dir === "asc" ? 1 : -1;
+  const sorted = [...filtered].sort((a, b) => {
+    const va = tbPartSortValue(a[1], sortCol);
+    const vb = tbPartSortValue(b[1], sortCol);
+    if(typeof va === "string") return va.localeCompare(vb) * sortDir;
+    return ((va || 0) - (vb || 0)) * sortDir;
+  });
+
+  let html = `<div class="tb-toolbar">
+    <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} · <strong>$${totalDeviceCost.toFixed(2)}</strong> per device${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
+    ${state.isAdmin ? `<button class="tb-add-btn" onclick="addMechPartItem()">+ Add Part</button>` : ''}
+  </div>`;
+
+  html += `<div class="tb-search-row">
+    <input type="text" class="tb-search" placeholder="🔍 Search Mechanical BOM..." value="${escapeHtml(state.mechSearch || "")}"
+      oninput="onTbSearchChange('mech', this.value)" />
+    ${search ? `<span class="tb-search-meta">Showing ${sorted.length} of ${itemsArr.length}</span>` : ''}
+  </div>`;
+
+  if(itemsArr.length === 0){
+    html += `<div class="tb-empty">No parts in the Mechanical BOM yet.${state.isAdmin ? '<br><span class="hint" onclick="addMechPartItem()">+ Add your first part</span>' : ''}</div>`;
+    return html;
+  }
+
+  const sortInd = col => sortCol === col ? (state.mechSort.dir === "asc" ? " ▲" : " ▼") : "";
+  const sortClass = col => sortCol === col ? "sort-active" : "";
+  html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table class="tb-table">
+      <thead>
+        <tr>
+          <th class="${sortClass('name')}" onclick="setTbSort('mech','name')" style="width:240px">Name${sortInd('name')}</th>
+          <th class="tb-hide-mobile" style="width:50px">Image</th>
+          <th class="${sortClass('qty')} tb-hide-mobile" onclick="setTbSort('mech','qty')" style="text-align:right;width:60px">Qty${sortInd('qty')}</th>
+          <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('mech','packCost')" style="text-align:right;width:75px">Pack$${sortInd('packCost')}</th>
+          <th class="${sortClass('costPerUnit')} tb-hide-mobile" onclick="setTbSort('mech','costPerUnit')" style="text-align:right;width:80px">$/each${sortInd('costPerUnit')}</th>
+          <th class="${sortClass('qtyPerUnit')} tb-hide-mobile" onclick="setTbSort('mech','qtyPerUnit')" style="text-align:right;width:75px">Per device${sortInd('qtyPerUnit')}</th>
+          <th class="${sortClass('costPerAssembly')}" onclick="setTbSort('mech','costPerAssembly')" style="text-align:right;width:100px">Cost/device${sortInd('costPerAssembly')}</th>
+          <th class="tb-hide-mobile" style="width:80px">Sources</th>
+          <th class="tb-hide-mobile tb-col-notes" style="width:auto">Notes</th>
+          <th class="${sortClass('updatedAt')} tb-hide-mobile" onclick="setTbSort('mech','updatedAt')" style="width:90px">Updated${sortInd('updatedAt')}</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  if(sorted.length === 0){
+    html += `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">No parts match "${escapeHtml(search)}"</td></tr>`;
+  } else {
+    sorted.forEach(([id, item]) => {
+      html += renderPartRow(id, item, "mechpart");
+    });
+  }
+  html += `</tbody></table></div>`;
+
+  html += `<div class="tb-total-footer">
+    <span class="tb-total-label">Total Device Cost (Mechanical BOM)</span>
+    <span class="tb-total-value">$${totalDeviceCost.toFixed(2)}</span>
+    <span class="tb-total-meta">per device</span>
+  </div>`;
+
+  return html;
+}
+
+window.addMechPartItem = async () => {
+  if(!state.isAdmin) return;
+  const id = `mech_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  const item = {
+    name: "",
+    qty: 1,
+    packCost: 0,
+    qtyPerUnit: 1,
+    material: null,
+    notes: "",
+    imageUrl: null,
+    links: [],
+    lastVerifiedAt: null,
+    displayOrder: nextDisplayOrder(state.mechParts || {}),
+    deletedAt: null,
+    createdAt: Date.now(),
+    createdBy: state.user.uid,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new mech part)" }])]
+  };
+  await set(ref(db, `autoflag/mechanical-parts/${id}`), item);
+  // Auto-expand the new row so admin can edit
+  state.expandedTbRows.add(`mechpart:${id}`);
+  setTimeout(() => {
+    const card = document.querySelector(`[data-item-id="${id}"][data-kind="mechpart"] .tb-detail-input.name`);
+    if(card) card.focus();
+  }, 100);
+};
+
+function renderPartRow(id, item, kind = "part"){
+  const expanded = state.expandedTbRows.has(`${kind}:${id}`);
   const links = Array.isArray(item.links) ? item.links : [];
   const qty = Number(item.qty) || 1;
   const packCost = Number(item.packCost) || 0;
@@ -4987,7 +5122,7 @@ function renderPartRow(id, item){
   const costPerAssembly = costPerUnit * qtyPerUnit;
   const updatedDate = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString([], {month:'numeric',day:'numeric',year:'2-digit'}) : "—";
 
-  let html = `<tr class="tb-row ${expanded?'expanded':''}" onclick="toggleTbRow('part','${id}',event)">
+  let html = `<tr class="tb-row ${expanded?'expanded':''}" onclick="toggleTbRow('${kind}','${id}',event)">
     <td class="tb-cell-name"><span class="tb-row-caret">▶</span>${escapeHtml(item.name || '(unnamed)')}</td>
     <td class="tb-hide-mobile">
       ${item.imageUrl
@@ -5005,12 +5140,12 @@ function renderPartRow(id, item){
   </tr>`;
 
   if(expanded){
-    html += `<tr class="tb-detail-row"><td colspan="10">${renderPartDetailPanel(id, item)}</td></tr>`;
+    html += `<tr class="tb-detail-row"><td colspan="10">${renderPartDetailPanel(id, item, kind)}</td></tr>`;
   }
   return html;
 }
 
-function renderPartDetailPanel(id, item){
+function renderPartDetailPanel(id, item, kind = "part"){
   const adminEdit = state.isAdmin;
   const qty = Number(item.qty) || 1;
   const packCost = Number(item.packCost) || 0;
@@ -5019,57 +5154,61 @@ function renderPartDetailPanel(id, item){
   const costPerAssembly = costPerUnit * qtyPerUnit;
   const verified = item.lastVerifiedAt ? new Date(item.lastVerifiedAt).toLocaleDateString() : null;
 
-  let html = `<div class="tb-detail-inner" data-item-id="${id}" data-kind="part" onclick="event.stopPropagation()">`;
-  html += renderTbDetailImage(id, item, "part", adminEdit);
+  // Mechanical parts use "per device" / Install parts use "per install"
+  const perUnitLabel = kind === "mechpart" ? "Per device" : "Per install";
+  const perUnitFootLabel = kind === "mechpart" ? "/device" : "/install";
+
+  let html = `<div class="tb-detail-inner" data-item-id="${id}" data-kind="${kind}" onclick="event.stopPropagation()">`;
+  html += renderTbDetailImage(id, item, kind, adminEdit);
 
   html += `<div class="tb-detail-fields">`;
   if(adminEdit){
     html += `<input type="text" class="tb-detail-input name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Part name"
-      oninput="onTbFieldChange('part','${id}','name',this.value)"
-      onblur="saveTbItem('part','${id}')" />`;
+      oninput="onTbFieldChange('${kind}','${id}','name',this.value)"
+      onblur="saveTbItem('${kind}','${id}')" />`;
 
     html += `<div class="tb-detail-row-fields">
       <span class="tb-detail-label">Qty/pack</span>
       <input type="number" step="1" min="1" class="tb-detail-input num" data-no-drag value="${qty}"
-        oninput="onTbFieldChange('part','${id}','qty',parseFloat(this.value)||1)"
-        onblur="saveTbItem('part','${id}')" title="Pack size — how many come per pack" />
+        oninput="onTbFieldChange('${kind}','${id}','qty',parseFloat(this.value)||1)"
+        onblur="saveTbItem('${kind}','${id}')" title="Pack size — how many come per pack" />
       <span class="tb-detail-label">Pack $</span>
       <input type="number" step="0.01" class="tb-detail-input num" data-no-drag value="${packCost.toFixed(2)}"
-        oninput="onTbFieldChange('part','${id}','packCost',parseFloat(this.value)||0)"
-        onblur="saveTbItem('part','${id}')" title="Cost per pack" />
+        oninput="onTbFieldChange('${kind}','${id}','packCost',parseFloat(this.value)||0)"
+        onblur="saveTbItem('${kind}','${id}')" title="Cost per pack" />
       <span class="tb-detail-cost-display">$${costPerUnit.toFixed(2)}/each</span>
     </div>`;
 
     html += `<div class="tb-detail-row-fields">
-      <span class="tb-detail-label">Per install</span>
+      <span class="tb-detail-label">${perUnitLabel}</span>
       <input type="number" step="1" min="0" class="tb-detail-input num" data-no-drag value="${qtyPerUnit}"
-        oninput="onTbFieldChange('part','${id}','qtyPerUnit',parseFloat(this.value)||1)"
-        onblur="saveTbItem('part','${id}')" title="Quantity used per install" />
-      <span class="tb-detail-cost-assembly">= $${costPerAssembly.toFixed(2)}/install</span>
+        oninput="onTbFieldChange('${kind}','${id}','qtyPerUnit',parseFloat(this.value)||1)"
+        onblur="saveTbItem('${kind}','${id}')" title="Quantity used ${perUnitFootLabel}" />
+      <span class="tb-detail-cost-assembly">= $${costPerAssembly.toFixed(2)}${perUnitFootLabel}</span>
       <span class="tb-detail-label" style="margin-left:auto">Material</span>
       <input type="text" class="tb-detail-input text" data-no-drag value="${escapeHtml(item.material || '')}" placeholder="—" style="max-width:140px"
-        oninput="onTbFieldChange('part','${id}','material',this.value)"
-        onblur="saveTbItem('part','${id}')" />
+        oninput="onTbFieldChange('${kind}','${id}','material',this.value)"
+        onblur="saveTbItem('${kind}','${id}')" />
     </div>`;
 
     html += `<textarea class="tb-detail-textarea" data-no-drag rows="2" placeholder="Notes (optional)"
-      oninput="onTbFieldChange('part','${id}','notes',this.value)"
-      onblur="saveTbItem('part','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
+      oninput="onTbFieldChange('${kind}','${id}','notes',this.value)"
+      onblur="saveTbItem('${kind}','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
   } else {
     html += `<div style="font-size:13px;color:var(--text-bright);font-weight:600">${escapeHtml(item.name || '(unnamed)')}</div>`;
-    html += `<div style="font-size:12px;color:var(--text-dim)">${qtyPerUnit}× per install · $${costPerAssembly.toFixed(2)}${item.material ? ` · ${escapeHtml(item.material)}` : ''}</div>`;
+    html += `<div style="font-size:12px;color:var(--text-dim)">${qtyPerUnit}× ${perUnitFootLabel.replace('/','')} · $${costPerAssembly.toFixed(2)}${item.material ? ` · ${escapeHtml(item.material)}` : ''}</div>`;
     html += `<div style="font-size:11px;color:var(--text-muted)">Pack: ${qty} for $${packCost.toFixed(2)} = $${costPerUnit.toFixed(2)}/ea</div>`;
     if(item.notes) html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic;margin-top:4px">${escapeHtml(item.notes)}</div>`;
   }
 
-  html += renderTbDetailLinks(id, item, "part", adminEdit);
+  html += renderTbDetailLinks(id, item, kind, adminEdit);
 
   if(adminEdit){
     html += `<div class="tb-detail-actions">
       <span class="tb-detail-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
       <div style="display:flex;gap:6px">
-        <button class="tb-verify-btn ${item.lastVerifiedAt?'verified':''}" data-no-drag onclick="verifyTbLink('part','${id}')">${item.lastVerifiedAt ? '✓ Re-verify' : '✓ Mark Verified'}</button>
-        <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('part','${id}')">✕ Delete</button>
+        <button class="tb-verify-btn ${item.lastVerifiedAt?'verified':''}" data-no-drag onclick="verifyTbLink('${kind}','${id}')">${item.lastVerifiedAt ? '✓ Re-verify' : '✓ Mark Verified'}</button>
+        <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('${kind}','${id}')">✕ Delete</button>
       </div>
     </div>`;
   }
@@ -5108,7 +5247,7 @@ function tbPartSortValue(item, col){
 
 // ===== Spreadsheet UI handlers =====
 window.setTbSort = (which, col) => {
-  const k = which === "tools" ? "toolsSort" : "bomSort";
+  const k = which === "tools" ? "toolsSort" : (which === "mech" ? "mechSort" : "bomSort");
   if(state[k].col === col){
     state[k].dir = state[k].dir === "asc" ? "desc" : "asc";
   } else {
@@ -5121,7 +5260,7 @@ window.setTbSort = (which, col) => {
 const __tbSearchDebounce = {};
 window.onTbSearchChange = (which, value) => {
   // Debounce render so each keystroke doesn't blow away the input focus
-  const k = which === "tools" ? "toolsSearch" : "bomSearch";
+  const k = which === "tools" ? "toolsSearch" : (which === "mech" ? "mechSearch" : "bomSearch");
   state[k] = value;
   clearTimeout(__tbSearchDebounce[which]);
   __tbSearchDebounce[which] = setTimeout(() => renderActive(), 250);
@@ -5334,12 +5473,14 @@ window.saveTbItem = async (kind, id) => {
 function tbItemPath(kind, id){
   if(kind === "tool") return `autoflag/tools/${id}`;
   if(kind === "part") return `autoflag/parts/${state.bomTab || "external"}/${id}`;
+  if(kind === "mechpart") return `autoflag/mechanical-parts/${id}`;
   return null;
 }
 
 function tbGetCurrentItem(kind, id){
   if(kind === "tool") return state.tools[id];
   if(kind === "part") return state.parts[state.bomTab || "external"]?.[id];
+  if(kind === "mechpart") return state.mechParts[id];
   return null;
 }
 
@@ -5385,9 +5526,11 @@ window.addToolItem = async () => {
     history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new tool)" }])]
   };
   await set(ref(db, `autoflag/tools/${id}`), item);
+  // Auto-expand so the admin can edit immediately
+  state.expandedTbRows.add(`tool:${id}`);
   setTimeout(() => {
-    const card = document.querySelector(`[data-item-id="${id}"][data-kind="tool"] .tb-field-name`);
-    if(card) card.focus();
+    const inp = document.querySelector(`[data-item-id="${id}"][data-kind="tool"] .tb-detail-input.name`);
+    if(inp) inp.focus();
   }, 100);
 };
 
@@ -5414,9 +5557,11 @@ window.addPartItem = async () => {
     history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new part)" }])]
   };
   await set(ref(db, `autoflag/parts/${installType}/${id}`), item);
+  // Auto-expand so the admin can edit immediately
+  state.expandedTbRows.add(`part:${id}`);
   setTimeout(() => {
-    const card = document.querySelector(`[data-item-id="${id}"][data-kind="part"] .tb-field-name`);
-    if(card) card.focus();
+    const inp = document.querySelector(`[data-item-id="${id}"][data-kind="part"] .tb-detail-input.name`);
+    if(inp) inp.focus();
   }, 100);
 };
 
@@ -5765,6 +5910,7 @@ window.tbCardTouchEnd = async (ev) => {
 
 window.switchInstallsTab = (type) => {
   state.installsTab = type;
+  renderInstallsSubTabsInline();
   renderActive();
 };
 
@@ -5787,8 +5933,35 @@ window.switchView = v => {
   }
   state.view = v;
   document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view===v));
+  renderInstallsSubTabsInline();
   renderActive();
 };
+
+// Rev 2.04: render the Installs sub-tabs inline in the top bar when Installs view
+// is active; hide otherwise. Mirrors the per-view-tab pattern so the active sub-tab
+// stays in sync with state.installsTab and state.bomTab.
+function renderInstallsSubTabsInline(){
+  const el = document.getElementById("installsSubTabsInline");
+  if(!el) return;
+  if(state.view !== "installs"){
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  const activeType = state.installsTab || "external";
+  const types = [
+    { id: "external",   label: "🪢 External" },
+    { id: "internal",   label: "🧵 Internal" },
+    { id: "cylinder",   label: "🛢 Cylinder" },
+    { id: "tools",      label: "🔨 Tools" },
+    { id: "installbom", label: "🏗️ Install BOM" },
+    { id: "mechbom",    label: "⚙️ Mechanical BOM" }
+  ];
+  el.style.display = "flex";
+  el.innerHTML = types.map(t =>
+    `<button class="view-tab" data-installs-tab="${t.id}" onclick="switchInstallsTab('${t.id}')" ${t.id===activeType?'style="background:var(--amber);color:#1a1208;border-color:var(--amber);font-weight:600"':''}>${t.label}</button>`
+  ).join("");
+}
 
 // ==== Modal helpers ====
 window.closeModal = id => document.getElementById(id).classList.remove("open");
@@ -6799,7 +6972,7 @@ document.addEventListener("paste", ev => {
   // The detail panel says "Click, drop, or Ctrl+V paste" so paste must work without
   // requiring a field click first.
   let tbCard = null;
-  if(state.view === "installs" && (state.installsTab === "tools" || state.installsTab === "bom")){
+  if(state.view === "installs" && (state.installsTab === "tools" || state.installsTab === "installbom" || state.installsTab === "mechbom")){
     // (a) Walk up from the focused element looking for the detail panel wrapper.
     let el = document.activeElement;
     while(el && el !== document.body){
