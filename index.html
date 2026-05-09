@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="1.98" />
+<meta name="app-rev" content="1.99" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -304,6 +304,81 @@
     .installs-step-photo{width:calc(50% - 4px);height:120px}
   }
 
+  /* ==== Tools + BOM (Rev 1.99) ==== */
+  .tb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .tb-summary{font-size:12px;color:var(--text-muted);padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+  .tb-summary strong{color:var(--amber-bright)}
+  .tb-add-btn{padding:6px 14px;font-size:12px;background:var(--green);color:#0d0d0f;border-radius:var(--radius-sm);font-weight:600;cursor:pointer;border:none}
+  .tb-add-btn:hover{filter:brightness(1.1)}
+  .tb-bom-subtabs{display:flex;gap:4px;background:var(--surface2);padding:3px;border-radius:var(--radius-sm);margin-bottom:14px;border:1px solid var(--border)}
+  .tb-bom-subtab{flex:1;padding:7px 12px;background:transparent;color:var(--text-dim);font-size:12px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;border:none}
+  .tb-bom-subtab:hover{background:var(--surface);color:var(--text)}
+  .tb-bom-subtab.active{background:var(--amber);color:var(--bg)}
+
+  .tb-category-header{font-size:12px;font-weight:700;color:var(--amber-bright);text-transform:uppercase;letter-spacing:.5px;padding:6px 0 4px;margin:14px 0 6px;border-bottom:1px solid var(--border)}
+  .tb-category-header:first-child{margin-top:0}
+
+  .tools-grid, .parts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+  @media (max-width:480px){.tools-grid, .parts-grid{grid-template-columns:1fr}}
+
+  .tools-item-card, .parts-item-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;display:flex;flex-direction:column;gap:8px;position:relative;transition:border-color .15s}
+  .tools-item-card:hover, .parts-item-card:hover{border-color:var(--amber-dim)}
+  .tools-item-card.tb-row-dragging, .parts-item-card.tb-row-dragging{opacity:0.4}
+  .tools-item-card.tb-insert-before, .parts-item-card.tb-insert-before{box-shadow:-3px 0 0 0 var(--amber)}
+  .tools-item-card.tb-insert-after, .parts-item-card.tb-insert-after{box-shadow:3px 0 0 0 var(--amber)}
+
+  .tb-card-top{display:flex;gap:8px;align-items:flex-start}
+  .tb-drag-handle{color:var(--text-muted);font-size:14px;cursor:grab;user-select:none;flex-shrink:0;line-height:1.5}
+  .tb-card-image{width:80px;height:80px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center}
+  .tb-card-image.empty{border:1px dashed var(--border-dashed);color:var(--text-muted);font-size:11px;text-align:center;padding:4px;cursor:pointer}
+  .tb-card-image.empty:hover{border-color:var(--amber);color:var(--amber)}
+  .tb-card-image.empty.drag-over{border-color:var(--amber);background:rgba(212,134,10,0.08);color:var(--amber)}
+  .tb-card-image img{width:100%;height:100%;object-fit:cover;cursor:pointer}
+  .tb-card-image-remove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .tb-card-image-replace{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:10px;padding:2px 5px;border-radius:3px;cursor:pointer}
+
+  .tb-card-fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+  .tb-field-name{background:var(--surface2);border:1px solid var(--border);color:var(--amber-bright);font-weight:700;font-size:13px;padding:5px 7px;border-radius:var(--radius-sm);width:100%}
+  .tb-field-name:focus{border-color:var(--amber-dim);outline:none}
+  .tb-field-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+  .tb-field-num{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 6px;border-radius:var(--radius-sm);width:70px}
+  .tb-field-num:focus{border-color:var(--amber-dim);outline:none}
+  .tb-field-text{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 7px;border-radius:var(--radius-sm);flex:1;min-width:0}
+  .tb-field-text:focus{border-color:var(--amber-dim);outline:none}
+  .tb-field-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+  .tb-cost-display{font-size:11px;color:var(--green);font-weight:600;margin-left:auto;flex-shrink:0}
+  .tb-cost-assembly{font-size:11px;color:var(--amber-bright);font-weight:700}
+
+  .tb-card-notes{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);font-size:12px;padding:5px 7px;border-radius:var(--radius-sm);width:100%;resize:vertical;font-family:inherit;line-height:1.4;min-height:32px}
+  .tb-card-notes:focus{border-color:var(--amber-dim);outline:none}
+
+  .tb-links-section{display:flex;flex-direction:column;gap:4px}
+  .tb-links-header{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+  .tb-link-row{display:flex;gap:4px;align-items:center}
+  .tb-link-label{background:var(--surface2);border:1px solid var(--border);color:var(--amber);font-size:11px;padding:3px 6px;border-radius:var(--radius-sm);width:80px;flex-shrink:0}
+  .tb-link-url{background:var(--surface2);border:1px solid var(--border);color:var(--blue);font-size:11px;padding:3px 6px;border-radius:var(--radius-sm);flex:1;min-width:0;font-family:monospace}
+  .tb-link-verify-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:10px;padding:3px 7px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;white-space:nowrap}
+  .tb-link-verify-btn:hover{border-color:var(--green);color:var(--green)}
+  .tb-link-verify-btn.verified{color:var(--green);border-color:var(--green)}
+  .tb-link-open-btn{background:transparent;border:1px solid var(--border);color:var(--blue);font-size:11px;padding:3px 7px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;text-decoration:none}
+  .tb-link-open-btn:hover{border-color:var(--blue);background:rgba(110,163,217,0.08)}
+  .tb-link-remove-btn{background:transparent;border:none;color:var(--red);font-size:14px;padding:0 4px;cursor:pointer;flex-shrink:0}
+  .tb-link-add-btn{font-size:10px;color:var(--amber);background:transparent;border:1px dashed var(--border-dashed);padding:3px 8px;border-radius:var(--radius-sm);cursor:pointer;align-self:flex-start;text-transform:uppercase;letter-spacing:.5px}
+  .tb-link-add-btn:hover{border-color:var(--amber);background:rgba(212,134,10,0.06)}
+
+  .tb-card-actions{display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid var(--border);gap:8px}
+  .tb-card-meta{font-size:10px;color:var(--text-muted);font-style:italic}
+  .tb-delete-btn{background:transparent;border:1px solid var(--red);color:var(--red);font-size:11px;padding:4px 9px;border-radius:var(--radius-sm);cursor:pointer}
+  .tb-delete-btn:hover{background:var(--red);color:#fff}
+
+  .tb-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px;background:var(--surface);border:1px dashed var(--border-dashed);border-radius:var(--radius-sm)}
+  .tb-empty .hint{color:var(--amber);cursor:pointer;text-decoration:underline;display:inline-block;margin-top:6px}
+
+  .tb-total-footer{margin-top:14px;padding:12px 14px;background:linear-gradient(135deg,rgba(127,176,105,0.10),rgba(127,176,105,0.04));border:1px solid var(--green);border-radius:var(--radius);font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .tb-total-label{color:var(--text);font-weight:600}
+  .tb-total-value{color:var(--green);font-weight:700;font-size:16px}
+  .tb-total-meta{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+
   /* ==== Tree (accordion Browse) ==== */
   .tree{display:flex;flex-direction:column;gap:4px}
   .tree-customer,.tree-site{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -577,7 +652,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v1.98</div>
+  <div class="ver">AutoFlag© · v1.99</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -641,7 +716,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    AutoFlag© <span>Rev v1.98</span>
+    AutoFlag© <span>Rev v1.99</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
@@ -1094,6 +1169,11 @@ const state = {
   poleTempPhotos: [],                // pending uploads for current pole modal
   siteTempPhotos: [],                // pending uploads for current site modal
   procedures: { external:null, internal:null, cylinder:null }, // templates from RTDB
+  // Rev 1.99: Tools (universal kit) + Parts BOM (per-install-type).
+  // tools: { itemId: {...} }   parts: { external: {itemId:{...}}, internal: {...}, cylinder: {...} }
+  tools: {},
+  parts: { external: {}, internal: {}, cylinder: {} },
+  bomTab: "external",  // active install type for BOM tab
   filter: { status:"all", customer:"all", installType:"all" },
   search: "",
   aiHistory: [],
@@ -1424,6 +1504,7 @@ onAuthStateChanged(auth, async user => {
   // Admins subscribe to people roster for the management UI; everyone reads procedures + data
   if(state.isAdmin) subscribePeople();
   subscribeProcedures();
+  subscribeToolsAndParts();
 
   // Customer role: portal not yet implemented. Show a "coming soon" message and sign out.
   // (Their email is whitelisted, but the customer-facing UI is a future rev.)
@@ -1760,6 +1841,36 @@ function subscribeProcedures(){
         renderActive();
       }
     });
+  });
+}
+
+// ==== Rev 1.99: Tools (universal kit) + Parts BOM (per install-type) ====
+// tools live at /autoflag/tools/{itemId}. parts live at /autoflag/parts/{installType}/{itemId}.
+// Both follow the same pattern as procedures: real-time onValue subscription, soft-delete via deletedAt,
+// per-record audit log via history[]. Computed costs are NEVER stored; renderer derives them.
+
+function subscribeToolsAndParts(){
+  // Tools (universal)
+  onValue(ref(db, "autoflag/tools"), snap => {
+    const v = snap.val();
+    state.tools = v && typeof v === "object" ? v : {};
+    if(state.view === "installs" && state.installsTab === "tools"){
+      // Skip re-render if a tool card field is focused (debounced save guard)
+      const focusedInsideAdmin = document.activeElement?.closest?.(".tools-item-card");
+      if(!focusedInsideAdmin) renderActive();
+    }
+  }, err => console.error("Tools subscribe error:", err));
+
+  // Parts (per install-type)
+  ["external","internal","cylinder"].forEach(installType => {
+    onValue(ref(db, `autoflag/parts/${installType}`), snap => {
+      const v = snap.val();
+      state.parts[installType] = v && typeof v === "object" ? v : {};
+      if(state.view === "installs" && state.installsTab === "bom" && state.bomTab === installType){
+        const focusedInsideAdmin = document.activeElement?.closest?.(".parts-item-card");
+        if(!focusedInsideAdmin) renderActive();
+      }
+    }, err => console.error(`Parts subscribe error (${installType}):`, err));
   });
 }
 
@@ -4398,20 +4509,38 @@ function collectPoles(){
 //   - Forced sequencing not relevant — every step is browseable in any order
 function renderInstalls(){
   const types = [
-    { id: "external", label: "External" },
-    { id: "internal", label: "Internal" },
-    { id: "cylinder", label: "Cylinder" }
+    { id: "external", label: "🪢 External" },
+    { id: "internal", label: "🧵 Internal" },
+    { id: "cylinder", label: "🛢 Cylinder" },
+    { id: "tools",    label: "🔨 Tools" },
+    { id: "bom",      label: "🏗️ BOM" }
   ];
   const activeType = state.installsTab || "external";
-  const tpl = state.procedures[activeType];
-  const sections = getTemplateSections(tpl);
-  const flatSteps = getTemplateSteps(tpl);
+  const isTools = activeType === "tools";
+  const isBom   = activeType === "bom";
 
-  // Sub-tab switcher (matches admin Procedures modal pattern)
+  // Top header — sub-tab switcher (always present)
   let html = `<div class="installs-wrap">
     <div class="installs-tabs">
       ${types.map(t => `<button class="installs-tab ${t.id===activeType?'active':''}" onclick="switchInstallsTab('${t.id}')">${t.label}</button>`).join('')}
     </div>`;
+
+  // Dispatch to specialized renderers for Tools / BOM
+  if(isTools){
+    html += renderToolsView();
+    html += `</div>`;
+    return html;
+  }
+  if(isBom){
+    html += renderBomView();
+    html += `</div>`;
+    return html;
+  }
+
+  // Procedure renderer (External / Internal / Cylinder)
+  const tpl = state.procedures[activeType];
+  const sections = getTemplateSections(tpl);
+  const flatSteps = getTemplateSteps(tpl);
 
   // Header summary
   if(!tpl || flatSteps.length === 0){
@@ -4517,6 +4646,880 @@ function renderInstallsReferenceSection(sec, collapsed){
     <div class="installs-section-body">${inner}</div>
   </div>`;
 }
+
+// ==== Tools + BOM views (Rev 1.99) ====
+//
+// Tools = universal kit (autoflag/tools/{itemId}, no per-install-type split).
+// Parts = per-install-type BOM (autoflag/parts/{installType}/{itemId}).
+// Both render as editable card grids with drag-to-reorder, image upload, multi-source links.
+// Computed costs (costPerUnit, costPerAssembly, totals) are NEVER stored — derived at render.
+
+// Sort items by displayOrder (ascending), filter out soft-deleted.
+function sortAndFilterItems(itemsObj){
+  return Object.entries(itemsObj || {})
+    .filter(([_, item]) => item && item.deletedAt == null)
+    .sort((a, b) => (a[1].displayOrder ?? 9999) - (b[1].displayOrder ?? 9999));
+}
+
+// Returns next displayOrder for inserting at the end (last + 10, or 10 if empty).
+function nextDisplayOrder(itemsObj){
+  const sorted = sortAndFilterItems(itemsObj);
+  if(sorted.length === 0) return 10;
+  const last = sorted[sorted.length - 1][1];
+  return (last.displayOrder ?? 0) + 10;
+}
+
+// ===== TOOLS VIEW =====
+function renderToolsView(){
+  const itemsArr = sortAndFilterItems(state.tools);
+  const totalCost = itemsArr.reduce((sum, [_, t]) => sum + (Number(t.price) || 0), 0);
+
+  // Group by category (free-text); items without category go under "Uncategorized"
+  const groups = {};
+  itemsArr.forEach(([id, t]) => {
+    const cat = (t.category || "uncategorized").trim() || "uncategorized";
+    if(!groups[cat]) groups[cat] = [];
+    groups[cat].push([id, t]);
+  });
+  // Sort category names: "uncategorized" last, others alphabetical
+  const catNames = Object.keys(groups).sort((a, b) => {
+    if(a === "uncategorized") return 1;
+    if(b === "uncategorized") return -1;
+    return a.localeCompare(b);
+  });
+
+  let html = `<div class="tb-toolbar">
+    <div class="tb-summary"><strong>${itemsArr.length}</strong> tool${itemsArr.length===1?'':'s'} in kit · <strong>$${totalCost.toFixed(2)}</strong> total kit value</div>
+    ${state.isAdmin ? `<button class="tb-add-btn" onclick="addToolItem()">+ Add Tool</button>` : ''}
+  </div>`;
+
+  if(itemsArr.length === 0){
+    html += `<div class="tb-empty">No tools in the kit yet.${state.isAdmin ? '<br><span class="hint" onclick="addToolItem()">+ Add your first tool</span>' : ''}</div>`;
+    return html;
+  }
+
+  catNames.forEach(cat => {
+    const items = groups[cat];
+    const label = cat === "uncategorized" ? "Uncategorized" : cat.charAt(0).toUpperCase() + cat.slice(1);
+    html += `<div class="tb-category-header">${escapeHtml(label)} <span style="color:var(--text-muted);font-weight:normal;font-size:10px">(${items.length})</span></div>`;
+    html += `<div class="tools-grid">`;
+    items.forEach(([id, item]) => {
+      html += renderToolCard(id, item, items.length > 1);
+    });
+    html += `</div>`;
+  });
+
+  html += `<div class="tb-total-footer">
+    <span class="tb-total-label">Total Tool Kit Value</span>
+    <span class="tb-total-value">$${totalCost.toFixed(2)}</span>
+    <span class="tb-total-meta">${itemsArr.length} active tool${itemsArr.length===1?'':'s'}</span>
+  </div>`;
+
+  return html;
+}
+
+function renderToolCard(id, item, draggable){
+  const adminEdit = state.isAdmin;
+  const links = Array.isArray(item.links) ? item.links : [];
+  const verified = item.lastVerifiedAt ? new Date(item.lastVerifiedAt).toLocaleDateString() : null;
+
+  const dragAttrs = (adminEdit && draggable) ? `draggable="true"
+    ondragstart="tbCardDragStart(event,'tool','${id}')"
+    ondragover="tbCardDragOver(event,'tool','${id}')"
+    ondragleave="tbCardDragLeave(event)"
+    ondrop="tbCardDrop(event,'tool','${id}')"
+    ondragend="tbCardDragEnd(event)"
+    ontouchstart="tbCardTouchStart(event,'tool','${id}')"
+    ontouchmove="tbCardTouchMove(event)"
+    ontouchend="tbCardTouchEnd(event)"` : '';
+
+  let html = `<div class="tools-item-card" data-item-id="${id}" data-kind="tool" ${dragAttrs}>`;
+
+  // Top row: drag handle, image, fields
+  html += `<div class="tb-card-top">`;
+  if(adminEdit && draggable) html += `<span class="tb-drag-handle" data-no-drag title="Drag to reorder">⋮⋮</span>`;
+
+  // Image cell
+  html += renderItemImage(id, item, "tool", adminEdit);
+
+  // Fields cell
+  html += `<div class="tb-card-fields">`;
+  if(adminEdit){
+    html += `<input type="text" class="tb-field-name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Tool name"
+      oninput="onTbFieldChange('tool','${id}','name',this.value)"
+      onblur="saveTbItem('tool','${id}')" />`;
+    html += `<div class="tb-field-row">
+      <span class="tb-field-label">$</span>
+      <input type="number" step="0.01" class="tb-field-num" data-no-drag value="${item.price ?? 0}" placeholder="0.00"
+        oninput="onTbFieldChange('tool','${id}','price',parseFloat(this.value)||0)"
+        onblur="saveTbItem('tool','${id}')" />
+      <span class="tb-field-label">Cat:</span>
+      <input type="text" class="tb-field-text" data-no-drag value="${escapeHtml(item.category || '')}" placeholder="e.g., drilling"
+        oninput="onTbFieldChange('tool','${id}','category',this.value)"
+        onblur="saveTbItem('tool','${id}')" style="max-width:140px" />
+    </div>`;
+  } else {
+    html += `<div style="font-weight:700;color:var(--amber-bright);font-size:13px">${escapeHtml(item.name || '(unnamed)')}</div>`;
+    html += `<div style="font-size:12px;color:var(--text-dim)">$${(item.price || 0).toFixed(2)}${item.category ? ` · ${escapeHtml(item.category)}` : ''}</div>`;
+  }
+  html += `</div></div>`;
+
+  // Notes
+  if(adminEdit){
+    html += `<textarea class="tb-card-notes" data-no-drag rows="2" placeholder="Notes (optional)"
+      oninput="onTbFieldChange('tool','${id}','notes',this.value)"
+      onblur="saveTbItem('tool','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
+  } else if(item.notes){
+    html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic">${escapeHtml(item.notes)}</div>`;
+  }
+
+  // Links
+  html += renderItemLinks(id, item, "tool", adminEdit);
+
+  // Footer (admin: meta + delete)
+  if(adminEdit){
+    html += `<div class="tb-card-actions">
+      <span class="tb-card-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
+      <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('tool','${id}')">✕ Delete</button>
+    </div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ===== BOM VIEW =====
+function renderBomView(){
+  const installType = state.bomTab || "external";
+  const itemsObj = state.parts[installType] || {};
+  const itemsArr = sortAndFilterItems(itemsObj);
+
+  // Compute total install parts cost = sum(costPerUnit × qtyPerUnit) where costPerUnit = packCost / qty
+  const totalInstallCost = itemsArr.reduce((sum, [_, p]) => {
+    const qty = Number(p.qty) || 1;
+    const packCost = Number(p.packCost) || 0;
+    const qtyPerUnit = Number(p.qtyPerUnit) || 1;
+    const costPerUnit = qty > 0 ? packCost / qty : 0;
+    return sum + (costPerUnit * qtyPerUnit);
+  }, 0);
+
+  let html = `<div class="tb-bom-subtabs">
+    ${["external","internal","cylinder"].map(t =>
+      `<button class="tb-bom-subtab ${t===installType?'active':''}" onclick="switchBomTab('${t}')">${formatInstallType(t)}</button>`
+    ).join('')}
+  </div>`;
+
+  html += `<div class="tb-toolbar">
+    <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} in BOM · <strong>$${totalInstallCost.toFixed(2)}</strong> per install</div>
+    ${state.isAdmin ? `<button class="tb-add-btn" onclick="addPartItem()">+ Add Part</button>` : ''}
+  </div>`;
+
+  if(itemsArr.length === 0){
+    html += `<div class="tb-empty">No parts defined for <strong>${formatInstallType(installType)}</strong> BOM yet.${state.isAdmin ? '<br><span class="hint" onclick="addPartItem()">+ Add your first part</span>' : ''}</div>`;
+    return html;
+  }
+
+  html += `<div class="parts-grid">`;
+  itemsArr.forEach(([id, item]) => {
+    html += renderPartCard(id, item, itemsArr.length > 1);
+  });
+  html += `</div>`;
+
+  html += `<div class="tb-total-footer">
+    <span class="tb-total-label">Total ${formatInstallType(installType)} Install Parts Cost</span>
+    <span class="tb-total-value">$${totalInstallCost.toFixed(2)}</span>
+    <span class="tb-total-meta">per install</span>
+  </div>`;
+
+  return html;
+}
+
+function renderPartCard(id, item, draggable){
+  const adminEdit = state.isAdmin;
+  const qty = Number(item.qty) || 1;
+  const packCost = Number(item.packCost) || 0;
+  const qtyPerUnit = Number(item.qtyPerUnit) || 1;
+  const costPerUnit = qty > 0 ? packCost / qty : 0;
+  const costPerAssembly = costPerUnit * qtyPerUnit;
+  const verified = item.lastVerifiedAt ? new Date(item.lastVerifiedAt).toLocaleDateString() : null;
+
+  const dragAttrs = (adminEdit && draggable) ? `draggable="true"
+    ondragstart="tbCardDragStart(event,'part','${id}')"
+    ondragover="tbCardDragOver(event,'part','${id}')"
+    ondragleave="tbCardDragLeave(event)"
+    ondrop="tbCardDrop(event,'part','${id}')"
+    ondragend="tbCardDragEnd(event)"
+    ontouchstart="tbCardTouchStart(event,'part','${id}')"
+    ontouchmove="tbCardTouchMove(event)"
+    ontouchend="tbCardTouchEnd(event)"` : '';
+
+  let html = `<div class="parts-item-card" data-item-id="${id}" data-kind="part" ${dragAttrs}>`;
+
+  html += `<div class="tb-card-top">`;
+  if(adminEdit && draggable) html += `<span class="tb-drag-handle" data-no-drag title="Drag to reorder">⋮⋮</span>`;
+
+  html += renderItemImage(id, item, "part", adminEdit);
+
+  html += `<div class="tb-card-fields">`;
+  if(adminEdit){
+    html += `<input type="text" class="tb-field-name" data-no-drag value="${escapeHtml(item.name || '')}" placeholder="Part name"
+      oninput="onTbFieldChange('part','${id}','name',this.value)"
+      onblur="saveTbItem('part','${id}')" />`;
+
+    // Cost row: qty + packCost (stored), costPerUnit (computed display)
+    html += `<div class="tb-field-row">
+      <span class="tb-field-label">Qty/pack:</span>
+      <input type="number" step="1" min="1" class="tb-field-num" data-no-drag value="${qty}" style="width:60px"
+        oninput="onTbFieldChange('part','${id}','qty',parseFloat(this.value)||1)"
+        onblur="saveTbItem('part','${id}')" title="How many come in a pack (1 if not pack-priced)" />
+      <span class="tb-field-label">Pack $:</span>
+      <input type="number" step="0.01" class="tb-field-num" data-no-drag value="${packCost.toFixed(2)}" style="width:75px"
+        oninput="onTbFieldChange('part','${id}','packCost',parseFloat(this.value)||0)"
+        onblur="saveTbItem('part','${id}')" title="Cost per pack" />
+      <span class="tb-cost-display" title="Computed: pack cost ÷ qty">@ $${costPerUnit.toFixed(4)}/ea</span>
+    </div>`;
+
+    // Per-install row: qtyPerUnit + computed cost-per-assembly + material
+    html += `<div class="tb-field-row">
+      <span class="tb-field-label">Per install:</span>
+      <input type="number" step="1" min="0" class="tb-field-num" data-no-drag value="${qtyPerUnit}" style="width:60px"
+        oninput="onTbFieldChange('part','${id}','qtyPerUnit',parseFloat(this.value)||1)"
+        onblur="saveTbItem('part','${id}')" title="Quantity required per AutoFlag install" />
+      <span class="tb-cost-assembly">= $${costPerAssembly.toFixed(2)}</span>
+      <span class="tb-field-label" style="margin-left:8px">Material:</span>
+      <input type="text" class="tb-field-text" data-no-drag value="${escapeHtml(item.material || '')}" placeholder="—" style="max-width:120px"
+        oninput="onTbFieldChange('part','${id}','material',this.value)"
+        onblur="saveTbItem('part','${id}')" />
+    </div>`;
+  } else {
+    // Read-only render for non-admins
+    html += `<div style="font-weight:700;color:var(--amber-bright);font-size:13px">${escapeHtml(item.name || '(unnamed)')}</div>`;
+    html += `<div style="font-size:12px;color:var(--text-dim)">${qtyPerUnit}× per install · $${costPerAssembly.toFixed(2)}${item.material ? ` · ${escapeHtml(item.material)}` : ''}</div>`;
+    html += `<div style="font-size:11px;color:var(--text-muted)">Pack: ${qty} for $${packCost.toFixed(2)} = $${costPerUnit.toFixed(4)}/ea</div>`;
+  }
+  html += `</div></div>`;
+
+  // Notes
+  if(adminEdit){
+    html += `<textarea class="tb-card-notes" data-no-drag rows="2" placeholder="Notes (optional)"
+      oninput="onTbFieldChange('part','${id}','notes',this.value)"
+      onblur="saveTbItem('part','${id}')">${escapeHtml(item.notes || '')}</textarea>`;
+  } else if(item.notes){
+    html += `<div style="font-size:12px;color:var(--text-dim);font-style:italic">${escapeHtml(item.notes)}</div>`;
+  }
+
+  // Links
+  html += renderItemLinks(id, item, "part", adminEdit);
+
+  if(adminEdit){
+    html += `<div class="tb-card-actions">
+      <span class="tb-card-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
+      <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('part','${id}')">✕ Delete</button>
+    </div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ===== Image cell (shared between tools and parts) =====
+function renderItemImage(id, item, kind, adminEdit){
+  const url = item.imageUrl || "";
+  if(url){
+    if(adminEdit){
+      return `<div class="tb-card-image" data-no-drag>
+        <img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" />
+        <button class="tb-card-image-remove" data-no-drag onclick="removeTbImage('${kind}','${id}')" title="Remove image">×</button>
+        <label class="tb-card-image-replace" data-no-drag style="cursor:pointer" title="Replace">
+          📷
+          <input type="file" accept="image/*" style="display:none" onchange="uploadTbImage(event,'${kind}','${id}')" />
+        </label>
+      </div>`;
+    }
+    return `<div class="tb-card-image"><img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" /></div>`;
+  }
+  if(adminEdit){
+    return `<label class="tb-card-image empty" data-no-drag
+      ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="handleTbImageDrop(event,'${kind}','${id}')"
+      style="cursor:pointer" title="Click, drop, or paste an image">
+      <span>📷<br>Add image</span>
+      <input type="file" accept="image/*" style="display:none" onchange="uploadTbImage(event,'${kind}','${id}')" />
+    </label>`;
+  }
+  return `<div class="tb-card-image empty"><span style="color:var(--text-muted);font-size:10px">No image</span></div>`;
+}
+
+// ===== Links section (shared) =====
+function renderItemLinks(id, item, kind, adminEdit){
+  const links = Array.isArray(item.links) ? item.links : [];
+  let html = `<div class="tb-links-section">`;
+  if(links.length === 0 && !adminEdit){
+    return ''; // hide entirely for non-admins if no links
+  }
+  if(adminEdit){
+    html += `<div class="tb-links-header">Sources <span style="color:var(--text-muted)">(${links.length})</span></div>`;
+  } else {
+    html += `<div class="tb-links-header">Sources</div>`;
+  }
+  links.forEach((link, lIdx) => {
+    const url = link?.url || "";
+    const label = link?.label || "";
+    if(adminEdit){
+      html += `<div class="tb-link-row">
+        <input type="text" class="tb-link-label" data-no-drag value="${escapeHtml(label)}" placeholder="Label"
+          oninput="onTbLinkFieldChange('${kind}','${id}',${lIdx},'label',this.value)"
+          onblur="saveTbItem('${kind}','${id}')" />
+        <input type="text" class="tb-link-url" data-no-drag value="${escapeHtml(url)}" placeholder="https://..."
+          oninput="onTbLinkFieldChange('${kind}','${id}',${lIdx},'url',this.value)"
+          onblur="saveTbItem('${kind}','${id}')" />
+        ${url ? `<a href="${url}" target="_blank" rel="noopener" class="tb-link-open-btn" data-no-drag onclick="event.stopPropagation()">↗ Open</a>` : ''}
+        <button class="tb-link-verify-btn" data-no-drag onclick="verifyTbLink('${kind}','${id}')" title="Mark all sources verified now">${item.lastVerifiedAt ? '✓' : '✓ Verify'}</button>
+        <button class="tb-link-remove-btn" data-no-drag onclick="removeTbLink('${kind}','${id}',${lIdx})" title="Remove this source">×</button>
+      </div>`;
+    } else {
+      // Non-admin read-only
+      if(url){
+        html += `<div class="tb-link-row">
+          <span class="tb-link-label" style="background:transparent;border:none">${escapeHtml(label)}</span>
+          <a href="${url}" target="_blank" rel="noopener" class="tb-link-open-btn">↗ Open</a>
+        </div>`;
+      } else if(label){
+        html += `<div class="tb-link-row">
+          <span class="tb-link-label" style="background:transparent;border:none;color:var(--text-muted)">${escapeHtml(label)} <em style="font-size:10px">(no url)</em></span>
+        </div>`;
+      }
+    }
+  });
+  if(adminEdit){
+    html += `<button class="tb-link-add-btn" data-no-drag onclick="addTbLink('${kind}','${id}')">+ Add another source</button>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+window.switchBomTab = (installType) => {
+  state.bomTab = installType;
+  renderActive();
+};
+
+// ===== Field-edit handlers (debounced save, immediate on blur) =====
+const __tbSaveDebounce = {};
+const __tbPendingChanges = {}; // { "kind:id": { fieldPath: value, ... } }
+
+function tbKey(kind, id){ return `${kind}:${id}`; }
+
+window.onTbFieldChange = (kind, id, field, value) => {
+  const key = tbKey(kind, id);
+  if(!__tbPendingChanges[key]) __tbPendingChanges[key] = {};
+  __tbPendingChanges[key][field] = value;
+  clearTimeout(__tbSaveDebounce[key]);
+  __tbSaveDebounce[key] = setTimeout(() => saveTbItem(kind, id), 700);
+};
+
+window.onTbLinkFieldChange = (kind, id, linkIdx, field, value) => {
+  const key = tbKey(kind, id);
+  if(!__tbPendingChanges[key]) __tbPendingChanges[key] = {};
+  if(!__tbPendingChanges[key].links) __tbPendingChanges[key].links = null; // sentinel
+  __tbPendingChanges[key][`__link_${linkIdx}_${field}`] = value;
+  clearTimeout(__tbSaveDebounce[key]);
+  __tbSaveDebounce[key] = setTimeout(() => saveTbItem(kind, id), 700);
+};
+
+// Persist all pending edits for an item.
+window.saveTbItem = async (kind, id) => {
+  const key = tbKey(kind, id);
+  clearTimeout(__tbSaveDebounce[key]);
+  if(!state.isAdmin) return;
+  const pending = __tbPendingChanges[key];
+  if(!pending) return;
+
+  const path = tbItemPath(kind, id);
+  const current = tbGetCurrentItem(kind, id);
+  if(!current) return;
+
+  // Build patch starting from current item (so we have all fields, not just changed)
+  const patch = { ...current };
+
+  // Apply scalar field changes
+  Object.keys(pending).forEach(k => {
+    if(k.startsWith("__link_")) return; // handled separately
+    if(k === "links") return;
+    patch[k] = pending[k];
+  });
+
+  // Apply link field changes — read all DOM link rows and rebuild the array
+  // (this handles link edits + ordering correctly)
+  const card = document.querySelector(`[data-item-id="${id}"][data-kind="${kind}"]`);
+  if(card){
+    const linkRows = card.querySelectorAll(".tb-link-row");
+    if(linkRows.length > 0){
+      const newLinks = [];
+      linkRows.forEach(row => {
+        const labelEl = row.querySelector(".tb-link-label");
+        const urlEl = row.querySelector(".tb-link-url");
+        if(!labelEl || !urlEl) return;
+        const label = labelEl.value.trim();
+        const url = urlEl.value.trim();
+        if(!label && !url) return; // skip empty rows
+        newLinks.push({ label, url });
+      });
+      patch.links = newLinks;
+    }
+  }
+
+  // No-op guard
+  if(JSON.stringify(patch) === JSON.stringify(current)){
+    delete __tbPendingChanges[key];
+    return;
+  }
+
+  // Build audit log entry
+  const changes = diffTbItem(current, patch);
+  if(changes.length > 0){
+    const entry = buildHistoryEntry(changes);
+    patch.history = [...(current.history || []), entry].slice(-100);
+  }
+
+  patch.updatedAt = Date.now();
+  patch.updatedBy = state.user.uid;
+
+  await set(ref(db, path), patch);
+  delete __tbPendingChanges[key];
+};
+
+function tbItemPath(kind, id){
+  if(kind === "tool") return `autoflag/tools/${id}`;
+  if(kind === "part") return `autoflag/parts/${state.bomTab || "external"}/${id}`;
+  return null;
+}
+
+function tbGetCurrentItem(kind, id){
+  if(kind === "tool") return state.tools[id];
+  if(kind === "part") return state.parts[state.bomTab || "external"]?.[id];
+  return null;
+}
+
+function diffTbItem(before, after){
+  const tracked = ["name","price","category","qty","packCost","qtyPerUnit","material","notes","imageUrl","displayOrder","deletedAt","lastVerifiedAt"];
+  const changes = [];
+  if(!before){
+    changes.push({ field: "_created", from: null, to: after.name || "(new item)" });
+    return changes;
+  }
+  tracked.forEach(f => {
+    const a = before[f] ?? "";
+    const b = after[f] ?? "";
+    if(a !== b) changes.push({ field: f, from: a, to: b });
+  });
+  // Links: just a count diff to avoid noise
+  const beforeLinks = JSON.stringify(before.links || []);
+  const afterLinks = JSON.stringify(after.links || []);
+  if(beforeLinks !== afterLinks){
+    changes.push({ field: "links", from: `${(before.links||[]).length} sources`, to: `${(after.links||[]).length} sources` });
+  }
+  return changes;
+}
+
+// ===== Add / Delete =====
+window.addToolItem = async () => {
+  if(!state.isAdmin) return;
+  const id = `tool_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  const item = {
+    name: "",
+    price: 0,
+    category: "",
+    notes: "",
+    imageUrl: null,
+    links: [],
+    lastVerifiedAt: null,
+    displayOrder: nextDisplayOrder(state.tools),
+    deletedAt: null,
+    createdAt: Date.now(),
+    createdBy: state.user.uid,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new tool)" }])]
+  };
+  await set(ref(db, `autoflag/tools/${id}`), item);
+  setTimeout(() => {
+    const card = document.querySelector(`[data-item-id="${id}"][data-kind="tool"] .tb-field-name`);
+    if(card) card.focus();
+  }, 100);
+};
+
+window.addPartItem = async () => {
+  if(!state.isAdmin) return;
+  const installType = state.bomTab || "external";
+  const id = `part_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  const item = {
+    name: "",
+    qty: 1,
+    packCost: 0,
+    qtyPerUnit: 1,
+    material: null,
+    notes: "",
+    imageUrl: null,
+    links: [],
+    lastVerifiedAt: null,
+    displayOrder: nextDisplayOrder(state.parts[installType] || {}),
+    deletedAt: null,
+    createdAt: Date.now(),
+    createdBy: state.user.uid,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new part)" }])]
+  };
+  await set(ref(db, `autoflag/parts/${installType}/${id}`), item);
+  setTimeout(() => {
+    const card = document.querySelector(`[data-item-id="${id}"][data-kind="part"] .tb-field-name`);
+    if(card) card.focus();
+  }, 100);
+};
+
+// Soft delete: set deletedAt timestamp instead of removing
+window.deleteTbItem = async (kind, id) => {
+  if(!state.isAdmin) return;
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  const label = item.name || `(${kind} ${id})`;
+  if(!confirm(`Delete "${label}"? This soft-deletes — historical install records still reference it.`)) return;
+  const path = tbItemPath(kind, id);
+  const entry = buildHistoryEntry([{ field: "deletedAt", from: null, to: Date.now() }]);
+  await set(ref(db, path), {
+    ...item,
+    deletedAt: Date.now(),
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [...(item.history || []), entry].slice(-100)
+  });
+  toast(`Deleted "${label}"`);
+};
+
+// ===== Image upload / drop / paste =====
+async function uploadTbImageFile(file, kind, id){
+  if(!state.isAdmin) return;
+  if(!file || !file.type.startsWith("image/")) return toast("Pick an image file", true);
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  toast("Uploading image...");
+  try {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const installType = state.bomTab || "external";
+    const path = kind === "tool"
+      ? `autoflag/tools/${id}_${Date.now()}_${safeName}`
+      : `autoflag/parts/${installType}/${id}_${Date.now()}_${safeName}`;
+    const sr = sref(storage, path);
+    await uploadBytes(sr, file);
+    const url = await getDownloadURL(sr);
+    const oldUrl = item.imageUrl || "";
+    const dbPath = tbItemPath(kind, id);
+    const entry = buildHistoryEntry([{ field: "imageUrl", from: oldUrl ? "(image)" : null, to: "(image)" }]);
+    await set(ref(db, dbPath), {
+      ...item,
+      imageUrl: url,
+      updatedAt: Date.now(),
+      updatedBy: state.user.uid,
+      history: [...(item.history || []), entry].slice(-100)
+    });
+    // Best-effort delete of replaced image
+    if(oldUrl && oldUrl.includes("/o/") && oldUrl !== url){
+      try {
+        const oldPath = decodeURIComponent(oldUrl.split("/o/")[1].split("?")[0]);
+        deleteObject(sref(storage, oldPath)).catch(()=>{});
+      } catch(_){}
+    }
+    toast("✓ Image uploaded");
+  } catch(e){
+    toast("Upload failed: " + e.message, true);
+  }
+}
+
+window.uploadTbImage = (ev, kind, id) => {
+  const f = ev.target.files?.[0];
+  ev.target.value = "";
+  if(f) uploadTbImageFile(f, kind, id);
+};
+
+window.handleTbImageDrop = (ev, kind, id) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.currentTarget.classList.remove("drag-over");
+  const f = Array.from(ev.dataTransfer.files || []).find(f => f.type.startsWith("image/"));
+  if(f) uploadTbImageFile(f, kind, id);
+};
+
+window.removeTbImage = async (kind, id) => {
+  if(!confirm("Remove this image?")) return;
+  if(!state.isAdmin) return;
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  const oldUrl = item.imageUrl || "";
+  const dbPath = tbItemPath(kind, id);
+  const entry = buildHistoryEntry([{ field: "imageUrl", from: "(image)", to: null }]);
+  await set(ref(db, dbPath), {
+    ...item,
+    imageUrl: null,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [...(item.history || []), entry].slice(-100)
+  });
+  if(oldUrl && oldUrl.includes("/o/")){
+    try {
+      const oldPath = decodeURIComponent(oldUrl.split("/o/")[1].split("?")[0]);
+      deleteObject(sref(storage, oldPath)).catch(()=>{});
+    } catch(_){}
+  }
+  toast("Image removed");
+};
+
+// ===== Link management =====
+window.addTbLink = async (kind, id) => {
+  if(!state.isAdmin) return;
+  await saveTbItem(kind, id); // persist any in-flight edits
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  const newLinks = [...(item.links || []), { label: "", url: "" }];
+  await set(ref(db, tbItemPath(kind, id)), {
+    ...item,
+    links: newLinks,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+};
+
+window.removeTbLink = async (kind, id, linkIdx) => {
+  if(!state.isAdmin) return;
+  await saveTbItem(kind, id);
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  const oldLinks = item.links || [];
+  if(linkIdx < 0 || linkIdx >= oldLinks.length) return;
+  const newLinks = oldLinks.filter((_, i) => i !== linkIdx);
+  await set(ref(db, tbItemPath(kind, id)), {
+    ...item,
+    links: newLinks,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid
+  });
+};
+
+window.verifyTbLink = async (kind, id) => {
+  if(!state.isAdmin) return;
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  const entry = buildHistoryEntry([{ field: "lastVerifiedAt", from: item.lastVerifiedAt || null, to: Date.now() }]);
+  await set(ref(db, tbItemPath(kind, id)), {
+    ...item,
+    lastVerifiedAt: Date.now(),
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [...(item.history || []), entry].slice(-100)
+  });
+  toast("✓ Marked verified");
+};
+
+// ===== Drag-to-reorder (cards) =====
+const tbDrag = {
+  kind: null,    // "tool" | "part"
+  id: null,
+  el: null,
+  touchActive: false,
+  longPressTimer: null,
+  startX: 0, startY: 0,
+  lastTouchX: 0, lastTouchY: 0,
+  ghost: null
+};
+
+function clearTbDrag(){
+  if(tbDrag.el) tbDrag.el.classList.remove("tb-row-dragging");
+  if(tbDrag.ghost){ tbDrag.ghost.remove(); tbDrag.ghost = null; }
+  clearTimeout(tbDrag.longPressTimer);
+  document.querySelectorAll(".tools-item-card.tb-insert-before, .tools-item-card.tb-insert-after, .parts-item-card.tb-insert-before, .parts-item-card.tb-insert-after")
+    .forEach(el => { el.classList.remove("tb-insert-before"); el.classList.remove("tb-insert-after"); });
+  tbDrag.kind = null;
+  tbDrag.id = null;
+  tbDrag.el = null;
+  tbDrag.touchActive = false;
+  tbDrag.longPressTimer = null;
+}
+
+function tbIsActionTarget(el){
+  while(el && el !== document.body){
+    if(el.dataset && el.dataset.noDrag !== undefined) return true;
+    el = el.parentNode;
+  }
+  return false;
+}
+
+window.tbCardDragStart = (ev, kind, id) => {
+  ev.stopPropagation();
+  saveTbItem(kind, id); // persist in-flight edits
+  tbDrag.kind = kind;
+  tbDrag.id = id;
+  tbDrag.el = ev.currentTarget;
+  ev.currentTarget.classList.add("tb-row-dragging");
+  if(ev.dataTransfer){
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", `${kind}:${id}`);
+  }
+};
+
+window.tbCardDragOver = (ev, kind, id) => {
+  if(tbDrag.kind !== kind) return;
+  if(tbDrag.id === id) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".tools-item-card.tb-insert-before, .tools-item-card.tb-insert-after, .parts-item-card.tb-insert-before, .parts-item-card.tb-insert-after")
+    .forEach(el => { el.classList.remove("tb-insert-before"); el.classList.remove("tb-insert-after"); });
+  const target = ev.currentTarget;
+  const rect = target.getBoundingClientRect();
+  // Horizontal layout (grid auto-fit) — use leftHalf, mirroring term cards.
+  const leftHalf = (ev.clientX - rect.left) < rect.width / 2;
+  target.classList.add(leftHalf ? "tb-insert-before" : "tb-insert-after");
+};
+
+window.tbCardDragLeave = (ev) => {
+  if(ev.currentTarget.contains(ev.relatedTarget)) return;
+  ev.currentTarget.classList.remove("tb-insert-before");
+  ev.currentTarget.classList.remove("tb-insert-after");
+};
+
+window.tbCardDrop = async (ev, kind, dropOnId) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  if(tbDrag.kind !== kind || !tbDrag.id){ clearTbDrag(); return; }
+  if(tbDrag.id === dropOnId){ clearTbDrag(); return; }
+  const before = ev.currentTarget.classList.contains("tb-insert-before");
+  await applyTbReorder(kind, tbDrag.id, dropOnId, before);
+  clearTbDrag();
+};
+
+window.tbCardDragEnd = (ev) => {
+  clearTbDrag();
+};
+
+async function applyTbReorder(kind, draggedId, dropOnId, before){
+  if(!state.isAdmin) return;
+  const itemsObj = kind === "tool" ? state.tools : state.parts[state.bomTab || "external"];
+  if(!itemsObj) return;
+  const sorted = sortAndFilterItems(itemsObj);
+  const draggedIdx = sorted.findIndex(([id]) => id === draggedId);
+  const dropIdx = sorted.findIndex(([id]) => id === dropOnId);
+  if(draggedIdx < 0 || dropIdx < 0) return;
+
+  // Compute new displayOrder via midpoint between neighbors
+  const reordered = [...sorted];
+  reordered.splice(draggedIdx, 1);
+  let insertAt = reordered.findIndex(([id]) => id === dropOnId);
+  if(!before) insertAt += 1;
+  if(insertAt < 0) insertAt = 0;
+  if(insertAt > reordered.length) insertAt = reordered.length;
+
+  const before_ = reordered[insertAt - 1]?.[1];
+  const after_ = reordered[insertAt]?.[1];
+  const beforeOrder = before_?.displayOrder ?? null;
+  const afterOrder = after_?.displayOrder ?? null;
+
+  let newOrder;
+  if(beforeOrder == null && afterOrder == null) newOrder = 10;
+  else if(beforeOrder == null) newOrder = afterOrder - 5;
+  else if(afterOrder == null) newOrder = beforeOrder + 10;
+  else newOrder = (beforeOrder + afterOrder) / 2;
+
+  const item = itemsObj[draggedId];
+  const path = tbItemPath(kind, draggedId);
+  const entry = buildHistoryEntry([{ field: "displayOrder", from: item.displayOrder, to: newOrder }]);
+  await set(ref(db, path), {
+    ...item,
+    displayOrder: newOrder,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [...(item.history || []), entry].slice(-100)
+  });
+}
+
+// Touch drag for mobile (350ms long-press, ghost follows finger)
+window.tbCardTouchStart = (ev, kind, id) => {
+  if(ev.touches.length !== 1) return;
+  if(tbIsActionTarget(ev.target)) return;
+  ev.stopPropagation();
+  const t = ev.touches[0];
+  tbDrag.kind = kind;
+  tbDrag.id = id;
+  tbDrag.el = ev.currentTarget;
+  tbDrag.startX = t.clientX;
+  tbDrag.startY = t.clientY;
+  tbDrag.lastTouchX = t.clientX;
+  tbDrag.lastTouchY = t.clientY;
+  tbDrag.touchActive = false;
+  tbDrag.longPressTimer = setTimeout(() => {
+    tbDrag.touchActive = true;
+    tbDrag.el.classList.add("tb-row-dragging");
+    if(navigator.vibrate) navigator.vibrate(40);
+    const r = tbDrag.el.getBoundingClientRect();
+    const g = tbDrag.el.cloneNode(true);
+    g.classList.add("proc-ghost");
+    g.style.width = r.width + "px";
+    g.style.left = r.left + "px";
+    g.style.top = r.top + "px";
+    document.body.appendChild(g);
+    tbDrag.ghost = g;
+  }, 350);
+};
+
+window.tbCardTouchMove = (ev) => {
+  if(ev.touches.length !== 1) return;
+  const t = ev.touches[0];
+  tbDrag.lastTouchX = t.clientX;
+  tbDrag.lastTouchY = t.clientY;
+  if(!tbDrag.touchActive){
+    const dx = t.clientX - tbDrag.startX;
+    const dy = t.clientY - tbDrag.startY;
+    if(Math.abs(dx) > 10 || Math.abs(dy) > 10){
+      clearTimeout(tbDrag.longPressTimer);
+      tbDrag.longPressTimer = null;
+      tbDrag.kind = null;
+      tbDrag.id = null;
+      tbDrag.el = null;
+    }
+    return;
+  }
+  ev.preventDefault();
+  if(tbDrag.ghost){
+    tbDrag.ghost.style.left = (t.clientX - 100) + "px";
+    tbDrag.ghost.style.top = (t.clientY - 30) + "px";
+  }
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  document.querySelectorAll(".tools-item-card.tb-insert-before, .tools-item-card.tb-insert-after, .parts-item-card.tb-insert-before, .parts-item-card.tb-insert-after")
+    .forEach(c => { c.classList.remove("tb-insert-before"); c.classList.remove("tb-insert-after"); });
+  const cardSel = tbDrag.kind === "tool" ? ".tools-item-card" : ".parts-item-card";
+  const target = el?.closest(cardSel);
+  if(target && target.dataset.itemId !== tbDrag.id){
+    const rect = target.getBoundingClientRect();
+    const leftHalf = (t.clientX - rect.left) < rect.width / 2;
+    target.classList.add(leftHalf ? "tb-insert-before" : "tb-insert-after");
+  }
+};
+
+window.tbCardTouchEnd = async (ev) => {
+  clearTimeout(tbDrag.longPressTimer);
+  if(!tbDrag.touchActive){ clearTbDrag(); return; }
+  ev.preventDefault();
+  const x = tbDrag.lastTouchX, y = tbDrag.lastTouchY;
+  const el = document.elementFromPoint(x, y);
+  const cardSel = tbDrag.kind === "tool" ? ".tools-item-card" : ".parts-item-card";
+  const target = el?.closest(cardSel);
+  if(target && target.dataset.itemId !== tbDrag.id){
+    const rect = target.getBoundingClientRect();
+    const leftHalf = (x - rect.left) < rect.width / 2;
+    await applyTbReorder(tbDrag.kind, tbDrag.id, target.dataset.itemId, leftHalf);
+  }
+  clearTbDrag();
+};
+
 
 window.switchInstallsTab = (type) => {
   state.installsTab = type;
@@ -5543,11 +6546,27 @@ window.handleAIPhotoDrop = (ev) => {
   files.forEach(addAIPhoto);
 };
 
-// Ctrl+V paste handler — works for AI photo panel, Site modal, Pole modal, AND Site detail page
+// Ctrl+V paste handler — works for AI photo panel, Site modal, Pole modal, Site detail, AND Tools/BOM cards (Rev 1.99)
 document.addEventListener("paste", ev => {
   const aiPanel = document.getElementById("aiPhotoPanel");
   const siteModal = document.getElementById("modalSite");
   const poleModal = document.getElementById("modalPole");
+
+  // Tools/BOM: if focus is inside a tool/part card, paste image to that card.
+  // Detected via document.activeElement walking up to find data-item-id + data-kind.
+  let tbCard = null;
+  if(state.view === "installs" && (state.installsTab === "tools" || state.installsTab === "bom")){
+    let el = document.activeElement;
+    while(el && el !== document.body){
+      if(el.dataset?.itemId && el.dataset?.kind){
+        tbCard = el;
+        break;
+      }
+      el = el.parentNode;
+    }
+    // If no element is focused, check if cursor is hovering over a card (mouse-only fallback)
+    // We can't detect hover from a paste event reliably, so just use focus.
+  }
 
   let target = null;
   if(aiPanel && aiPanel.style.display !== "none") target = "ai";
@@ -5555,6 +6574,7 @@ document.addEventListener("paste", ev => {
   else if(poleModal && poleModal.classList.contains("open")) target = "pole";
   // Site detail page: drilled into a site, no modal open
   else if(state.view === "browse" && state.drillCustomer && state.drillSite) target = "siteDetail";
+  else if(tbCard) target = "tbCard";
   if(!target) return;
 
   const items = Array.from(ev.clipboardData?.items || []);
@@ -5567,9 +6587,14 @@ document.addEventListener("paste", ev => {
     else if(target === "site")  addSitePhotoFromFile(f);
     else if(target === "pole")  addPolePhotoFromFile(f);
     else if(target === "siteDetail") files.push(f);
+    else if(target === "tbCard") files.push(f);
   });
   if(target === "siteDetail" && files.length){
     uploadFilesToSiteImmediate(files, state.drillCustomer, state.drillSite);
+  }
+  if(target === "tbCard" && files.length && tbCard){
+    // Use the first image only (one image per card)
+    uploadTbImageFile(files[0], tbCard.dataset.kind, tbCard.dataset.itemId);
   }
 });
 
