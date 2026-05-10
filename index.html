@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.21" />
+<meta name="app-rev" content="2.22" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -283,7 +283,7 @@
 
   /* Rev 2.21: Assigned-installer checkbox grid in the Pole modal */
   .assigned-installer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;min-height:42px}
-  .assigned-installer-grid:empty::after{content:"No installers found in People roster — add them via 👥 People (admin only)";color:var(--text-muted);font-size:11px;font-style:italic;grid-column:1/-1}
+  .assigned-installer-grid:empty::after{content:"No team members in People roster yet — add via 👥 People (admin only)";color:var(--text-muted);font-size:11px;font-style:italic;grid-column:1/-1}
   .assigned-installer-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .12s,background .12s;font-size:12px}
   .assigned-installer-chip:hover{border-color:var(--amber-dim)}
   .assigned-installer-chip input[type=checkbox]{margin:0;cursor:pointer;accent-color:var(--amber)}
@@ -909,7 +909,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.21</div>
+  <div class="ver">AutoFlag© · v2.22</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -980,7 +980,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.21</span>
+    <span>v2.22</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -7461,14 +7461,12 @@ function renderPoleChecklist(p){
 
     const secCheckedCount = secSteps.filter(st => checklist[st.id]?.checked).length;
     const secComplete = (secCheckedCount === secSteps.length);
-    // Auto-collapse rule: collapsedByDefault, but auto-expand sections that contain
-    // unchecked steps that are currently unlocked or are at the active edge.
-    const sectionContainsActiveStep = secSteps.some((st, sidx) => {
-      const globalIdx = runningStepIdx + sidx;
-      return !checklist[st.id]?.checked && stepUnlocked(globalIdx);
-    });
-    const collapsed = (sec.collapsedByDefault && !sectionContainsActiveStep && !secComplete) || (secComplete && sec.id !== "onsiteInstall" && false);
-    // ^ Don't auto-collapse completed sections by default; installers may want to see what they did.
+    // Rev 2.22: All sections collapsed by default. Phil asked for this — too
+    // much info expanded by default makes the Pole modal overwhelming. Installer
+    // can tap a section header to expand it when they're ready to work that section.
+    // Previous behavior auto-expanded sections containing the next active step;
+    // that's now off — installer chooses when to expand.
+    const collapsed = true;
 
     html += `<div class="checklist-section${collapsed ? ' collapsed' : ''}" data-section-id="${sec.id}">
       <div class="checklist-section-header" onclick="toggleSectionGroup('${sec.id}')">
@@ -7918,10 +7916,21 @@ function populateAssignedInstallersGrid(currentList){
   const grid = document.getElementById("mp-assigned-installers");
   if(!grid) return;
   const installers = [];
+  // Rev 2.22: Phil hardcoded as root (always available even if not yet in peopleRoster).
+  // Email-key derived from his email so it matches the keying scheme used elsewhere.
+  // We use the canonical email "phil@siglerventures.com" for Phil's root identity.
+  installers.push({ key: "phil@siglerventures_com", name: "Phil Sigler", role: "admin" });
+  // Rev 2.22: Include BOTH admin and installer roles. Admins frequently do
+  // installs themselves (e.g. Austen, Larissa as admins doing field work).
+  // Excluding them was wrong — they couldn't be assigned to a pole even
+  // though they could complete one. Now they show in the grid alongside
+  // installer-role users.
   if(typeof peopleRoster === "object" && peopleRoster){
     Object.entries(peopleRoster).forEach(([key, info]) => {
-      if(info.role === "installer"){
-        installers.push({ key, name: info.name || info.email || key, email: info.email });
+      // Skip Phil's record if it's also in peopleRoster (avoid duplicate)
+      if(key === "phil@siglerventures_com") return;
+      if(info.role === "admin" || info.role === "installer"){
+        installers.push({ key, name: info.name || info.email || key, email: info.email, role: info.role });
       }
     });
   }
@@ -7930,12 +7939,13 @@ function populateAssignedInstallersGrid(currentList){
   const current = new Set(currentList || []);
   grid.innerHTML = installers.map(i => {
     const isChecked = current.has(i.key);
+    const roleBadge = i.role === "admin" ? `<span class="badge">Admin</span>` : "";
     return `<label class="assigned-installer-chip ${isChecked?'checked':''}" data-key="${escapeHtml(i.key)}">
       <input type="checkbox" ${isChecked?'checked':''} onchange="toggleAssignedInstallerChip(this)" />
       <span class="name" title="${escapeHtml(i.email||i.key)}">${escapeHtml(i.name)}</span>
+      ${roleBadge}
     </label>`;
   }).join("");
-  // If list was empty, the :empty CSS rule renders the helper message automatically.
 }
 
 // Toggles the checked-class on the parent chip when its checkbox changes.
