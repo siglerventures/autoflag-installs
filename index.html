@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.28" />
+<meta name="app-rev" content="2.30" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -716,6 +716,11 @@
     .top-row{flex-wrap:wrap;row-gap:6px}
     /* On mobile, view-tabs container takes its own row */
     .top-row > .view-tabs{flex-basis:100%;width:100%;border-top:1px solid var(--border);padding-top:6px;margin-top:2px}
+    /* Rev 2.30: bigger tap targets for the view tabs on mobile so users don't
+       accidentally tap an adjacent tab. Also distribute them evenly so Issues
+       (third item) isn't crammed against Suggest. */
+    .top-row > .view-tabs{display:flex;justify-content:space-around;gap:4px}
+    .top-row > .view-tabs .view-tab{flex:1 1 0;min-height:40px;font-size:11px;padding:8px 4px;text-align:center;white-space:nowrap}
     /* Footer wraps to two lines on mobile rather than horizontal scroll. */
     footer{flex-wrap:wrap;justify-content:center;gap:6px;padding:10px 12px}
 
@@ -724,8 +729,28 @@
        mobile look, per Phil's request. Tap-target shrunk; trade-off accepted. */
     .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
     .filter-bar .chip{flex-shrink:0;min-height:24px;padding:3px 10px;font-size:10px;display:inline-flex;align-items:center;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+    /* Rev 2.30: Type filter hide must win over the .filter-bar .chip selector
+       above (which has higher specificity than .type-filter-group alone).
+       Mobile only — the !important is scoped inside @media (max-width:768px),
+       desktop chip rules are untouched. */
+    .filter-bar .type-filter-group,
+    .top-row .type-filter-group{display:none !important}
     .filter-label{display:none}                    /* category obvious from chip context */
     .filter-sep{width:4px}
+
+    /* Rev 2.30: Browse tree was forcing min-width:600px on .tree, which made
+       the entire tree wider than a 380px phone viewport — left side got clipped.
+       On mobile, kill the min-width and let the tree be 100% of the viewport.
+       Customer rows can flex-wrap their stats below the name as needed. */
+    .tree{min-width:0 !important;width:100% !important;max-width:100%}
+    .tree-wrap{width:100%;max-width:100%}
+    main{padding:10px}
+    /* Customer/site row name needs to truncate or wrap, not push siblings off-screen */
+    .tree-row{min-width:0}
+    .tree-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
+    /* Totals row also needs to shed its 1200px assumption on mobile */
+    .tree-totals-row{max-width:100%;padding:10px 12px;gap:8px}
+    .tree-totals-wrap{max-width:100%}
 
     /* Logo shrink on mobile (Rev 2.00) — was 20px serif. Now compact. */
     .logo{font-size:14px;letter-spacing:.2px}
@@ -941,7 +966,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.28</div>
+  <div class="ver">AutoFlag© · v2.30</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1018,7 +1043,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.28</span>
+    <span>v2.30</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4988,6 +5013,17 @@ window.drillToFromIssues = (customerId, siteId) => {
   if(state.view !== "browse") state.view = "browse";
   state.drillCustomer = customerId; state.drillSite = siteId;
   renderActive();
+};
+
+// Rev 2.29: Open the Pole modal directly from the Issues view. Switches to
+// Browse + sets drill state to the pole's parent site so closing the modal
+// lands the user in the correct context (their site detail page, not the
+// Issues table they came from).
+window.openPoleFromIssues = (pid, cid, sid) => {
+  if(state.view !== "browse") state.view = "browse";
+  state.drillCustomer = cid; state.drillSite = sid;
+  renderActive();
+  openPoleModal(pid, cid, sid);
 };
 window.goHome = () => {
   // Hard reload — guarantees full reset regardless of current view, modals, drill state, map instance, etc.
@@ -10119,7 +10155,7 @@ function renderIssues(){
       : `<span style="color:var(--text-muted);font-style:italic">unassigned</span>`;
     return `<tr onclick="openIssueDetail('${iss.id}')">
       <td><strong>${escapeHtml(iss.title)}</strong></td>
-      <td>${escapeHtml(p?.label||iss.poleId)}</td>
+      <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
       <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
@@ -10144,7 +10180,7 @@ function renderIssues(){
       const p = s?.poles?.[iss.poleId];
       return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
         <td><strong>${escapeHtml(iss.title)}</strong></td>
-        <td>${escapeHtml(p?.label||iss.poleId)}</td>
+        <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
         <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
         <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
         <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
