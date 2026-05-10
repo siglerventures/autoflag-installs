@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.14" />
+<meta name="app-rev" content="2.15" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -465,6 +465,21 @@
   .tb-empty .hint{color:var(--amber);cursor:pointer;text-decoration:underline;display:inline-block;margin-top:6px}
 
   .tb-total-footer{margin-top:14px;padding:12px 14px;background:linear-gradient(135deg,rgba(127,176,105,0.10),rgba(127,176,105,0.04));border:1px solid var(--green);border-radius:var(--radius);font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+
+  /* Rev 2.15: stacked totals — Install + Mech + Grand Total in a single column.
+     Each row reuses .tb-total-footer base styling; the stack collapses the gap
+     so they read as one block. Grand Total pops with brighter fg and slightly
+     thicker border to mark it as the bottom-line summary. */
+  .tb-total-stack{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+  .tb-total-stack .tb-total-footer{margin-top:0}
+  .tb-total-row-install{background:linear-gradient(135deg,rgba(110,163,217,0.10),rgba(110,163,217,0.04));border-color:var(--blue)}
+  .tb-total-row-install .tb-total-value{color:var(--blue)}
+  .tb-total-row-device{background:linear-gradient(135deg,rgba(127,176,105,0.10),rgba(127,176,105,0.04));border-color:var(--green)}
+  .tb-total-row-device .tb-total-value{color:var(--green)}
+  .tb-total-row-grand{background:linear-gradient(135deg,rgba(212,134,10,0.18),rgba(212,134,10,0.06));border:2px solid var(--amber);font-weight:600}
+  .tb-total-row-grand .tb-total-label{color:var(--amber-bright);font-weight:700}
+  .tb-total-row-grand .tb-total-value{color:var(--amber-bright);font-size:16px}
+  .tb-total-row-grand .tb-total-meta{color:var(--amber)}
   .tb-total-label{color:var(--text);font-weight:600}
   .tb-total-value{color:var(--green);font-weight:700;font-size:16px}
   .tb-total-meta{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
@@ -509,14 +524,22 @@
      created huge whitespace on wide desktops. */
   .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:16px}
   .tree-row-customer .tree-stats{margin-left:24px;justify-content:flex-start}
-  .tree-row-spacer{flex:1 1 auto}
+  /* Rev 2.15 polish: spacer becomes a small fixed gap (was flex:1 1 auto which
+     pushed the ↗ button to the far right edge, leaving ~25% dead space on wide
+     desktops). Now ↗ sits right after the stats with a normal gap. */
+  .tree-row-spacer{display:inline-block;width:24px;flex-shrink:0}
 
   /* Rev 2.14: Totals row — summary footer below the customer list. Same width
      cap as the tree (1200px centered), styled like a customer row but no
      caret/details/action. Visually distinct via subtle background + label. */
-  .tree-totals-row{display:flex;align-items:center;gap:16px;padding:12px 16px;margin:8px auto 0;max-width:1200px;background:linear-gradient(135deg,rgba(212,134,10,0.08),rgba(212,134,10,0.02));border:1px solid var(--amber-dim);border-radius:var(--radius);flex-wrap:wrap}
+  /* Totals row: capped at 1200px max but allowed to shrink to content width.
+     Stats cluster sits naturally left-aligned; no flex stretching wastes space
+     on the right. */
+  .tree-totals-row{display:inline-flex;align-items:center;gap:16px;padding:12px 16px;margin:8px auto 0;max-width:1200px;background:linear-gradient(135deg,rgba(212,134,10,0.08),rgba(212,134,10,0.02));border:1px solid var(--amber-dim);border-radius:var(--radius);flex-wrap:wrap}
   .tree-totals-label{font-size:11px;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.8px;flex-shrink:0}
-  .tree-totals-row .tree-stats{justify-content:flex-start;flex:1 1 auto;gap:6px}
+  .tree-totals-row .tree-stats{justify-content:flex-start;flex:0 1 auto;gap:6px}
+  /* Wrapper to allow the inline-flex totals row to still center on the page */
+  .tree-totals-wrap{display:flex;justify-content:center;max-width:1200px;margin:0 auto}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
   .tree-stat-date{padding:2px 8px;background:#1a2a3a;color:#a8c5e6;border-radius:var(--radius-pill);font-size:10px;font-weight:600;white-space:nowrap}
@@ -798,7 +821,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.14</div>
+  <div class="ver">AutoFlag© · v2.15</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -868,7 +891,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.14</span>
+    <span>v2.15</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4273,7 +4296,7 @@ function renderBrowse(){
       n > 0 ? `<span class="tree-stat ${cls}">${label} ${n}</span>` : "";
     const tRemaining = totals.remaining > 0
       ? `<span class="tree-stat-remaining" style="cursor:default">${totals.remaining} remaining</span>` : "";
-    html += `<div class="tree-totals-row">
+    html += `<div class="tree-totals-wrap"><div class="tree-totals-row">
       <div class="tree-totals-label">TOTALS</div>
       <div class="tree-stats">
         ${tChip("📍", totals.sites)}
@@ -4288,7 +4311,7 @@ function renderBrowse(){
         ${tChip("★ Verified", totals.verified)}
         ${tRemaining}
       </div>
-    </div>`;
+    </div></div>`;
   }
 
   return html;
@@ -5176,6 +5199,20 @@ function sortAndFilterItems(itemsObj){
     .sort((a, b) => (a[1].displayOrder ?? 9999) - (b[1].displayOrder ?? 9999));
 }
 
+// Rev 2.15: Cost-rollup helpers. Both BOMs use the same formula:
+//   per-unit cost = (qty > 0 ? packCost / qty : 0) * qtyPerUnit
+// Centralized so every callsite computes identically and a future formula
+// change propagates everywhere.
+function bomItemCost(item){
+  const qty = Number(item?.qty) || 1;
+  const packCost = Number(item?.packCost) || 0;
+  const qtyPerUnit = Number(item?.qtyPerUnit) || 1;
+  return (qty > 0 ? packCost / qty : 0) * qtyPerUnit;
+}
+function bomTotalForItems(itemsObj){
+  return sortAndFilterItems(itemsObj).reduce((sum, [_, p]) => sum + bomItemCost(p), 0);
+}
+
 // Returns next displayOrder for inserting at the end (last + 10, or 10 if empty).
 function nextDisplayOrder(itemsObj){
   const sorted = sortAndFilterItems(itemsObj);
@@ -5420,10 +5457,26 @@ function renderInstallBomView(){
   }
   html += `</tbody></table></div>`;
 
-  html += `<div class="tb-total-footer">
-    <span class="tb-total-label">Total ${formatInstallType(installType)} Install Parts Cost</span>
-    <span class="tb-total-value">$${totalInstallCost.toFixed(2)}</span>
-    <span class="tb-total-meta">per install</span>
+  // Rev 2.15: stacked totals — Install line + Mech line + Grand Total.
+  // Per Phil: see the per-pole "true cost to install" without leaving the tab.
+  const mechTotal = bomTotalForItems(state.mechParts || {});
+  const grandTotal = totalInstallCost + mechTotal;
+  html += `<div class="tb-total-stack">
+    <div class="tb-total-footer tb-total-row-install">
+      <span class="tb-total-label">Total ${formatInstallType(installType)} Install Parts Cost</span>
+      <span class="tb-total-value">$${totalInstallCost.toFixed(2)}</span>
+      <span class="tb-total-meta">per install</span>
+    </div>
+    <div class="tb-total-footer tb-total-row-device">
+      <span class="tb-total-label">Total Device Cost (Mechanical BOM)</span>
+      <span class="tb-total-value">$${mechTotal.toFixed(2)}</span>
+      <span class="tb-total-meta">per device</span>
+    </div>
+    <div class="tb-total-footer tb-total-row-grand">
+      <span class="tb-total-label">Grand Total (Parts + Device)</span>
+      <span class="tb-total-value">$${grandTotal.toFixed(2)}</span>
+      <span class="tb-total-meta">per pole installed</span>
+    </div>
   </div>`;
 
   return html;
@@ -5506,10 +5559,29 @@ function renderMechBomView(){
   }
   html += `</tbody></table></div>`;
 
-  html += `<div class="tb-total-footer">
-    <span class="tb-total-label">Total Device Cost (Mechanical BOM)</span>
-    <span class="tb-total-value">$${totalDeviceCost.toFixed(2)}</span>
-    <span class="tb-total-meta">per device</span>
+  // Rev 2.15: stacked totals — show Install line for the currently-selected
+  // bomTab (External by default) + Grand Total alongside the Mech BOM total.
+  // Same readout as the Install BOM tabs; lets Phil see device + install
+  // numbers from either side.
+  const activeInstall = state.bomTab || "external";
+  const installTotal = bomTotalForItems(state.parts?.[activeInstall] || {});
+  const grandTotal = totalDeviceCost + installTotal;
+  html += `<div class="tb-total-stack">
+    <div class="tb-total-footer tb-total-row-device">
+      <span class="tb-total-label">Total Device Cost (Mechanical BOM)</span>
+      <span class="tb-total-value">$${totalDeviceCost.toFixed(2)}</span>
+      <span class="tb-total-meta">per device</span>
+    </div>
+    <div class="tb-total-footer tb-total-row-install">
+      <span class="tb-total-label">Total ${formatInstallType(activeInstall)} Install Parts Cost</span>
+      <span class="tb-total-value">$${installTotal.toFixed(2)}</span>
+      <span class="tb-total-meta">per install</span>
+    </div>
+    <div class="tb-total-footer tb-total-row-grand">
+      <span class="tb-total-label">Grand Total (Parts + Device)</span>
+      <span class="tb-total-value">$${grandTotal.toFixed(2)}</span>
+      <span class="tb-total-meta">per pole installed</span>
+    </div>
   </div>`;
 
   return html;
