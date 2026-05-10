@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.30" />
+<meta name="app-rev" content="2.31" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -966,7 +966,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.30</div>
+  <div class="ver">AutoFlag© · v2.31</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1043,12 +1043,17 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.30</span>
+    <span>v2.31</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
+    <!-- Rev 2.31: Cache-bust refresh. Cheap escape hatch when an installer/admin
+         sees stale UI after a deploy. Adds a timestamp query param to bypass
+         browser + GitHub Pages cache, then reloads. Cheaper than a full
+         version-check + banner system; revisit when off GitHub. -->
+    · <span class="ftr-link" onclick="hardRefresh()" title="Force-reload to get the latest version">🔄 Refresh</span>
   </footer>
 </div>
 
@@ -1991,6 +1996,20 @@ window.signOutNow = async () => {
   stopRestPoll(); // halt any active REST poll before signing out
   try { await signOut(auth); }
   finally { signOutInProgress = false; }
+};
+
+// Rev 2.31: Footer 🔄 Refresh action. Bypasses browser + GitHub Pages cache
+// by appending a fresh ?v=<timestamp> to the URL, then reloading. Use case:
+// installer in the field still sees old code after a deploy.
+//
+// We strip any existing ?v= param first so the URL doesn't accumulate stale
+// timestamps over multiple refreshes. Other query params are preserved.
+window.hardRefresh = () => {
+  const url = new URL(location.href);
+  url.searchParams.set("v", Date.now().toString());
+  // Drop hash so any deep-link state doesn't trip on reload
+  url.hash = "";
+  location.replace(url.toString());
 };
 
 onAuthStateChanged(auth, async user => {
