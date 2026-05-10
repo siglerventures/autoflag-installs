@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.25" />
+<meta name="app-rev" content="2.26" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -924,7 +924,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.25</div>
+  <div class="ver">AutoFlag© · v2.26</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -955,7 +955,7 @@
       <button class="view-tab" data-view="home" id="homeBtnTop" onclick="softGoBrowse()" title="Back to Browse" style="display:none">🏡 Home</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
-      <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues<span id="issueTabCount" style="margin-left:5px;color:var(--amber-bright);font-weight:700;display:none"></span></button>
+      <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues</button>
       <button class="view-tab" onclick="openSuggestionModal()" title="Submit a suggestion or report an issue">💡 Suggest</button>
     </div>
     <!-- Rev 2.04: Installs sub-tabs render here inline when state.view === "installs".
@@ -1001,7 +1001,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.25</span>
+    <span>v2.26</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -10138,14 +10138,10 @@ function visibleOpenIssues(){
 }
 
 function updateIssueBadge(){
-  // Rev 2.25: Top-right badge removed; only the tab-count span remains.
-  // Count is scoped to what the user can see (admin = all; installer = their poles).
-  const count = visibleOpenIssues().length;
-  const tabCount = document.getElementById("issueTabCount");
-  if(tabCount){
-    tabCount.style.display = count > 0 ? "" : "none";
-    tabCount.textContent = count;
-  }
+  // Rev 2.26: Tab count span removed (Phil's call — totals row chip already
+  // shows the count, no need to duplicate in the tab). Function kept as a
+  // no-op so existing call sites (subscribeIssues etc.) don't need to change.
+  // If a future rev wants a badge somewhere else, this is the hook.
 }
 
 // ===== Bulk image importer (Rev 2.09) =====
