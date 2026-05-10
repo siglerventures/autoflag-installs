@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.27" />
+<meta name="app-rev" content="2.28" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -704,6 +704,18 @@
     .top-row{flex-wrap:nowrap}
     .top-row .filter-bar,
     .top-row .view-tabs{flex-shrink:0}
+    /* Rev 2.28: Mobile layout cleanup per Phil. Two changes:
+       (1) Hide the Type filter group entirely (Phil's call — phones don't have
+           the room for it; users can switch type via the Installs sub-tabs).
+       (2) Stack view-tabs onto a SECOND row below the Status filter. The current
+           layout puts Status + Type + view-tabs all on one horizontally-scrolling
+           row, so the view tabs (Map/Installs/Issues/Suggest) get hidden off-screen
+           until you scroll right. Wrapping the top-row to two lines keeps everything
+           visible without scrolling. */
+    .type-filter-group{display:none}
+    .top-row{flex-wrap:wrap;row-gap:6px}
+    /* On mobile, view-tabs container takes its own row */
+    .top-row > .view-tabs{flex-basis:100%;width:100%;border-top:1px solid var(--border);padding-top:6px;margin-top:2px}
     /* Footer wraps to two lines on mobile rather than horizontal scroll. */
     footer{flex-wrap:wrap;justify-content:center;gap:6px;padding:10px 12px}
 
@@ -929,7 +941,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.27</div>
+  <div class="ver">AutoFlag© · v2.28</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1006,7 +1018,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.27</span>
+    <span>v2.28</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1195,8 +1207,12 @@
 
       <div class="btn-row">
         <button class="btn-secondary btn" id="mp-delete" onclick="deletePole()">Delete</button>
-        <!-- Rev 2.24: Report Issue / Repair Log entry from inside the pole modal -->
-        <button class="btn-secondary btn" onclick="openIssueFilerForPole(state.editing.customerId, state.editing.siteId, state.editing.poleId)" style="border-color:#7d3838;color:#e88a8a">🚨 Report Issue</button>
+        <!-- Rev 2.24: Report Issue / Repair Log entry from inside the pole modal.
+             Rev 2.28: Was reading state.editing.* directly from inline onclick,
+             but `state` is module-scoped — not on window — so the call silently
+             failed. Now uses a window-callable wrapper that reads the same
+             editing state from inside the module scope. -->
+        <button class="btn-secondary btn" onclick="reportIssueForCurrentPole()" style="border-color:#7d3838;color:#e88a8a">🚨 Report Issue</button>
         <button class="btn-secondary btn" onclick="closeModal('modalPole')">Cancel</button>
         <button class="btn" onclick="savePole()">Save</button>
       </div>
@@ -4263,11 +4279,11 @@ function renderFilterBar(){
   STATUSES.forEach(s => {
     html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${STATUS_LABELS[s]}</span>`;
   });
-  html += `<span class="filter-sep"></span><span class="filter-label">Type:</span>`;
-  html += `<span class="chip ${state.filter.installType==='all'?'active':''}" onclick="setInstallTypeFilter('all')">All</span>`;
-  html += `<span class="chip ${state.filter.installType==='external'?'active':''}" onclick="setInstallTypeFilter('external')">🪢 External</span>`;
-  html += `<span class="chip ${state.filter.installType==='internal'?'active':''}" onclick="setInstallTypeFilter('internal')">🧵 Internal</span>`;
-  html += `<span class="chip ${state.filter.installType==='cylinder'?'active':''}" onclick="setInstallTypeFilter('cylinder')">🛢 Cylinder</span>`;
+  html += `<span class="filter-sep type-filter-group"></span><span class="filter-label type-filter-group">Type:</span>`;
+  html += `<span class="chip type-filter-group ${state.filter.installType==='all'?'active':''}" onclick="setInstallTypeFilter('all')">All</span>`;
+  html += `<span class="chip type-filter-group ${state.filter.installType==='external'?'active':''}" onclick="setInstallTypeFilter('external')">🪢 External</span>`;
+  html += `<span class="chip type-filter-group ${state.filter.installType==='internal'?'active':''}" onclick="setInstallTypeFilter('internal')">🧵 Internal</span>`;
+  html += `<span class="chip type-filter-group ${state.filter.installType==='cylinder'?'active':''}" onclick="setInstallTypeFilter('cylinder')">🛢 Cylinder</span>`;
   bar.innerHTML = html;
 }
 // All three top filter chips toggle: clicking the active value clears the
@@ -9612,6 +9628,16 @@ window.deleteAIConversation = async (uid, convId) => {
 let issuePendingPhotos = []; // [{file, dataUrl, uploadedUrl?}]
 
 window.openIssueFiler = () => openIssueFilerForPole(null, null, null);
+
+// Rev 2.28: Window-callable wrapper that reads state.editing from module scope
+// so the Pole modal's inline onclick can invoke it without `state` being on window.
+window.reportIssueForCurrentPole = () => {
+  const { customerId, siteId, poleId } = state.editing || {};
+  if(!customerId || !siteId || !poleId){
+    return toast("No pole selected — open a pole first", true);
+  }
+  openIssueFilerForPole(customerId, siteId, poleId);
+};
 
 window.openIssueFilerForPole = (cid, sid, pid) => {
   // Reset modal state
