@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.16" />
+<meta name="app-rev" content="2.17" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -207,24 +207,37 @@
      the canonical printable surface; other views are not optimized for print. */
   @media print {
     @page { size: landscape; margin: 0.5in; }
-    body { background: #fff !important; color: #000 !important; }
+    /* Rev 2.17 fix: html element also has a dark bg — both html and body must
+       be reset, plus print-color-adjust:exact tells some browsers to honor our
+       overrides instead of preserving the dark theme. */
+    html, body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    main, #app, .container, .content {
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
     /* Hide everything chrome-related */
     header, footer, .top-row, .ai-bar, .filter-bar, .view-tabs,
+    .view-header-strip, .list-toolbar,
     #aiPanel, #toast, .modal-overlay, .fab, .no-print { display: none !important; }
     /* Show print-only blocks */
     .print-only { display: block !important; }
     /* Main view container takes the full page */
     main { padding: 0 !important; max-width: 100% !important; }
     /* List table on paper */
-    .list-table { border-collapse: collapse; width: 100%; font-size: 11pt; }
-    .list-table th, .list-table td { border: 1px solid #999; padding: 6px 8px; }
-    .list-table th { background: #eee !important; color: #000 !important; text-transform: uppercase; font-size: 9pt; }
+    .list-table { border-collapse: collapse; width: 100%; font-size: 11pt; background: #ffffff !important; }
+    .list-table th, .list-table td { border: 1px solid #999; padding: 6px 8px; background: #ffffff !important; }
+    .list-table th { background: #eeeeee !important; color: #000 !important; text-transform: uppercase; font-size: 9pt; }
     .list-table td { color: #000 !important; }
-    .list-table tr { page-break-inside: avoid; }
+    .list-table tr { page-break-inside: avoid; background: #ffffff !important; }
     .list-table tr:hover td { background: transparent !important; }
     /* Strip interactive chip styling from the cells */
     .list-cell-clickable { border: none !important; background: transparent !important; padding: 0 !important; color: #000 !important; }
-    .status-badge { border: 1px solid #999; padding: 2px 6px; }
+    .status-badge { border: 1px solid #999; padding: 2px 6px; background: #ffffff !important; color: #000 !important; }
     /* Suppress installer-summary box on print (it's nice on screen but adds noise on paper) */
     .installer-summary { display: none !important; }
   }
@@ -539,10 +552,16 @@
   }
 
   /* ==== Tree (accordion Browse) ==== */
-  /* Rev 2.14: Cap the customer-tree width on wide desktops so rows don't span
-     the entire page. 1200px keeps content readable and tight without dead
-     whitespace on the right. Centered on the page. */
-  .tree{display:flex;flex-direction:column;gap:4px;max-width:1200px;margin-left:auto;margin-right:auto;width:100%}
+  /* Rev 2.17: tree shrinks to content width (max-width: max-content) capped at
+     1200px for safety. This eliminates the "stretched to 1200px" look from
+     prior revs — the tree is now exactly as wide as its widest row needs.
+     The display:flex layout was making rows fill 100% of the tree width;
+     switched to inline-flex so rows are content-sized. The wrap container
+     centers the inline-flex tree on the page. align-items:stretch ensures
+     all customer rows render at the same width (the widest row's width),
+     so they look uniform even when shorter rows have fewer chips. */
+  .tree-wrap{display:flex;justify-content:center;width:100%;margin-top:0}
+  .tree{display:inline-flex;flex-direction:column;gap:4px;max-width:1200px;width:max-content;min-width:600px;align-items:stretch}
   .tree-customer,.tree-site{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
   .tree-row{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .15s}
   .tree-row:hover{background:var(--surface2)}
@@ -565,10 +584,10 @@
      created huge whitespace on wide desktops. */
   .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:16px}
   .tree-row-customer .tree-stats{margin-left:24px;justify-content:flex-start}
-  /* Rev 2.15 polish: spacer becomes a small fixed gap (was flex:1 1 auto which
-     pushed the ↗ button to the far right edge, leaving ~25% dead space on wide
-     desktops). Now ↗ sits right after the stats with a normal gap. */
-  .tree-row-spacer{display:inline-block;width:24px;flex-shrink:0}
+  /* Rev 2.17: spacer pushes ↗ to the right edge of the now-narrower row.
+     With the tree at content-width, "right edge" is just past the stats —
+     no big dead space. */
+  .tree-row-spacer{flex:1 1 auto;min-width:16px}
 
   /* Rev 2.14: Totals row — summary footer below the customer list. Same width
      cap as the tree (1200px centered), styled like a customer row but no
@@ -867,7 +886,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.16</div>
+  <div class="ver">AutoFlag© · v2.17</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -937,7 +956,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.16</span>
+    <span>v2.17</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4063,19 +4082,47 @@ window.filterByType = (installType, customerId) => {
 //   showExpand    — Browse-only: include the Expand/Collapse toggle button on the right
 function renderViewHeaderStrip({ leftContent = "", showExpand = false } = {}){
   const tabs = [
+    { id: "home",   label: "🏡 Home"   },
     { id: "browse", label: "📋 Browse" },
     { id: "kanban", label: "📊 Kanban" },
     { id: "list",   label: "📑 List" }
   ];
-  const tabsHtml = tabs.map(t =>
-    `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`
-  ).join('');
+  // Rev 2.17: Home isn't a state.view value — it's an action that switches to
+  // Browse and collapses everything. Doesn't show as "active" because we never
+  // remain in a "home" state (it always lands in Browse).
+  const tabsHtml = tabs.map(t => {
+    if(t.id === "home"){
+      return `<button class="mini-tab" onclick="goHomeMini()">${t.label}</button>`;
+    }
+    return `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`;
+  }).join('');
   const leftHtml = leftContent ? `<div class="view-header-strip-left">${leftContent}<div class="mini-tabs">${tabsHtml}</div></div>` : `<div class="mini-tabs">${tabsHtml}</div>`;
   const expandHtml = showExpand
     ? `<div class="view-header-strip-right"><button class="mini-expand-btn" id="expandToggleBtn" onclick="toggleExpandCollapse()">Expand</button></div>`
     : '';
   return `<div class="view-header-strip">${leftHtml}${expandHtml}</div>`;
 }
+
+// Rev 2.17: 🏡 Home action — collapse everything and land in Browse view.
+// Distinct from softGoBrowse() (in the top bar) which only fires when drilled
+// into a customer/site detail page; goHomeMini works from any non-installs view.
+window.goHomeMini = () => {
+  state.view = "browse";
+  state.drillCustomer = null;
+  state.drillSite = null;
+  state.expanded.customers.clear();
+  state.expanded.sites.clear();
+  // Clear any active filters too — Home means "fresh start"
+  state.filter.status = "all";
+  state.filter.installType = "all";
+  state.filter.customer = "all";
+  // Clear the search input + state
+  const inp = document.getElementById("searchInput");
+  if(inp) inp.value = "";
+  state.search = "";
+  document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view==="installs" ? false : false));
+  renderActive();
+};
 
 function renderBrowse(){
   // If user has drilled into a specific site/customer, keep the drill-down view
@@ -4125,7 +4172,7 @@ function renderBrowse(){
   // navigates to the appropriate tab + auto-expands the row.
   html += renderTbSearchResultsPanel();
 
-  html += `<div class="tree">`;
+  html += `<div class="tree-wrap"><div class="tree">`;
   // Mobile detection done at render time. resize listener (added once below)
   // calls renderActive() so customer rows re-render if viewport crosses 768px
   // (e.g. orientation change, desktop resize).
@@ -4320,7 +4367,7 @@ function renderBrowse(){
     }
     html += `</div>`;
   });
-  html += `</div>`;
+  html += `</div></div>`;
 
   // Rev 2.14: Totals row — sum every stat across the visible customer list
   // (respects current filters). Renders below the tree as a single summary row
