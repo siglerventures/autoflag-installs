@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.22" />
+<meta name="app-rev" content="2.23" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -281,15 +281,30 @@
   .form-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
   @media (max-width:700px){.form-grid-4{grid-template-columns:1fr 1fr}}
 
-  /* Rev 2.21: Assigned-installer checkbox grid in the Pole modal */
-  .assigned-installer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;min-height:42px}
-  .assigned-installer-grid:empty::after{content:"No team members in People roster yet — add via 👥 People (admin only)";color:var(--text-muted);font-size:11px;font-style:italic;grid-column:1/-1}
-  .assigned-installer-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .12s,background .12s;font-size:12px}
-  .assigned-installer-chip:hover{border-color:var(--amber-dim)}
-  .assigned-installer-chip input[type=checkbox]{margin:0;cursor:pointer;accent-color:var(--amber)}
-  .assigned-installer-chip.checked{background:rgba(212,134,10,.10);border-color:var(--amber)}
-  .assigned-installer-chip .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .assigned-installer-chip .badge{font-size:9px;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+  /* Rev 2.23: Assigned-installers dropdown — click-to-open multi-select.
+     Mirrors the visual weight of a native <select> so it sits alongside the
+     Completed By dropdown without looking out of place, but opens to a
+     panel with checkboxes for multi-select. Single source of truth (same
+     options as Completed By): Phil + peopleRoster admins/installers. */
+  .assigned-installer-grid{position:relative}
+  .ai-summary{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;min-height:38px;transition:border-color .12s}
+  .ai-summary:hover{border-color:var(--amber-dim)}
+  .assigned-installer-grid.open .ai-summary{border-color:var(--amber);border-bottom-left-radius:0;border-bottom-right-radius:0}
+  .ai-summary-text{flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+  .ai-summary-placeholder{color:var(--text-muted);font-size:12px;font-style:italic}
+  .ai-chip{display:inline-flex;align-items:center;background:rgba(212,134,10,.14);color:var(--amber-bright);border:1px solid var(--amber-dim);border-radius:var(--radius-pill);padding:2px 10px;font-size:11px;font-weight:500}
+  .ai-caret{color:var(--text-muted);font-size:10px;flex-shrink:0;transition:transform .15s}
+  .assigned-installer-grid.open .ai-caret{transform:rotate(180deg)}
+  .ai-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--amber);border-top:none;border-bottom-left-radius:var(--radius-sm);border-bottom-right-radius:var(--radius-sm);max-height:280px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .assigned-installer-grid.open .ai-dropdown{display:block}
+  .ai-option{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s;font-size:13px}
+  .ai-option:last-child{border-bottom:none}
+  .ai-option:hover{background:var(--surface2)}
+  .ai-option.checked{background:rgba(212,134,10,.06)}
+  .ai-option input[type=checkbox]{margin:0;cursor:pointer;accent-color:var(--amber);flex-shrink:0}
+  .ai-option-name{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ai-badge{font-size:9px;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;padding:1px 6px;background:rgba(212,134,10,.10);border-radius:var(--radius-pill)}
+  .ai-empty{padding:12px;color:var(--text-muted);font-size:11px;font-style:italic;text-align:center}
   @media (max-width:500px){.form-grid-4{grid-template-columns:1fr}}
   .btn{padding:8px 14px;background:var(--amber);color:#1a1208;border-radius:var(--radius-sm);font-weight:600;font-size:13px}
   .btn:hover{background:var(--amber-bright)}
@@ -909,7 +924,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.22</div>
+  <div class="ver">AutoFlag© · v2.23</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -980,7 +995,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.22</span>
+    <span>v2.23</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -7903,63 +7918,103 @@ function populateCompletedByDropdown(currentValue){
   }
 }
 
-// Rev 2.21: Populate the Assigned Installers checkbox grid in the Pole modal.
-// Sources installers (role==='installer') from peopleRoster. Each chip shows
-// the person's name and a checkbox. Checked = currently assigned.
-//
-// Note on key vs UID semantics: peopleRoster is email-keyed (e.g. "phil@sigler_com")
-// but the install-time visibility filter compares against `state.user.uid` (Firebase
-// Auth UID). Those are different identifiers. We store the email-key here for
-// stability across UID changes (UIDs reset if Auth user is recreated). The
-// filter at applyCustomerSnapshot needs to handle the lookup — see Step 6.
+// Rev 2.23: Populate the Assigned Installers dropdown in the Pole modal.
+// Uses the EXACT SAME data source as populateCompletedByDropdown — single source
+// of truth for "who can be assigned/credited for an install": Phil (root admin
+// via PHIL_UID) + everyone in peopleRoster with role admin or installer.
+// UI is a click-to-open dropdown showing checkboxes (multi-select), unlike
+// Completed By which is a native single-select. Both pull from the same list.
 function populateAssignedInstallersGrid(currentList){
-  const grid = document.getElementById("mp-assigned-installers");
-  if(!grid) return;
-  const installers = [];
-  // Rev 2.22: Phil hardcoded as root (always available even if not yet in peopleRoster).
-  // Email-key derived from his email so it matches the keying scheme used elsewhere.
-  // We use the canonical email "phil@siglerventures.com" for Phil's root identity.
-  installers.push({ key: "phil@siglerventures_com", name: "Phil Sigler", role: "admin" });
-  // Rev 2.22: Include BOTH admin and installer roles. Admins frequently do
-  // installs themselves (e.g. Austen, Larissa as admins doing field work).
-  // Excluding them was wrong — they couldn't be assigned to a pole even
-  // though they could complete one. Now they show in the grid alongside
-  // installer-role users.
+  const wrap = document.getElementById("mp-assigned-installers");
+  if(!wrap) return;
+  // Build the same options list Completed By uses
+  const options = [];
+  options.push({ key: PHIL_UID, name: "Phil Sigler", role: "admin" });
   if(typeof peopleRoster === "object" && peopleRoster){
     Object.entries(peopleRoster).forEach(([key, info]) => {
-      // Skip Phil's record if it's also in peopleRoster (avoid duplicate)
-      if(key === "phil@siglerventures_com") return;
       if(info.role === "admin" || info.role === "installer"){
-        installers.push({ key, name: info.name || info.email || key, email: info.email, role: info.role });
+        options.push({ key, name: info.name || info.email || key, role: info.role });
       }
     });
   }
-  // Sort by name for stable UX
-  installers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  options.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
   const current = new Set(currentList || []);
-  grid.innerHTML = installers.map(i => {
-    const isChecked = current.has(i.key);
-    const roleBadge = i.role === "admin" ? `<span class="badge">Admin</span>` : "";
-    return `<label class="assigned-installer-chip ${isChecked?'checked':''}" data-key="${escapeHtml(i.key)}">
+  // Build the summary text shown when the dropdown is closed
+  const selectedNames = options.filter(o => current.has(o.key)).map(o => o.name);
+  // Stale assignment (person was removed from roster) — preserve display
+  currentList?.forEach(k => {
+    if(!options.find(o => o.key === k)) selectedNames.push(`(former: ${String(k).slice(0,10)}...)`);
+  });
+  const summaryText = selectedNames.length === 0
+    ? `<span class="ai-summary-placeholder">— pick lead + any helpers —</span>`
+    : selectedNames.map(n => `<span class="ai-chip">${escapeHtml(n)}</span>`).join("");
+
+  // Build the option list (rendered inside the dropdown panel)
+  const optionsHtml = options.map(o => {
+    const isChecked = current.has(o.key);
+    const roleBadge = o.role === "admin" ? `<span class="ai-badge">Admin</span>` : "";
+    return `<label class="ai-option ${isChecked?'checked':''}" data-key="${escapeHtml(o.key)}">
       <input type="checkbox" ${isChecked?'checked':''} onchange="toggleAssignedInstallerChip(this)" />
-      <span class="name" title="${escapeHtml(i.email||i.key)}">${escapeHtml(i.name)}</span>
+      <span class="ai-option-name">${escapeHtml(o.name)}</span>
       ${roleBadge}
     </label>`;
-  }).join("");
+  }).join("") || `<div class="ai-empty">No team members in People roster yet — add via 👥 People.</div>`;
+
+  wrap.innerHTML = `
+    <div class="ai-summary" onclick="toggleAssignedInstallerDropdown(event)">
+      <div class="ai-summary-text">${summaryText}</div>
+      <span class="ai-caret">▼</span>
+    </div>
+    <div class="ai-dropdown" id="mp-assigned-installers-dropdown">${optionsHtml}</div>
+  `;
 }
 
-// Toggles the checked-class on the parent chip when its checkbox changes.
+// Toggle the dropdown panel open/closed.
+window.toggleAssignedInstallerDropdown = (ev) => {
+  ev?.stopPropagation();
+  const wrap = document.getElementById("mp-assigned-installers");
+  if(!wrap) return;
+  wrap.classList.toggle("open");
+};
+// Close the dropdown when clicking anywhere else.
+document.addEventListener("click", (e) => {
+  const wrap = document.getElementById("mp-assigned-installers");
+  if(!wrap) return;
+  if(!wrap.contains(e.target)) wrap.classList.remove("open");
+});
+
+// Toggle a single option's selected state when its checkbox changes.
+// Re-renders the summary line so the chips update without closing the dropdown.
 window.toggleAssignedInstallerChip = (cb) => {
-  const chip = cb.closest(".assigned-installer-chip");
-  if(chip) chip.classList.toggle("checked", cb.checked);
+  const opt = cb.closest(".ai-option");
+  if(!opt) return;
+  opt.classList.toggle("checked", cb.checked);
+  // Re-render the summary chips by re-reading the modal state and rebuilding.
+  // We do this in-place so the dropdown stays open and other checkbox states
+  // are preserved across the rerender.
+  const wrap = document.getElementById("mp-assigned-installers");
+  if(!wrap) return;
+  const summaryEl = wrap.querySelector(".ai-summary-text");
+  if(!summaryEl) return;
+  const checkedKeys = Array.from(wrap.querySelectorAll(".ai-option input:checked"))
+    .map(cb => cb.closest(".ai-option")?.dataset.key)
+    .filter(Boolean);
+  const checkedNames = checkedKeys.map(k => {
+    const opt = wrap.querySelector(`.ai-option[data-key="${CSS.escape(k)}"] .ai-option-name`);
+    return opt?.textContent || `(${k.slice(0,10)}...)`;
+  });
+  summaryEl.innerHTML = checkedNames.length === 0
+    ? `<span class="ai-summary-placeholder">— pick lead + any helpers —</span>`
+    : checkedNames.map(n => `<span class="ai-chip">${escapeHtml(n)}</span>`).join("");
 };
 
-// Reads the currently-checked installer keys out of the modal grid.
+// Reads the currently-checked installer keys out of the modal dropdown.
 function getAssignedInstallersFromUI(){
-  const grid = document.getElementById("mp-assigned-installers");
-  if(!grid) return [];
-  return Array.from(grid.querySelectorAll("input[type=checkbox]:checked"))
-    .map(cb => cb.closest(".assigned-installer-chip")?.dataset.key)
+  const wrap = document.getElementById("mp-assigned-installers");
+  if(!wrap) return [];
+  return Array.from(wrap.querySelectorAll(".ai-option input[type=checkbox]:checked"))
+    .map(cb => cb.closest(".ai-option")?.dataset.key)
     .filter(Boolean);
 }
 
