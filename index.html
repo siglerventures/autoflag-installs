@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.13" />
+<meta name="app-rev" content="2.14" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -101,7 +101,7 @@
   .view-tab:not(.active):hover{border-color:var(--amber-dim);color:var(--amber)}
 
   /* Mini view tabs — small inline strip used inside Browse/Kanban/List view headers (Rev 1.96) */
-  .view-header-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .view-header-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;max-width:1200px;margin-left:auto;margin-right:auto;width:100%}
   .view-header-strip-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .view-header-strip-right{display:flex;align-items:center;gap:6px}
   .mini-tabs{display:flex;gap:3px}
@@ -311,7 +311,7 @@
   /* Rev 2.06: Tools/BOM search results panel — appears above customer rows in
      Browse when search query matches any tool/part. Distinct visual treatment
      (amber-tinted) so it's clear these are different from customer rows. */
-  .tb-search-results{margin:8px 0 14px;background:var(--surface);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);overflow:hidden}
+  .tb-search-results{margin:8px auto 14px;background:var(--surface);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);overflow:hidden;max-width:1200px}
   .tb-search-results-header{padding:8px 12px;background:linear-gradient(135deg,rgba(212,134,10,0.10),rgba(212,134,10,0.04));border-bottom:1px solid var(--border);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
   .tb-search-results-header strong{color:var(--amber-bright)}
   .tb-search-result{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
@@ -483,7 +483,10 @@
   }
 
   /* ==== Tree (accordion Browse) ==== */
-  .tree{display:flex;flex-direction:column;gap:4px}
+  /* Rev 2.14: Cap the customer-tree width on wide desktops so rows don't span
+     the entire page. 1200px keeps content readable and tight without dead
+     whitespace on the right. Centered on the page. */
+  .tree{display:flex;flex-direction:column;gap:4px;max-width:1200px;margin-left:auto;margin-right:auto;width:100%}
   .tree-customer,.tree-site{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
   .tree-row{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .15s}
   .tree-row:hover{background:var(--surface2)}
@@ -504,9 +507,16 @@
      cluster sits next to them. Final flex spacer pushes the ↗ action button
      to the far right. Fixed gaps replace the previous flex-1 spacer that
      created huge whitespace on wide desktops. */
-  .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:24px}
-  .tree-row-customer .tree-stats{margin-left:48px;justify-content:flex-start}
+  .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:16px}
+  .tree-row-customer .tree-stats{margin-left:24px;justify-content:flex-start}
   .tree-row-spacer{flex:1 1 auto}
+
+  /* Rev 2.14: Totals row — summary footer below the customer list. Same width
+     cap as the tree (1200px centered), styled like a customer row but no
+     caret/details/action. Visually distinct via subtle background + label. */
+  .tree-totals-row{display:flex;align-items:center;gap:16px;padding:12px 16px;margin:8px auto 0;max-width:1200px;background:linear-gradient(135deg,rgba(212,134,10,0.08),rgba(212,134,10,0.02));border:1px solid var(--amber-dim);border-radius:var(--radius);flex-wrap:wrap}
+  .tree-totals-label{font-size:11px;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.8px;flex-shrink:0}
+  .tree-totals-row .tree-stats{justify-content:flex-start;flex:1 1 auto;gap:6px}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
   .tree-stat-date{padding:2px 8px;background:#1a2a3a;color:#a8c5e6;border-radius:var(--radius-pill);font-size:10px;font-weight:600;white-space:nowrap}
@@ -788,7 +798,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.13</div>
+  <div class="ver">AutoFlag© · v2.14</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -858,7 +868,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.13</span>
+    <span>v2.14</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1299,7 +1309,7 @@
 <div class="modal-overlay" id="modalBulkImage">
   <div class="modal" style="max-width:540px;max-height:80vh">
     <div class="modal-header">
-      <h2 id="bulkImageTitle">🖼️ Bulk Image Import</h2>
+      <h2 id="bulkImageTitle">🖼️ Import Images</h2>
       <button class="modal-close" onclick="closeModal('modalBulkImage')">×</button>
     </div>
     <div class="modal-body" style="overflow-y:auto;max-height:calc(80vh - 80px)">
@@ -4241,6 +4251,46 @@ function renderBrowse(){
     html += `</div>`;
   });
   html += `</div>`;
+
+  // Rev 2.14: Totals row — sum every stat across the visible customer list
+  // (respects current filters). Renders below the tree as a single summary row
+  // styled like a customer row but with no caret/details/action buttons.
+  const totals = { sites:0, poles:0, external:0, internal:0, cylinder:0,
+                   in_review:0, scheduled:0, in_progress:0, completed:0, verified:0, remaining:0 };
+  list.forEach(c => {
+    Object.values(c.sites || {}).forEach(s => {
+      totals.sites++;
+      Object.values(s.poles || {}).forEach(p => {
+        totals.poles++;
+        if(p.installType && totals.hasOwnProperty(p.installType)) totals[p.installType]++;
+        if(p.status && totals.hasOwnProperty(p.status)) totals[p.status]++;
+        if(["in_review","scheduled","in_progress"].includes(p.status)) totals.remaining++;
+      });
+    });
+  });
+  if(totals.poles > 0){
+    const tChip = (label, n, cls = "") =>
+      n > 0 ? `<span class="tree-stat ${cls}">${label} ${n}</span>` : "";
+    const tRemaining = totals.remaining > 0
+      ? `<span class="tree-stat-remaining" style="cursor:default">${totals.remaining} remaining</span>` : "";
+    html += `<div class="tree-totals-row">
+      <div class="tree-totals-label">TOTALS</div>
+      <div class="tree-stats">
+        ${tChip("📍", totals.sites)}
+        ${tChip("Poles", totals.poles)}
+        ${tChip("🪢 External", totals.external)}
+        ${tChip("🧵 Internal", totals.internal)}
+        ${tChip("🛢 Cylinder", totals.cylinder)}
+        ${tChip("In Review", totals.in_review)}
+        ${tChip("Scheduled", totals.scheduled)}
+        ${tChip("In Progress", totals.in_progress)}
+        ${tChip("✓ Completed", totals.completed)}
+        ${tChip("★ Verified", totals.verified)}
+        ${tRemaining}
+      </div>
+    </div>`;
+  }
+
   return html;
 }
 
@@ -5161,7 +5211,7 @@ function renderToolsView(){
   let html = `<div class="tb-toolbar">
     <div class="tb-summary"><strong>${itemsArr.length}</strong> tool${itemsArr.length===1?'':'s'} · <strong>$${totalCost.toFixed(2)}</strong> total kit value${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
     ${state.isAdmin ? `<button class="tb-add-btn" onclick="addToolItem()">+ Add Tool</button>
-      <button class="tb-bulk-img-btn" onclick="openBulkImageImport('tool')" title="Bulk-upload images from a ZIP">🖼️ Bulk Images</button>` : ''}
+      <button class="tb-bulk-img-btn" onclick="openBulkImageImport('tool')" title="Bulk-upload images from a ZIP">🖼️ Import</button>` : ''}
   </div>`;
 
   html += `<div class="tb-search-row">
@@ -5327,7 +5377,7 @@ function renderInstallBomView(){
   html += `<div class="tb-toolbar">
     <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} · <strong>$${totalInstallCost.toFixed(2)}</strong> per install${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
     ${state.isAdmin ? `<button class="tb-add-btn" onclick="addPartItem()">+ Add Part</button>
-      <button class="tb-bulk-img-btn" onclick="openBulkImageImport('part')" title="Bulk-upload images from a ZIP">🖼️ Bulk Images</button>` : ''}
+      <button class="tb-bulk-img-btn" onclick="openBulkImageImport('part')" title="Bulk-upload images from a ZIP">🖼️ Import</button>` : ''}
   </div>`;
 
   html += `<div class="tb-search-row">
@@ -5413,7 +5463,7 @@ function renderMechBomView(){
   let html = `<div class="tb-toolbar">
     <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} · <strong>$${totalDeviceCost.toFixed(2)}</strong> per device${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
     ${state.isAdmin ? `<button class="tb-add-btn" onclick="addMechPartItem()">+ Add Part</button>
-      <button class="tb-bulk-img-btn" onclick="openBulkImageImport('mechpart')" title="Bulk-upload images from a ZIP">🖼️ Bulk Images</button>` : ''}
+      <button class="tb-bulk-img-btn" onclick="openBulkImageImport('mechpart')" title="Bulk-upload images from a ZIP">🖼️ Import</button>` : ''}
   </div>`;
 
   html += `<div class="tb-search-row">
@@ -8589,11 +8639,11 @@ window.openBulkImageImport = (kind) => {
   document.getElementById("bulkImageProgress").style.display = "none";
   document.getElementById("bulkImageStartBtn").disabled = true;
   const titleByKind = {
-    tool: "🖼️ Bulk Image Import — 🔨 Tools",
-    part: `🖼️ Bulk Image Import — 🏗️ Install BOM (${(state.bomTab || "external").charAt(0).toUpperCase() + (state.bomTab || "external").slice(1)})`,
-    mechpart: "🖼️ Bulk Image Import — ⚙️ Mechanical BOM"
+    tool: "🖼️ Import Images — 🔨 Tools",
+    part: `🖼️ Import Images — 🏗️ Install BOM (${(state.bomTab || "external").charAt(0).toUpperCase() + (state.bomTab || "external").slice(1)})`,
+    mechpart: "🖼️ Import Images — ⚙️ Mechanical BOM"
   };
-  document.getElementById("bulkImageTitle").textContent = titleByKind[kind] || "🖼️ Bulk Image Import";
+  document.getElementById("bulkImageTitle").textContent = titleByKind[kind] || "🖼️ Import Images";
   openModal("modalBulkImage");
 };
 
