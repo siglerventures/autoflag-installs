@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.05" />
+<meta name="app-rev" content="2.07" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -307,6 +307,60 @@
     .installs-step-badges,.installs-step-instructions,.installs-step-photos{margin-left:0}
     .installs-step-photo{width:calc(50% - 4px);height:120px}
   }
+
+  /* Rev 2.06: Tools/BOM search results panel — appears above customer rows in
+     Browse when search query matches any tool/part. Distinct visual treatment
+     (amber-tinted) so it's clear these are different from customer rows. */
+  .tb-search-results{margin:8px 0 14px;background:var(--surface);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);overflow:hidden}
+  .tb-search-results-header{padding:8px 12px;background:linear-gradient(135deg,rgba(212,134,10,0.10),rgba(212,134,10,0.04));border-bottom:1px solid var(--border);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+  .tb-search-results-header strong{color:var(--amber-bright)}
+  .tb-search-result{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+  .tb-search-result:last-of-type{border-bottom:none}
+  .tb-search-result:hover{background:var(--surface2)}
+  .tb-search-thumb{width:32px;height:32px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .tb-search-thumb img{width:100%;height:100%;object-fit:cover}
+  .tb-search-thumb.empty{color:var(--text-muted);font-size:12px}
+  .tb-search-result-text{flex:1;min-width:0}
+  .tb-search-result-label{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-search-result-sublabel{font-size:11px;color:var(--text-muted);margin-top:1px}
+  .tb-search-result-jump{color:var(--amber);font-size:14px;flex-shrink:0}
+  .tb-search-result-more{padding:8px 12px;background:var(--surface2);font-size:11px;color:var(--text-muted);text-align:center;font-style:italic}
+
+  /* Rev 2.07: History entries */
+  .hist-entry{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px}
+  .hist-entry-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+  .hist-kind{font-size:14px;flex-shrink:0}
+  .hist-label{font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hist-time{font-size:10px;color:var(--text-muted);font-family:monospace;flex-shrink:0;white-space:nowrap}
+  .hist-ai-flag{font-size:11px;background:rgba(110,163,217,0.10);border:1px solid var(--blue);border-radius:var(--radius-pill);padding:1px 7px;color:var(--blue);flex-shrink:0}
+  .hist-entry-body{margin-left:22px;display:flex;flex-direction:column;gap:2px}
+  .hist-by{font-size:10px;color:var(--text-muted);font-style:italic;text-transform:uppercase;letter-spacing:.5px}
+  .hist-change{font-size:11px;color:var(--text-dim);font-family:monospace;line-height:1.5}
+  .hist-field{color:var(--amber);font-weight:600}
+  .hist-from{color:#e87b3e;text-decoration:line-through}
+  .hist-to{color:var(--green)}
+
+  /* Per-row history button (lives in detail panel beside Verify/Delete) */
+  .tb-history-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap}
+  .tb-history-btn:hover{border-color:var(--amber);color:var(--amber)}
+
+  /* Rev 2.07: Suggestion items */
+  .sug-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+  .sug-item-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px}
+  .sug-status{text-transform:uppercase;letter-spacing:.5px;font-weight:700;font-size:10px;border:1px solid currentColor;border-radius:var(--radius-pill);padding:1px 8px}
+  .sug-by{color:var(--text-dim);font-weight:500}
+  .sug-when{color:var(--text-muted);font-family:monospace;font-size:10px;margin-left:auto}
+  .sug-item-text{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap}
+  .sug-item-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .sug-action-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer}
+  .sug-action-btn:hover{border-color:var(--amber);color:var(--amber)}
+  .sug-action-btn.sug-delete{margin-left:auto;color:var(--red);border-color:var(--border)}
+  .sug-action-btn.sug-delete:hover{background:var(--red);color:#fff;border-color:var(--red)}
+
+  /* Suggestion chip in top filter row (Rev 2.07): styled like a lighter chip
+     with the lightbulb to make it visually distinct from filter chips. */
+  .filter-suggestion-chip{display:inline-flex;align-items:center;background:var(--surface2);border:1px solid var(--amber-dim);color:var(--amber);font-size:12px;padding:4px 12px;border-radius:var(--radius-pill);cursor:pointer;font-weight:500;flex-shrink:0;white-space:nowrap}
+  .filter-suggestion-chip:hover{background:rgba(212,134,10,0.10);color:var(--amber-bright);border-color:var(--amber)}
 
   /* ==== Tools + BOM (Rev 1.99 / Rev 2.00 spreadsheet) ==== */
   .tb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
@@ -671,6 +725,21 @@
   .ai-bubble.user{align-self:flex-end;background:var(--amber-dim);color:#fff}
   .ai-bubble.ai{align-self:flex-start;background:var(--surface2);color:var(--text);border:1px solid var(--border)}
 
+  /* Rev 2.06: AI Tools/BOM proposal confirmation card. Distinct from chat
+     bubbles — amber-bordered, structured like an editable summary with
+     Confirm / Cancel buttons. Click confirm → write to Firebase. */
+  .ai-proposal-card{align-self:flex-start;max-width:90%;background:var(--surface);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 12px;font-size:12px;display:flex;flex-direction:column;gap:6px;margin:4px 0}
+  .ai-proposal-card.dismissed{opacity:0.55;border-color:var(--border)}
+  .ai-proposal-header{display:flex;align-items:center;gap:8px}
+  .ai-proposal-icon{font-size:14px}
+  .ai-proposal-summary{font-weight:600;color:var(--amber-bright);font-size:13px}
+  .ai-proposal-target{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+  .ai-proposal-actions{display:flex;gap:6px;margin-top:4px}
+  .ai-proposal-confirm{padding:5px 14px;font-size:12px;background:var(--green);color:#0d0d0f;border:none;border-radius:var(--radius-sm);font-weight:600;cursor:pointer}
+  .ai-proposal-confirm:hover{filter:brightness(1.1)}
+  .ai-proposal-cancel{padding:5px 14px;font-size:12px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer}
+  .ai-proposal-cancel:hover{border-color:var(--red);color:var(--red)}
+
   /* ==== Footer (Eats-style) ==== */
   footer{padding:18px;text-align:center;color:var(--text-muted);font-size:11px;border-top:1px solid var(--border);margin-top:40px}
   footer .ftr-link{cursor:pointer;color:var(--text-muted);font-size:11px}
@@ -708,14 +777,14 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.05</div>
+  <div class="ver">AutoFlag© · v2.07</div>
 </div>
 
 <!-- ==== App shell ==== -->
 <div id="app" style="display:none">
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
-    <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, serials, notes..." oninput="renderActive()" />
+    <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, parts, tools..." oninput="renderActive()" />
     <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
     <input type="text" id="aiInput" class="ai-bar-input" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
     <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
@@ -777,8 +846,9 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.05</span>
+    <span>v2.07</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
+    · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
@@ -1125,6 +1195,63 @@
 
       <div class="btn-row">
         <button class="btn-secondary btn" onclick="closeModal('modalData')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: History (Rev 2.07) ==== -->
+<!-- Two modes: per-item (filterId set) shows just one item's history, or global (filterId=null)
+     shows a unified timeline across Tools, Install BOM, Mech BOM, and pole edits. -->
+<div class="modal-overlay" id="modalHistory">
+  <div class="modal" style="max-width:680px;max-height:80vh">
+    <div class="modal-header">
+      <h2 id="historyModalTitle">📜 History</h2>
+      <button class="modal-close" onclick="closeModal('modalHistory')">×</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;max-height:calc(80vh - 80px)">
+      <div id="historyModalToolbar" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <input type="text" id="historySearch" placeholder="🔍 Filter history..." oninput="renderHistoryEntries()"
+               style="flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:6px 14px;color:var(--text);font-size:13px" />
+        <select id="historyKindFilter" onchange="renderHistoryEntries()"
+                style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:12px">
+          <option value="all">All</option>
+          <option value="tool">🔨 Tools</option>
+          <option value="part">🏗️ Install BOM</option>
+          <option value="mechpart">⚙️ Mechanical BOM</option>
+          <option value="pole">📍 Poles</option>
+        </select>
+      </div>
+      <div id="historyEntries" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="historyEmpty" style="display:none;padding:20px;text-align:center;color:var(--text-muted);font-size:13px;font-style:italic">No history entries found.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Suggestion / Issue Box (Rev 2.07) ==== -->
+<div class="modal-overlay" id="modalSuggestion">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-header">
+      <h2>💡 Suggestions & Issues</h2>
+      <button class="modal-close" onclick="closeModal('modalSuggestion')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:4px;margin-bottom:12px">
+        <button id="sugTabSubmit" class="installs-tab active" onclick="switchSugTab('submit')">✏️ Submit</button>
+        <button id="sugTabList" class="installs-tab" onclick="switchSugTab('list')" style="display:none">📋 All Submissions</button>
+      </div>
+      <div id="sugSubmitPanel">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Found a bug or have a feature request? Drop it here. Goes straight to the team.</div>
+        <textarea id="sugInput" rows="5" placeholder="Describe the bug or feature request..."
+                  style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:13px;resize:vertical;font-family:inherit;line-height:1.5"></textarea>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn-secondary btn" onclick="closeModal('modalSuggestion')">Cancel</button>
+          <button class="btn-primary btn" onclick="submitSuggestion()">Submit</button>
+        </div>
+      </div>
+      <div id="sugListPanel" style="display:none">
+        <div id="sugListItems" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto"></div>
+        <div id="sugListEmpty" style="display:none;padding:20px;text-align:center;color:var(--text-muted);font-size:13px;font-style:italic">No suggestions yet.</div>
       </div>
     </div>
   </div>
@@ -3526,6 +3653,125 @@ function matchesSearch(c, s, p){
   return hay.includes(q);
 }
 
+// ==== Rev 2.06: Search across Tools / Install BOM / Mechanical BOM ====
+// Returns array of matches with enough context to jump to + expand.
+// Each match: { kind: "tool"|"part"|"mechpart", installType?: "external"|"internal"|"cylinder",
+//                id, item, label, sublabel }
+function searchTbItems(query){
+  const q = (query || "").trim().toLowerCase();
+  if(!q) return [];
+  const matches = [];
+  const matchItem = (item) => {
+    if(!item || item.deletedAt) return false;
+    const hay = [
+      item.name, item.category, item.material, item.notes,
+      ...(Array.isArray(item.links) ? item.links.map(l => `${l?.label||""} ${l?.url||""}`) : [])
+    ].filter(Boolean).join(" ").toLowerCase();
+    return hay.includes(q);
+  };
+
+  // Tools
+  Object.entries(state.tools || {}).forEach(([id, item]) => {
+    if(matchItem(item)) matches.push({
+      kind: "tool", id, item,
+      label: item.name || "(unnamed tool)",
+      sublabel: `🔨 Tool · $${(Number(item.price)||0).toFixed(2)}${item.category ? ` · ${item.category}` : ""}`
+    });
+  });
+
+  // Install BOM (per-install-type)
+  ["external","internal","cylinder"].forEach(installType => {
+    Object.entries(state.parts?.[installType] || {}).forEach(([id, item]) => {
+      if(matchItem(item)){
+        const qty = Number(item.qty)||1, pack = Number(item.packCost)||0, qpu = Number(item.qtyPerUnit)||1;
+        const costPerAssembly = (qty>0 ? pack/qty : 0) * qpu;
+        matches.push({
+          kind: "part", installType, id, item,
+          label: item.name || "(unnamed part)",
+          sublabel: `🏗️ ${installType.charAt(0).toUpperCase()+installType.slice(1)} BOM · ${qpu}× per install · $${costPerAssembly.toFixed(2)}`
+        });
+      }
+    });
+  });
+
+  // Mechanical BOM
+  Object.entries(state.mechParts || {}).forEach(([id, item]) => {
+    if(matchItem(item)){
+      const qty = Number(item.qty)||1, pack = Number(item.packCost)||0, qpu = Number(item.qtyPerUnit)||1;
+      const costPerAssembly = (qty>0 ? pack/qty : 0) * qpu;
+      matches.push({
+        kind: "mechpart", id, item,
+        label: item.name || "(unnamed part)",
+        sublabel: `⚙️ Mechanical BOM · ${qpu}× per device · $${costPerAssembly.toFixed(2)}`
+      });
+    }
+  });
+  return matches;
+}
+
+// Jump to and auto-expand a Tools/BOM item from a search result. Switches to
+// the Installs view + correct sub-tab + scrolls the row into view + expands it.
+window.jumpToTbItem = (kind, id, installType) => {
+  state.view = "installs";
+  if(kind === "tool"){
+    state.installsTab = "tools";
+  } else if(kind === "part"){
+    state.installsTab = "installbom";
+    state.bomTab = installType || "external";
+  } else if(kind === "mechpart"){
+    state.installsTab = "mechbom";
+  }
+  // Single-row-expanded behavior: clear other expanded rows, open just this one
+  state.expandedTbRows.clear();
+  state.expandedTbRows.add(`${kind}:${id}`);
+  // Update top-bar UI bits (Home button visibility, sub-tab highlighting)
+  document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view==="installs"));
+  if(typeof renderInstallsSubTabsInline === "function") renderInstallsSubTabsInline();
+  renderActive();
+  // Clear the search input so the user is no longer in "search results" mode
+  const inp = document.getElementById("searchInput");
+  if(inp) inp.value = "";
+  state.search = "";
+  // Scroll the row into view after render settles
+  setTimeout(() => {
+    const row = document.querySelector(`[data-item-id="${id}"][data-kind="${kind}"]`);
+    if(row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 200);
+};
+
+// Render the search-results panel for Tools/BOM matches. Shown above Browse
+// rows when state.search has any tb hits.
+function renderTbSearchResultsPanel(){
+  if(!state.search) return "";
+  const hits = searchTbItems(state.search);
+  if(hits.length === 0) return "";
+  let html = `<div class="tb-search-results">
+    <div class="tb-search-results-header">
+      <strong>${hits.length}</strong> match${hits.length===1?'':'es'} in Tools / BOMs
+    </div>`;
+  hits.slice(0, 12).forEach(h => {
+    const args = h.installType
+      ? `'${h.kind}','${h.id}','${h.installType}'`
+      : `'${h.kind}','${h.id}'`;
+    const thumb = h.item.imageUrl
+      ? `<div class="tb-search-thumb"><img src="${h.item.imageUrl}" alt="" /></div>`
+      : `<div class="tb-search-thumb empty">📷</div>`;
+    html += `<div class="tb-search-result" onclick="jumpToTbItem(${args})">
+      ${thumb}
+      <div class="tb-search-result-text">
+        <div class="tb-search-result-label">${escapeHtml(h.label)}</div>
+        <div class="tb-search-result-sublabel">${escapeHtml(h.sublabel)}</div>
+      </div>
+      <div class="tb-search-result-jump">↗</div>
+    </div>`;
+  });
+  if(hits.length > 12){
+    html += `<div class="tb-search-result-more">+ ${hits.length - 12} more — refine your search</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 // ==== Render dispatcher ====
 window.renderActive = () => {
   const newSearch = document.getElementById("searchInput")?.value.trim() || "";
@@ -3566,8 +3812,10 @@ function renderFilterBar(){
   html += `<span class="chip ${state.filter.installType==='external'?'active':''}" onclick="setInstallTypeFilter('external')">🪢 External</span>`;
   html += `<span class="chip ${state.filter.installType==='internal'?'active':''}" onclick="setInstallTypeFilter('internal')">🧵 Internal</span>`;
   html += `<span class="chip ${state.filter.installType==='cylinder'?'active':''}" onclick="setInstallTypeFilter('cylinder')">🛢 Cylinder</span>`;
-  // Customer filter chips removed — filter customers by clicking customer-row
-  // chips in Browse view or customer name cell in List view (toggle on/off).
+  // Rev 2.07: Suggestion chip — sits ~4 spaces over from Type chips, visually
+  // separated by margin so it reads as a separate action, not another filter.
+  html += `<span style="display:inline-block;width:32px;flex-shrink:0"></span>`;
+  html += `<span class="filter-suggestion-chip" onclick="openSuggestionModal()">💡 Suggest / Issue</span>`;
   bar.innerHTML = html;
 }
 // All three top filter chips toggle: clicking the active value clears the
@@ -3706,6 +3954,11 @@ function renderBrowse(){
 
   const countHtml = `<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>`;
   let html = renderViewHeaderStrip({ leftContent: countHtml, showExpand: true });
+
+  // Rev 2.06: Tools / BOMs search results render above customer rows when query
+  // matches anything in tools/parts/mech parts. Click a result → jumpToTbItem
+  // navigates to the appropriate tab + auto-expands the row.
+  html += renderTbSearchResultsPanel();
 
   html += `<div class="tree">`;
   // Mobile detection done at render time. resize listener (added once below)
@@ -4935,6 +5188,7 @@ function renderToolDetailPanel(id, item){
     html += `<div class="tb-detail-actions">
       <span class="tb-detail-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
       <div style="display:flex;gap:6px">
+        <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('tool','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}')">📜 History</button>
         <button class="tb-verify-btn ${item.lastVerifiedAt?'verified':''}" data-no-drag onclick="verifyTbLink('tool','${id}')">${item.lastVerifiedAt ? '✓ Re-verify' : '✓ Mark Verified'}</button>
         <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('tool','${id}')">✕ Delete</button>
       </div>
@@ -5008,7 +5262,7 @@ function renderInstallBomView(){
           <th class="${sortClass('name')}" onclick="setTbSort('bom','name')" style="width:240px">Name${sortInd('name')}</th>
           <th class="tb-hide-mobile" style="width:50px">Image</th>
           <th class="${sortClass('qty')} tb-hide-mobile" onclick="setTbSort('bom','qty')" style="text-align:right;width:60px">Qty${sortInd('qty')}</th>
-          <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('bom','packCost')" style="text-align:right;width:75px">Pack$${sortInd('packCost')}</th>
+          <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('bom','packCost')" style="text-align:right;width:95px">Packet Cost${sortInd("packCost")}</th>
           <th class="${sortClass('costPerUnit')} tb-hide-mobile" onclick="setTbSort('bom','costPerUnit')" style="text-align:right;width:80px">$/each${sortInd('costPerUnit')}</th>
           <th class="${sortClass('qtyPerUnit')} tb-hide-mobile" onclick="setTbSort('bom','qtyPerUnit')" style="text-align:right;width:75px">Per install${sortInd('qtyPerUnit')}</th>
           <th class="${sortClass('costPerAssembly')}" onclick="setTbSort('bom','costPerAssembly')" style="text-align:right;width:100px">Cost/install${sortInd('costPerAssembly')}</th>
@@ -5093,7 +5347,7 @@ function renderMechBomView(){
           <th class="${sortClass('name')}" onclick="setTbSort('mech','name')" style="width:240px">Name${sortInd('name')}</th>
           <th class="tb-hide-mobile" style="width:50px">Image</th>
           <th class="${sortClass('qty')} tb-hide-mobile" onclick="setTbSort('mech','qty')" style="text-align:right;width:60px">Qty${sortInd('qty')}</th>
-          <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('mech','packCost')" style="text-align:right;width:75px">Pack$${sortInd('packCost')}</th>
+          <th class="${sortClass('packCost')} tb-hide-mobile" onclick="setTbSort('mech','packCost')" style="text-align:right;width:95px">Packet Cost${sortInd("packCost")}</th>
           <th class="${sortClass('costPerUnit')} tb-hide-mobile" onclick="setTbSort('mech','costPerUnit')" style="text-align:right;width:80px">$/each${sortInd('costPerUnit')}</th>
           <th class="${sortClass('qtyPerUnit')} tb-hide-mobile" onclick="setTbSort('mech','qtyPerUnit')" style="text-align:right;width:75px">Per device${sortInd('qtyPerUnit')}</th>
           <th class="${sortClass('costPerAssembly')}" onclick="setTbSort('mech','costPerAssembly')" style="text-align:right;width:100px">Cost/device${sortInd('costPerAssembly')}</th>
@@ -5212,7 +5466,7 @@ function renderPartDetailPanel(id, item, kind = "part"){
       <input type="number" step="1" min="1" class="tb-detail-input num" data-no-drag value="${qty}"
         oninput="onTbFieldChange('${kind}','${id}','qty',parseFloat(this.value)||1)"
         onblur="saveTbItem('${kind}','${id}')" title="Pack size — how many come per pack" />
-      <span class="tb-detail-label">Pack $</span>
+      <span class="tb-detail-label">Packet Cost</span>
       <input type="number" step="0.01" class="tb-detail-input num" data-no-drag value="${packCost.toFixed(2)}"
         oninput="onTbFieldChange('${kind}','${id}','packCost',parseFloat(this.value)||0)"
         onblur="saveTbItem('${kind}','${id}')" title="Cost per pack" />
@@ -5247,6 +5501,7 @@ function renderPartDetailPanel(id, item, kind = "part"){
     html += `<div class="tb-detail-actions">
       <span class="tb-detail-meta">${verified ? `✓ Verified ${verified}` : 'Not verified'}</span>
       <div style="display:flex;gap:6px">
+        <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('${kind}','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}'${kind==='part' ? ",'"+(state.bomTab||'external')+"'" : ''})">📜 History</button>
         <button class="tb-verify-btn ${item.lastVerifiedAt?'verified':''}" data-no-drag onclick="verifyTbLink('${kind}','${id}')">${item.lastVerifiedAt ? '✓ Re-verify' : '✓ Mark Verified'}</button>
         <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('${kind}','${id}')">✕ Delete</button>
       </div>
@@ -7187,9 +7442,12 @@ window.askAI = async () => {
     document.getElementById("aiThinking").classList.add("visible");
     photoUrls = await uploadPendingAIPhotos();
   }
+  // Rev 2.06: Snapshot uploaded URLs for the current AI turn so a Tools/BOM
+  // attach_image proposal can reference them by index. Cleared on the next turn.
+  window.__lastAITurnPhotoUrls = photoUrls.slice();
 
   const photoNote = photoUrls.length
-    ? '\n\n[Attached ' + photoUrls.length + ' photo URL' + (photoUrls.length === 1 ? '' : 's') + ' — use in photos array when calling add_pole or update_pole]:\n' + photoUrls.join('\n')
+    ? '\n\n[Attached ' + photoUrls.length + ' photo URL' + (photoUrls.length === 1 ? '' : 's') + ' — use in photos array when calling add_pole or update_pole, or refer to them by imageIndex 0,1,2... when calling propose_tb_action with operation=attach_image]:\n' + photoUrls.join('\n')
     : '';
   const fullMessage = q + photoNote;
 
@@ -7238,7 +7496,48 @@ CRITICAL RULES:
 - Date fields: expectedInstallDate is the planned install date (set during scheduled phase). completedDate is the actual completion date. completedBy is the UID of the person who completed it (admins or installers).
 - Status workflow: in_review (specs incomplete) → scheduled (date set) → in_progress (installer on site) → completed (installer marked complete) → verified (admin QA-checked).
 - Status "verified" can ONLY be set by admins. If the current user is not admin and asks to verify a pole, refuse and explain that an admin must verify.
-- Install procedures: The data context includes _procedures with the step-by-step install templates for each installType (external/internal/cylinder). When an installer asks "what's next on Pole X" or "I'm stuck on step N" or "how do I install this", look up the pole's installType, find the matching procedure template, and reference the specific step. Also use the per-pole "progress" field to know which step they're likely on.`;
+- Install procedures: The data context includes _procedures with the step-by-step install templates for each installType (external/internal/cylinder). When an installer asks "what's next on Pole X" or "I'm stuck on step N" or "how do I install this", look up the pole's installType, find the matching procedure template, and reference the specific step. Also use the per-pole "progress" field to know which step they're likely on.
+
+TOOLS / BOMs (Rev 2.06):
+The data context also includes _tools (universal tool kit), _installBom { external|internal|cylinder } (per-install consumables), and _mechanicalBom (parts inside the AutoFlag device itself).
+
+READ — answer from these directly. Examples:
+- "What magnets do we use?" → look in _installBom.external for items with "magnet" in the name
+- "Cheapest tool?" → sort _tools by price
+- "Cost per install for External?" → sum costPerAssembly across _installBom.external
+- "Cost per device?" → sum costPerAssembly across _mechanicalBom
+
+WRITE — to modify a Tools/BOM item, emit a propose_tb_action JSON block. Admin only. The client will show a confirmation card before any write happens.
+
+{ "action": "propose_tb_action", "operation": "update", "kind": "tool|part|mechpart", "installType": "external|internal|cylinder", "id": "<itemId>", "patch": { "field": newValue, ... }, "summary": "<one-line human description of what will change>" }
+
+Allowed patch fields:
+- Tools: name, price, category, notes
+- Install BOM parts: name, qty, packCost, qtyPerUnit, material, notes
+- Mechanical BOM parts: name, qty, packCost, qtyPerUnit, material, notes
+
+For installType — REQUIRED only when kind="part" (Install BOM is per-install-type).
+
+Other operations:
+{ "action": "propose_tb_action", "operation": "verify", "kind":"...", "id":"...", "installType":"...", "summary":"..." }
+{ "action": "propose_tb_action", "operation": "delete", "kind":"...", "id":"...", "installType":"...", "summary":"..." }
+{ "action": "propose_tb_action", "operation": "add", "kind":"tool|part|mechpart", "installType":"...", "newItem": { "name":"...", ... }, "summary":"..." }
+{ "action": "propose_tb_action", "operation": "attach_image", "kind":"...", "id":"...", "installType":"...", "imageIndex": 0, "summary":"..." }
+   — imageIndex refers to the user's most recently attached photos in this turn (0 = first attached image). Use this when user attached one or more images and wants them routed to a specific item.
+
+CRITICAL TOOLS/BOM RULES:
+- NEVER write directly. Always propose. The user MUST tap Confirm before the write happens.
+- AMBIGUITY: if the user says "update magnets to 30", DON'T propose anything — first ASK in plain text: "Did you mean qty per install (currently 24, change to 30) or qty per pack (currently 100, change to 30)?" Wait for their reply, THEN propose.
+- AMBIGUITY: if the user references an item by partial name and there are multiple matches (e.g., "update screws" and there are self-tapping screws + nut drivers), list candidates and ask which.
+- If the user is not admin, refuse with: "Only admins can modify the Tools and BOMs."
+- For READ-ONLY questions, respond in plain text, no JSON.
+- Use exact field names from the schema (qty NOT quantity, packCost NOT pack_cost).
+- Field semantics:
+  • qty = pack size from supplier (how many come in one purchase)
+  • packCost = cost of one pack
+  • qtyPerUnit = how many used PER INSTALL (for parts) or PER DEVICE (for mech parts)
+  • costPerUnit and costPerAssembly are COMPUTED — do NOT include in patch
+- Multiple proposals can be emitted but each requires its own confirmation tap. Prefer a single proposal per turn unless user explicitly asks for batch.`;
 
   try{
     const idToken = await auth.currentUser.getIdToken(true);
@@ -7320,6 +7619,52 @@ function buildAIContext(){
     internal: procExport("internal"),
     cylinder: procExport("cylinder")
   };
+
+  // Rev 2.06: Tools / BOMs context for AI search + edit. Compact representation
+  // — strip history, deletedAt, created/updatedBy. Costs computed on the fly.
+  const tbCompact = (item, computePerLabel) => {
+    if(!item || item.deletedAt) return null;
+    const qty = Number(item.qty) || 1;
+    const packCost = Number(item.packCost) || 0;
+    const qtyPerUnit = Number(item.qtyPerUnit) || 1;
+    const o = {
+      name: item.name,
+      ...(item.price != null ? { price: item.price } : {}),
+      ...(item.qty != null ? { qty } : {}),
+      ...(item.packCost != null ? { packCost } : {}),
+      ...(item.qtyPerUnit != null ? { qtyPerUnit } : {}),
+      ...(item.material ? { material: item.material } : {}),
+      ...(item.category ? { category: item.category } : {}),
+      ...(item.notes ? { notes: item.notes } : {}),
+      ...(item.imageUrl ? { hasImage: true } : {}),
+      sources: (item.links || []).map(l => l.label).filter(Boolean),
+      ...(item.lastVerifiedAt ? { verified: new Date(item.lastVerifiedAt).toISOString().slice(0,10) } : {})
+    };
+    if(item.qty != null && item.qtyPerUnit != null){
+      const cpu = qty > 0 ? packCost / qty : 0;
+      o.costPerUnit = +cpu.toFixed(4);
+      o.costPerAssembly = +(cpu * qtyPerUnit).toFixed(2);
+      o.perLabel = computePerLabel;
+    }
+    return o;
+  };
+  out._tools = {};
+  Object.entries(state.tools || {}).forEach(([id, item]) => {
+    const c = tbCompact(item);
+    if(c) out._tools[id] = c;
+  });
+  out._installBom = { external:{}, internal:{}, cylinder:{} };
+  ["external","internal","cylinder"].forEach(t => {
+    Object.entries(state.parts?.[t] || {}).forEach(([id, item]) => {
+      const c = tbCompact(item, "per install");
+      if(c) out._installBom[t][id] = c;
+    });
+  });
+  out._mechanicalBom = {};
+  Object.entries(state.mechParts || {}).forEach(([id, item]) => {
+    const c = tbCompact(item, "per device");
+    if(c) out._mechanicalBom[id] = c;
+  });
   return out;
 }
 
@@ -7403,6 +7748,256 @@ async function executeAction(a){
     await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}`, sitePatch);
     toast(`Updated site ${before.name || a.siteId}`);
   }
+  // Rev 2.06: Tools / BOM proposals — render a confirmation card, defer execution
+  // until the admin taps Confirm. The actual write happens in confirmTbProposal().
+  else if(a.action==="propose_tb_action"){
+    if(!state.isAdmin){
+      appendBubble("Only admins can modify the Tools and BOMs.", "ai");
+      return;
+    }
+    renderTbProposalCard(a);
+  }
+}
+
+// ===== Rev 2.06: Tools/BOM proposal confirmation =====
+// Bot proposes via {action:"propose_tb_action", operation, kind, id, ...}.
+// We render an inline card in the chat thread with Confirm/Cancel buttons.
+// On Confirm → write to Firebase via the same handlers used for direct UI edits.
+const __pendingProposals = {};   // pid → proposal payload
+let __proposalSeq = 0;
+
+function renderTbProposalCard(proposal){
+  const pid = `prop_${++__proposalSeq}`;
+  // Snapshot the uploaded URLs from the current AI turn for attach_image proposals.
+  // Photos are uploaded to FB Storage *before* the AI call, so by the time we get
+  // here the URLs are durable. We store URLs (not file refs) since the Confirm tap
+  // may happen long after the upload.
+  const photoSnapshot = (proposal.operation === "attach_image" && Array.isArray(window.__lastAITurnPhotoUrls))
+    ? window.__lastAITurnPhotoUrls.slice()
+    : null;
+  __pendingProposals[pid] = { ...proposal, photoSnapshot };
+
+  // Build a description block based on operation
+  const op = proposal.operation;
+  const kind = proposal.kind;
+  const id = proposal.id;
+  const installType = proposal.installType;
+  let item = null;
+  if(kind === "tool") item = state.tools?.[id];
+  else if(kind === "part") item = state.parts?.[installType]?.[id];
+  else if(kind === "mechpart") item = state.mechParts?.[id];
+
+  const itemLabel = item?.name || (op==="add" ? proposal.newItem?.name : "(unknown item)");
+  const kindLabel = kind === "tool" ? "🔨 Tool" : (kind === "mechpart" ? "⚙️ Mechanical BOM part" : `🏗️ ${(installType||"?").charAt(0).toUpperCase()+(installType||"").slice(1)} BOM part`);
+
+  let detailsHtml = "";
+  if(op === "update" && proposal.patch && item){
+    const rows = Object.entries(proposal.patch).map(([k, v]) => {
+      const before = item[k];
+      return `<tr><td style="color:var(--text-muted);padding:2px 8px 2px 0">${escapeHtml(k)}</td><td style="color:#e87b3e;text-decoration:line-through;padding:2px 8px">${escapeHtml(String(before ?? "—"))}</td><td style="color:var(--green);padding:2px 0">→ ${escapeHtml(String(v))}</td></tr>`;
+    }).join("");
+    detailsHtml = `<table style="font-size:11px;font-family:monospace;margin-top:6px">${rows}</table>`;
+  } else if(op === "verify"){
+    detailsHtml = `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Mark <strong>${escapeHtml(itemLabel)}</strong> as verified (timestamp = now)</div>`;
+  } else if(op === "delete"){
+    detailsHtml = `<div style="font-size:11px;color:var(--red);margin-top:6px">Soft-delete <strong>${escapeHtml(itemLabel)}</strong> (recoverable from history)</div>`;
+  } else if(op === "add" && proposal.newItem){
+    const rows = Object.entries(proposal.newItem).map(([k, v]) => {
+      return `<tr><td style="color:var(--text-muted);padding:2px 8px 2px 0">${escapeHtml(k)}</td><td style="color:var(--green);padding:2px 0">${escapeHtml(String(v))}</td></tr>`;
+    }).join("");
+    detailsHtml = `<table style="font-size:11px;font-family:monospace;margin-top:6px">${rows}</table>`;
+  } else if(op === "attach_image"){
+    const count = photoSnapshot ? photoSnapshot.length : 0;
+    detailsHtml = `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Attach ${count > 0 ? count + " image" + (count===1?'':'s') : "image"} to <strong>${escapeHtml(itemLabel)}</strong>${count===0 ? ' <span style="color:var(--red)">— no images attached to your message</span>' : ''}</div>`;
+  }
+
+  const summary = proposal.summary || `${op} ${itemLabel}`;
+  const card = `<div class="ai-proposal-card" data-pid="${pid}">
+    <div class="ai-proposal-header">
+      <span class="ai-proposal-icon">⚡</span>
+      <span class="ai-proposal-summary">${escapeHtml(summary)}</span>
+    </div>
+    <div class="ai-proposal-target">${kindLabel} · ${escapeHtml(itemLabel)}</div>
+    ${detailsHtml}
+    <div class="ai-proposal-actions">
+      <button class="ai-proposal-confirm" onclick="confirmTbProposal('${pid}')">✓ Confirm</button>
+      <button class="ai-proposal-cancel" onclick="cancelTbProposal('${pid}')">✕ Cancel</button>
+    </div>
+  </div>`;
+
+  // Append the card directly to the chat thread (separate from regular bubbles)
+  const thread = document.getElementById("aiResponse");
+  if(thread){
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = card;
+    thread.appendChild(wrapper.firstElementChild);
+    thread.scrollTop = thread.scrollHeight;
+  }
+}
+
+window.cancelTbProposal = (pid) => {
+  delete __pendingProposals[pid];
+  const card = document.querySelector(`.ai-proposal-card[data-pid="${pid}"]`);
+  if(card){
+    card.classList.add("dismissed");
+    card.querySelector(".ai-proposal-actions").innerHTML = '<span style="color:var(--text-muted);font-size:11px;font-style:italic">Cancelled</span>';
+  }
+};
+
+window.confirmTbProposal = async (pid) => {
+  const p = __pendingProposals[pid];
+  if(!p) return;
+  if(!state.isAdmin){ toast("Admin only", true); return; }
+
+  const card = document.querySelector(`.ai-proposal-card[data-pid="${pid}"]`);
+  const actionsEl = card?.querySelector(".ai-proposal-actions");
+  if(actionsEl) actionsEl.innerHTML = '<span style="color:var(--text-muted);font-size:11px;font-style:italic">Working...</span>';
+
+  try {
+    if(p.operation === "update"){
+      await applyTbProposalUpdate(p);
+    } else if(p.operation === "verify"){
+      await verifyTbLink(p.kind, p.id);
+    } else if(p.operation === "delete"){
+      await applyTbProposalDelete(p);
+    } else if(p.operation === "add"){
+      await applyTbProposalAdd(p);
+    } else if(p.operation === "attach_image"){
+      await applyTbProposalAttachImage(p);
+    } else {
+      throw new Error("Unknown operation: " + p.operation);
+    }
+    if(actionsEl) actionsEl.innerHTML = '<span style="color:var(--green);font-size:11px">✓ Applied</span>';
+    delete __pendingProposals[pid];
+  } catch(e){
+    console.error("Proposal failed:", e);
+    if(actionsEl) actionsEl.innerHTML = `<span style="color:var(--red);font-size:11px">✗ Failed: ${escapeHtml(e.message || "")}</span>`;
+  }
+};
+
+// Set the bomTab context so tbItemPath/tbGetCurrentItem find Install BOM parts
+// in the correct install-type sub-tree.
+function withBomContext(installType, fn){
+  const prev = state.bomTab;
+  if(installType) state.bomTab = installType;
+  try { return fn(); }
+  finally { state.bomTab = prev; }
+}
+
+async function applyTbProposalUpdate(p){
+  await withBomContext(p.installType, async () => {
+    const item = tbGetCurrentItem(p.kind, p.id);
+    if(!item) throw new Error("Item not found");
+    // Whitelist allowed fields per kind
+    const allowedByKind = {
+      tool: ["name","price","category","notes"],
+      part: ["name","qty","packCost","qtyPerUnit","material","notes"],
+      mechpart: ["name","qty","packCost","qtyPerUnit","material","notes"]
+    };
+    const allowed = allowedByKind[p.kind] || [];
+    const patch = { ...item };
+    Object.entries(p.patch || {}).forEach(([k, v]) => {
+      if(allowed.includes(k)) patch[k] = v;
+    });
+    const changes = diffTbItem(item, patch);
+    if(changes.length === 0) return; // no-op
+    patch.history = [...(item.history || []), buildHistoryEntry([
+      ...changes,
+      { field: "_aiInitiated", from: null, to: state.user.uid }
+    ])].slice(-100);
+    patch.updatedAt = Date.now();
+    patch.updatedBy = state.user.uid;
+    await set(ref(db, tbItemPath(p.kind, p.id)), patch);
+    toast(`✓ Updated ${item.name || p.id}`);
+  });
+}
+
+async function applyTbProposalDelete(p){
+  await withBomContext(p.installType, async () => {
+    const item = tbGetCurrentItem(p.kind, p.id);
+    if(!item) throw new Error("Item not found");
+    const entry = buildHistoryEntry([
+      { field: "deletedAt", from: null, to: Date.now() },
+      { field: "_aiInitiated", from: null, to: state.user.uid }
+    ]);
+    await set(ref(db, tbItemPath(p.kind, p.id)), {
+      ...item, deletedAt: Date.now(),
+      updatedAt: Date.now(), updatedBy: state.user.uid,
+      history: [...(item.history || []), entry].slice(-100)
+    });
+    toast(`Deleted ${item.name || p.id}`);
+  });
+}
+
+async function applyTbProposalAdd(p){
+  const newItem = p.newItem || {};
+  await withBomContext(p.installType, async () => {
+    let path, id, base;
+    if(p.kind === "tool"){
+      id = `tool_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+      path = `autoflag/tools/${id}`;
+      base = {
+        name: "", price: 0, category: "", notes: "",
+        imageUrl: null, links: [], lastVerifiedAt: null,
+        displayOrder: nextDisplayOrder(state.tools)
+      };
+    } else if(p.kind === "part"){
+      id = `part_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+      path = `autoflag/parts/${state.bomTab}/${id}`;
+      base = {
+        name: "", qty: 1, packCost: 0, qtyPerUnit: 1, material: null, notes: "",
+        imageUrl: null, links: [], lastVerifiedAt: null,
+        displayOrder: nextDisplayOrder(state.parts[state.bomTab] || {})
+      };
+    } else if(p.kind === "mechpart"){
+      id = `mech_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+      path = `autoflag/mechanical-parts/${id}`;
+      base = {
+        name: "", qty: 1, packCost: 0, qtyPerUnit: 1, material: null, notes: "",
+        imageUrl: null, links: [], lastVerifiedAt: null,
+        displayOrder: nextDisplayOrder(state.mechParts || {})
+      };
+    } else {
+      throw new Error("Unknown kind: " + p.kind);
+    }
+    const item = {
+      ...base, ...newItem,
+      deletedAt: null,
+      createdAt: Date.now(), createdBy: state.user.uid,
+      updatedAt: Date.now(), updatedBy: state.user.uid,
+      history: [buildHistoryEntry([
+        { field: "_created", from: null, to: newItem.name || "(new)" },
+        { field: "_aiInitiated", from: null, to: state.user.uid }
+      ])]
+    };
+    await set(ref(db, path), item);
+    toast(`Added ${item.name || "(new item)"}`);
+  });
+}
+
+async function applyTbProposalAttachImage(p){
+  const urls = p.photoSnapshot || [];
+  if(!urls.length) throw new Error("No images attached to your message");
+  const idx = Number.isInteger(p.imageIndex) ? p.imageIndex : 0;
+  const url = urls[idx];
+  if(!url) throw new Error(`Image index ${idx} not found (only ${urls.length} attached)`);
+  await withBomContext(p.installType, async () => {
+    const item = tbGetCurrentItem(p.kind, p.id);
+    if(!item) throw new Error("Item not found");
+    const oldUrl = item.imageUrl || "";
+    const entry = buildHistoryEntry([
+      { field: "imageUrl", from: oldUrl ? "(image)" : null, to: "(image)" },
+      { field: "_aiInitiated", from: null, to: state.user.uid }
+    ]);
+    await set(ref(db, tbItemPath(p.kind, p.id)), {
+      ...item,
+      imageUrl: url,
+      updatedAt: Date.now(),
+      updatedBy: state.user.uid,
+      history: [...(item.history || []), entry].slice(-100)
+    });
+    toast(`✓ Image attached to ${item.name || p.id}`);
+  });
 }
 
 // ==== Export / Backup / Restore ====
@@ -7413,6 +8008,254 @@ window.openDataModal = () => {
   if(mf) mf.textContent = "No file selected";
   openModal("modalData");
 };
+
+// ===== Rev 2.07: History modal — global + per-item =====
+// state.historyFilter = { kind: 'all'|'tool'|'part'|'mechpart'|'pole', itemId?, label? }
+// Global mode: itemId=null, shows everything
+// Per-item mode: itemId set, label set, only shows that item
+const __historyState = { itemId: null, kind: "all", label: null };
+
+window.openHistoryModal = (kind = null, itemId = null, label = null, installType = null) => {
+  __historyState.itemId = itemId;
+  __historyState.kind = kind || "all";
+  __historyState.label = label;
+  __historyState.installType = installType;
+
+  const titleEl = document.getElementById("historyModalTitle");
+  const filterToolbar = document.getElementById("historyModalToolbar");
+  if(itemId && label){
+    // Per-item mode — title shows the item, hide the kind filter
+    titleEl.textContent = `📜 History · ${label}`;
+    filterToolbar.querySelector("#historyKindFilter").style.display = "none";
+  } else {
+    titleEl.textContent = "📜 History · All Activity";
+    filterToolbar.querySelector("#historyKindFilter").style.display = "";
+    document.getElementById("historyKindFilter").value = "all";
+  }
+  document.getElementById("historySearch").value = "";
+  renderHistoryEntries();
+  openModal("modalHistory");
+};
+
+// Build a unified list of history entries from all data sources, then filter + render.
+window.renderHistoryEntries = () => {
+  const search = (document.getElementById("historySearch")?.value || "").trim().toLowerCase();
+  const kindFilter = __historyState.itemId
+    ? __historyState.kind   // per-item mode locks the kind
+    : (document.getElementById("historyKindFilter")?.value || "all");
+
+  const all = [];
+
+  // Helper: collect history from any item with .history[] + a label/kind tag
+  const collectFromItems = (kind, items, getLabel, getInstallType) => {
+    if(__historyState.itemId && (kindFilter !== kind || true)){
+      // Per-item mode: only include if id matches
+      const item = items[__historyState.itemId];
+      if(item && Array.isArray(item.history)){
+        item.history.forEach(h => all.push({
+          ...h, kind, itemId: __historyState.itemId,
+          label: getLabel(item),
+          installType: getInstallType ? getInstallType() : null
+        }));
+      }
+      return;
+    }
+    if(kindFilter !== "all" && kindFilter !== kind) return;
+    Object.entries(items || {}).forEach(([id, item]) => {
+      if(!item || !Array.isArray(item.history)) return;
+      item.history.forEach(h => all.push({
+        ...h, kind, itemId: id,
+        label: getLabel(item),
+        installType: getInstallType ? getInstallType(id, item) : null
+      }));
+    });
+  };
+
+  if(__historyState.itemId){
+    // Per-item mode: route to the single item
+    if(__historyState.kind === "tool") collectFromItems("tool", state.tools || {}, i => i.name);
+    else if(__historyState.kind === "part") collectFromItems("part", (state.parts?.[__historyState.installType] || {}), i => i.name, () => __historyState.installType);
+    else if(__historyState.kind === "mechpart") collectFromItems("mechpart", state.mechParts || {}, i => i.name);
+    else if(__historyState.kind === "pole"){
+      // Walk customers/sites/poles to find the matching pole
+      Object.values(state.data.customers || {}).forEach(c => {
+        Object.values(c.sites || {}).forEach(s => {
+          const p = s.poles?.[__historyState.itemId];
+          if(p && Array.isArray(p.history)){
+            p.history.forEach(h => all.push({ ...h, kind: "pole", itemId: __historyState.itemId, label: p.label || "(pole)" }));
+          }
+        });
+      });
+    }
+  } else {
+    // Global mode: collect from all sources
+    collectFromItems("tool", state.tools || {}, i => i.name);
+    ["external","internal","cylinder"].forEach(t => {
+      collectFromItems("part", state.parts?.[t] || {}, i => i.name, () => t);
+    });
+    collectFromItems("mechpart", state.mechParts || {}, i => i.name);
+    if(kindFilter === "all" || kindFilter === "pole"){
+      Object.values(state.data.customers || {}).forEach(c => {
+        Object.values(c.sites || {}).forEach(s => {
+          Object.values(s.poles || {}).forEach(p => {
+            if(Array.isArray(p.history)){
+              p.history.forEach(h => all.push({ ...h, kind: "pole", itemId: p.id, label: p.label || "(pole)", customerName: c.name, siteName: s.name }));
+            }
+          });
+        });
+      });
+    }
+  }
+
+  // Sort newest first
+  all.sort((a, b) => (b.at || 0) - (a.at || 0));
+
+  // Apply text search
+  const filtered = search
+    ? all.filter(h => {
+        const hay = [h.label, h.byName, ...(h.changes || []).map(c => `${c.field} ${c.from} ${c.to}`)].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(search);
+      })
+    : all;
+
+  const wrap = document.getElementById("historyEntries");
+  const empty = document.getElementById("historyEmpty");
+  if(filtered.length === 0){
+    wrap.innerHTML = "";
+    empty.style.display = "";
+    return;
+  }
+  empty.style.display = "none";
+  wrap.innerHTML = filtered.slice(0, 200).map(h => renderHistoryEntry(h)).join("");
+  if(filtered.length > 200){
+    wrap.innerHTML += `<div style="padding:10px;text-align:center;color:var(--text-muted);font-size:11px;font-style:italic">+ ${filtered.length - 200} older entries — refine your search</div>`;
+  }
+};
+
+function renderHistoryEntry(h){
+  const when = h.at ? new Date(h.at).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : "—";
+  const who = h.byName || h.by || "—";
+  const kindBadge = ({tool:"🔨", part:"🏗️", mechpart:"⚙️", pole:"📍"})[h.kind] || "•";
+  const aiFlag = (h.changes || []).some(c => c.field === "_aiInitiated") ? '<span class="hist-ai-flag" title="AI-initiated change">🤖</span>' : '';
+  const changes = (h.changes || []).filter(c => c.field !== "_aiInitiated");
+  const changeRows = changes.map(c => {
+    if(c.field === "_created") return `<div class="hist-change"><span class="hist-field">created</span> <span class="hist-to">${escapeHtml(String(c.to ?? "—"))}</span></div>`;
+    return `<div class="hist-change"><span class="hist-field">${escapeHtml(c.field)}:</span> <span class="hist-from">${escapeHtml(String(c.from ?? "—"))}</span> → <span class="hist-to">${escapeHtml(String(c.to ?? "—"))}</span></div>`;
+  }).join("");
+  const installTypeTag = h.installType ? ` <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase">${h.installType}</span>` : '';
+  const contextTag = (h.customerName && h.siteName) ? ` <span style="font-size:10px;color:var(--text-muted)">${escapeHtml(h.customerName)} · ${escapeHtml(h.siteName)}</span>` : '';
+  return `<div class="hist-entry">
+    <div class="hist-entry-head">
+      <span class="hist-kind">${kindBadge}</span>
+      <span class="hist-label">${escapeHtml(h.label || "(unknown)")}${installTypeTag}${contextTag}</span>
+      ${aiFlag}
+      <span class="hist-time">${when}</span>
+    </div>
+    <div class="hist-entry-body">
+      <div class="hist-by">by ${escapeHtml(who)}</div>
+      ${changeRows || '<div class="hist-change" style="font-style:italic;color:var(--text-muted)">(no field changes recorded)</div>'}
+    </div>
+  </div>`;
+}
+
+// ===== Rev 2.07: Suggestion / Issue box =====
+window.openSuggestionModal = () => {
+  // Default to Submit tab; show List tab only for admins
+  document.getElementById("sugTabList").style.display = state.isAdmin ? "" : "none";
+  switchSugTab("submit");
+  document.getElementById("sugInput").value = "";
+  openModal("modalSuggestion");
+};
+
+window.switchSugTab = (tab) => {
+  document.getElementById("sugTabSubmit").classList.toggle("active", tab === "submit");
+  document.getElementById("sugTabList").classList.toggle("active", tab === "list");
+  document.getElementById("sugSubmitPanel").style.display = tab === "submit" ? "" : "none";
+  document.getElementById("sugListPanel").style.display = tab === "list" ? "" : "none";
+  if(tab === "list" && state.isAdmin) loadSuggestionsList();
+};
+
+window.submitSuggestion = async () => {
+  const text = document.getElementById("sugInput").value.trim();
+  if(!text){ toast("Type something first", true); return; }
+  const id = `sug_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  try {
+    await set(ref(db, `autoflag/suggestions/${id}`), {
+      text,
+      submittedBy: state.user.uid,
+      submittedByName: state.user.displayName || state.user.email,
+      submittedAt: Date.now(),
+      status: "open"
+    });
+    toast("✓ Submitted — thank you!");
+    document.getElementById("sugInput").value = "";
+    closeModal("modalSuggestion");
+  } catch(e){
+    toast("Submit failed: " + e.message, true);
+  }
+};
+
+async function loadSuggestionsList(){
+  const wrap = document.getElementById("sugListItems");
+  const empty = document.getElementById("sugListEmpty");
+  wrap.innerHTML = '<div style="padding:10px;color:var(--text-muted);font-size:12px;font-style:italic">Loading...</div>';
+  try {
+    const snap = await get(ref(db, "autoflag/suggestions"));
+    const all = snap.val() || {};
+    const list = Object.entries(all).map(([id, s]) => ({ id, ...s }))
+      .sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+    if(list.length === 0){
+      wrap.innerHTML = "";
+      empty.style.display = "";
+      return;
+    }
+    empty.style.display = "none";
+    wrap.innerHTML = list.map(s => {
+      const when = s.submittedAt ? new Date(s.submittedAt).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : "—";
+      const statusColor = s.status === "open" ? "var(--amber)" : (s.status === "resolved" ? "var(--green)" : "var(--text-muted)");
+      return `<div class="sug-item">
+        <div class="sug-item-head">
+          <span class="sug-status" style="color:${statusColor}">${s.status || "open"}</span>
+          <span class="sug-by">${escapeHtml(s.submittedByName || "—")}</span>
+          <span class="sug-when">${when}</span>
+        </div>
+        <div class="sug-item-text">${escapeHtml(s.text || "")}</div>
+        <div class="sug-item-actions">
+          ${s.status === "open"
+            ? `<button class="sug-action-btn" onclick="setSuggestionStatus('${s.id}','resolved')">✓ Mark resolved</button>
+               <button class="sug-action-btn" onclick="setSuggestionStatus('${s.id}','rejected')">✕ Reject</button>`
+            : `<button class="sug-action-btn" onclick="setSuggestionStatus('${s.id}','open')">↺ Reopen</button>`}
+          <button class="sug-action-btn sug-delete" onclick="deleteSuggestion('${s.id}')">🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join("");
+  } catch(e){
+    wrap.innerHTML = `<div style="color:var(--red);font-size:12px">Failed to load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+window.setSuggestionStatus = async (id, status) => {
+  if(!state.isAdmin) return;
+  try {
+    const snap = await get(ref(db, `autoflag/suggestions/${id}`));
+    const s = snap.val();
+    if(!s) return;
+    await set(ref(db, `autoflag/suggestions/${id}`), {
+      ...s, status, statusBy: state.user.uid, statusAt: Date.now()
+    });
+    loadSuggestionsList();
+  } catch(e){ toast(e.message, true); }
+};
+
+window.deleteSuggestion = async (id) => {
+  if(!state.isAdmin) return;
+  if(!confirm("Delete this suggestion?")) return;
+  try {
+    await remove(ref(db, `autoflag/suggestions/${id}`));
+    loadSuggestionsList();
+  } catch(e){ toast(e.message, true); }
+};
+
 
 window.mergeJSON = (ev) => {
   const f = ev.target.files?.[0];
