@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.24" />
+<meta name="app-rev" content="2.25" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -924,7 +924,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.24</div>
+  <div class="ver">AutoFlag© · v2.25</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -940,12 +940,11 @@
       <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
     </button>
     <button class="ai-icon-btn" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
-    <!-- Rev 2.24: Report Issue / Repair Log button. Opens picker → form for filing
-         a new issue against a specific pole. Badge shows count of open issues. -->
-    <button class="ai-icon-btn" onclick="openIssueFiler()" title="Report a repair / issue" style="position:relative">
-      🚨
-      <span id="issueOpenBadge" class="ai-photo-badge" style="display:none">0</span>
-    </button>
+    <!-- Rev 2.25: Top-right 🚨 button removed — was redundant with the
+         🚨 Issues view tab AND had confusing dual purpose (badge for count
+         but click went to file-new). Now the canonical entry point is
+         the 🚨 Issues tab next to Installs. File-new lives inside the
+         Issues view + the Pole modal's 🚨 Report Issue button. -->
   </header>
 
   <!-- Combined view tabs + filter bar on one row. Top-row tabs are now Map + Installs only;
@@ -956,7 +955,7 @@
       <button class="view-tab" data-view="home" id="homeBtnTop" onclick="softGoBrowse()" title="Back to Browse" style="display:none">🏡 Home</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
-      <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues</button>
+      <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues<span id="issueTabCount" style="margin-left:5px;color:var(--amber-bright);font-weight:700;display:none"></span></button>
       <button class="view-tab" onclick="openSuggestionModal()" title="Submit a suggestion or report an issue">💡 Suggest</button>
     </div>
     <!-- Rev 2.04: Installs sub-tabs render here inline when state.view === "installs".
@@ -1002,7 +1001,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.24</span>
+    <span>v2.25</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4677,6 +4676,14 @@ function renderBrowse(){
     const tRemaining = totals.remaining > 0
       ? `<span class="tree-stat-remaining tree-stat-clickable" onclick="totalsChipClick('status','remaining')" title="View remaining list">${totals.remaining} remaining</span>`
       : "";
+    // Rev 2.25: Issues chip in the totals row. Count is scoped to what the
+    // user can see (admin = all open; installer = open issues on their poles).
+    // Click → Issues view (which itself only shows what each user is allowed
+    // to see, gated the same way).
+    const openIssueCount = visibleOpenIssues().length;
+    const tIssues = openIssueCount > 0
+      ? `<span class="tree-stat tree-stat-clickable" style="background:rgba(231,98,98,0.12);color:#ff8585;border-color:#7d3838" onclick="totalsChipClick('view','issues')" title="View open issues">🚨 Issues ${openIssueCount}</span>`
+      : "";
     html += `<div class="tree-totals-wrap"><div class="tree-totals-row">
       <div class="tree-totals-label">TOTALS</div>
       <div class="tree-stats">
@@ -4690,6 +4697,7 @@ function renderBrowse(){
         ${clickChip("In Progress", totals.in_progress, "status", "in_progress")}
         ${clickChip("✓ Completed", totals.completed, "status", "completed")}
         ${clickChip("★ Verified", totals.verified, "status", "verified")}
+        ${tIssues}
         ${tRemaining}
       </div>
     </div></div>`;
@@ -4706,6 +4714,11 @@ window.totalsChipClick = (kind, value) => {
     state.view = "sites";
     document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
     renderActive();
+    return;
+  }
+  // Rev 2.25: Issues chip → switch to top-level Issues view.
+  if(kind === "view" && value === "issues"){
+    switchView("issues");
     return;
   }
   if(kind === "all"){
@@ -9922,6 +9935,13 @@ window.dispatchIssue = async (issueId) => {
       dispatchedAt: now, dispatchedBy: peopleEmailKeyForCurrentUser(),
       updatedAt: now
     });
+    // Rev 2.25: Auto-add the dispatched installer to the pole's assignedInstallers
+    // so the pole becomes visible to them in their Browse tree (their own
+    // visibility filter is gated by assignedInstallers). No-op if already there.
+    // NOT removed on resolve — admin can manually unassign later via the Pole
+    // modal. Keeps the dispatch flow simple; no edge cases tracking "added by
+    // dispatch vs. originally assigned."
+    await ensureInstallerAssignedToPole(iss.customerId, iss.siteId, iss.poleId, key);
     await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
       kind: "issue_dispatched", issueId, title: iss.title,
       to: key, toName: name, at: now,
@@ -9931,6 +9951,22 @@ window.dispatchIssue = async (issueId) => {
     openIssueDetail(issueId); // re-render
   } catch(e){ toast("Dispatch failed: " + e.message, true); }
 };
+
+// Rev 2.25: Add an installer's email-key to a pole's assignedInstallers array
+// if not already present. Used by issue dispatch so the dispatched installer
+// gets visibility into the pole (their browse tree is gated by assignedInstallers).
+async function ensureInstallerAssignedToPole(cid, sid, pid, installerKey){
+  if(!cid || !sid || !pid || !installerKey) return;
+  const path = `autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}/assignedInstallers`;
+  try {
+    const snap = await get(ref(db, path));
+    const existing = Array.isArray(snap.val()) ? snap.val() : [];
+    if(existing.includes(installerKey)) return; // already there
+    await set(ref(db, path), [...existing, installerKey]);
+  } catch(e){
+    console.warn("ensureInstallerAssignedToPole failed:", e);
+  }
+}
 
 window.resolveIssue = async (issueId) => {
   const iss = state.issues[issueId];
@@ -9998,7 +10034,21 @@ window.deleteIssue = async (issueId) => {
 
 // ===== Top-level Issues view =====
 function renderIssues(){
-  const all = Object.values(state.issues || {}).sort((a,b) => b.filedAt - a.filedAt);
+  // Rev 2.25: Scoped per role — admins see all issues; installers see only
+  // those whose pole they're assigned to. Same gating as the Browse tree.
+  let allIssues = Object.values(state.issues || {});
+  if(!state.isAdmin){
+    const myKey = emailToKey(state.user?.email || "");
+    allIssues = allIssues.filter(iss => {
+      const c = state.data.customers?.[iss.customerId];
+      const s = c?.sites?.[iss.siteId];
+      const p = s?.poles?.[iss.poleId];
+      if(!p) return false;
+      const assigned = Array.isArray(p.assignedInstallers) ? p.assignedInstallers : [];
+      return assigned.includes(myKey);
+    });
+  }
+  const all = allIssues.sort((a,b) => b.filedAt - a.filedAt);
   const open = all.filter(i => i.status === "open");
   const resolved = all.filter(i => i.status === "resolved");
 
@@ -10069,12 +10119,33 @@ function renderIssues(){
 }
 
 // Update the open-issues badge on the 🚨 button in the top header.
+// Rev 2.25: Compute the open-issues count visible to the current user.
+// Admins see all open issues. Installers see only those whose pole they're
+// assigned to (matches the visibility filter applied to customers/poles).
+// Returns the count + the actual list of issues for downstream filtering.
+function visibleOpenIssues(){
+  const all = Object.values(state.issues || {}).filter(i => i.status === "open");
+  if(state.isAdmin) return all;
+  const myKey = emailToKey(state.user?.email || "");
+  return all.filter(iss => {
+    const c = state.data.customers?.[iss.customerId];
+    const s = c?.sites?.[iss.siteId];
+    const p = s?.poles?.[iss.poleId];
+    if(!p) return false;
+    const assigned = Array.isArray(p.assignedInstallers) ? p.assignedInstallers : [];
+    return assigned.includes(myKey);
+  });
+}
+
 function updateIssueBadge(){
-  const badge = document.getElementById("issueOpenBadge");
-  if(!badge) return;
-  const openCount = Object.values(state.issues || {}).filter(i => i.status === "open").length;
-  badge.style.display = openCount > 0 ? "" : "none";
-  badge.textContent = openCount;
+  // Rev 2.25: Top-right badge removed; only the tab-count span remains.
+  // Count is scoped to what the user can see (admin = all; installer = their poles).
+  const count = visibleOpenIssues().length;
+  const tabCount = document.getElementById("issueTabCount");
+  if(tabCount){
+    tabCount.style.display = count > 0 ? "" : "none";
+    tabCount.textContent = count;
+  }
 }
 
 // ===== Bulk image importer (Rev 2.09) =====
