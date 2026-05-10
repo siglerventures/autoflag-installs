@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.15" />
+<meta name="app-rev" content="2.16" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -187,6 +187,47 @@
   .list-cell-clickable{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);cursor:pointer;border:1px solid transparent;transition:border-color .15s,background .15s}
   .list-cell-clickable:hover{border-color:var(--amber);background:var(--surface2)}
   .list-cell-clickable.active{border-color:var(--amber-bright);background:#3a2a14;color:var(--amber-bright);font-weight:600}
+
+  /* Rev 2.16: List view toolbar (count + filter summary + print button) */
+  .list-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;max-width:1200px;margin-left:auto;margin-right:auto;width:100%}
+  .list-toolbar-left{font-size:13px;color:var(--text-dim)}
+  .list-toolbar-left strong{color:var(--amber-bright);font-size:14px;margin-right:4px}
+  .list-subtitle{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+  .list-print-btn{padding:6px 14px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);cursor:pointer;font-weight:500;transition:border-color .15s,background .15s}
+  .list-print-btn:hover{border-color:var(--amber);color:var(--amber);background:var(--surface)}
+  /* Print-only header (hidden on screen, shown when printing) */
+  .print-only{display:none}
+  .list-print-header{padding:10px 0 16px;border-bottom:1px solid #ccc;margin-bottom:14px}
+  .list-print-title{font-size:18px;font-weight:700;color:#000}
+  .list-print-subtitle{font-size:13px;color:#444;margin-top:4px}
+  .list-print-meta{font-size:11px;color:#666;margin-top:4px}
+
+  /* Rev 2.16: print stylesheet — hide UI chrome, switch to white background +
+     dark text for paper, larger fonts, page-break controls. The List view is
+     the canonical printable surface; other views are not optimized for print. */
+  @media print {
+    @page { size: landscape; margin: 0.5in; }
+    body { background: #fff !important; color: #000 !important; }
+    /* Hide everything chrome-related */
+    header, footer, .top-row, .ai-bar, .filter-bar, .view-tabs,
+    #aiPanel, #toast, .modal-overlay, .fab, .no-print { display: none !important; }
+    /* Show print-only blocks */
+    .print-only { display: block !important; }
+    /* Main view container takes the full page */
+    main { padding: 0 !important; max-width: 100% !important; }
+    /* List table on paper */
+    .list-table { border-collapse: collapse; width: 100%; font-size: 11pt; }
+    .list-table th, .list-table td { border: 1px solid #999; padding: 6px 8px; }
+    .list-table th { background: #eee !important; color: #000 !important; text-transform: uppercase; font-size: 9pt; }
+    .list-table td { color: #000 !important; }
+    .list-table tr { page-break-inside: avoid; }
+    .list-table tr:hover td { background: transparent !important; }
+    /* Strip interactive chip styling from the cells */
+    .list-cell-clickable { border: none !important; background: transparent !important; padding: 0 !important; color: #000 !important; }
+    .status-badge { border: 1px solid #999; padding: 2px 6px; }
+    /* Suppress installer-summary box on print (it's nice on screen but adds noise on paper) */
+    .installer-summary { display: none !important; }
+  }
   .status-badge{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
   .status-in_review{background:#3a2a3a;color:#d8a8d8}
   .status-scheduled{background:#3a1f1f;color:var(--red)}
@@ -540,6 +581,11 @@
   .tree-totals-row .tree-stats{justify-content:flex-start;flex:0 1 auto;gap:6px}
   /* Wrapper to allow the inline-flex totals row to still center on the page */
   .tree-totals-wrap{display:flex;justify-content:center;max-width:1200px;margin:0 auto}
+
+  /* Rev 2.16: clickable totals chips — visual feedback on hover so they read
+     as actionable. Default chips and the remaining chip both inherit. */
+  .tree-stat-clickable{cursor:pointer;transition:background .15s,transform .1s}
+  .tree-stat-clickable:hover{background:var(--surface3);transform:scale(1.04)}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
   .tree-stat-date{padding:2px 8px;background:#1a2a3a;color:#a8c5e6;border-radius:var(--radius-pill);font-size:10px;font-weight:600;white-space:nowrap}
@@ -821,7 +867,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.15</div>
+  <div class="ver">AutoFlag© · v2.16</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -891,7 +937,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.15</span>
+    <span>v2.16</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -3904,6 +3950,7 @@ window.renderActive = () => {
   if(state.view === "browse")        main.innerHTML = renderBrowse();
   else if(state.view === "kanban")   main.innerHTML = renderKanban();
   else if(state.view === "list")     main.innerHTML = renderList();
+  else if(state.view === "sites")    main.innerHTML = renderSites();
   else if(state.view === "map"){ main.innerHTML = `<div id="mapContainer"></div>`; setTimeout(renderMap,50); }
   else if(state.view === "installs") main.innerHTML = renderInstalls();
 };
@@ -4292,23 +4339,32 @@ function renderBrowse(){
     });
   });
   if(totals.poles > 0){
-    const tChip = (label, n, cls = "") =>
-      n > 0 ? `<span class="tree-stat ${cls}">${label} ${n}</span>` : "";
+    // Rev 2.16: totals chips clickable. Each maps to a (view, filter) pair:
+    //   - install types & statuses → List view filtered to that category
+    //   - Poles → List view, no filter (printable list of all poles)
+    //   - Sites → Sites drilldown view (site-level info, not poles)
+    //   - Remaining → List view filtered to synthetic "remaining" pseudo-status
+    // The existing top-bar Type/Status chips still serve to clear filters.
+    const clickChip = (label, n, kind, value) =>
+      n > 0
+        ? `<span class="tree-stat tree-stat-clickable" onclick="totalsChipClick('${kind}','${value}')" title="View ${label} list">${label} ${n}</span>`
+        : "";
     const tRemaining = totals.remaining > 0
-      ? `<span class="tree-stat-remaining" style="cursor:default">${totals.remaining} remaining</span>` : "";
+      ? `<span class="tree-stat-remaining tree-stat-clickable" onclick="totalsChipClick('status','remaining')" title="View remaining list">${totals.remaining} remaining</span>`
+      : "";
     html += `<div class="tree-totals-wrap"><div class="tree-totals-row">
       <div class="tree-totals-label">TOTALS</div>
       <div class="tree-stats">
-        ${tChip("📍", totals.sites)}
-        ${tChip("Poles", totals.poles)}
-        ${tChip("🪢 External", totals.external)}
-        ${tChip("🧵 Internal", totals.internal)}
-        ${tChip("🛢 Cylinder", totals.cylinder)}
-        ${tChip("In Review", totals.in_review)}
-        ${tChip("Scheduled", totals.scheduled)}
-        ${tChip("In Progress", totals.in_progress)}
-        ${tChip("✓ Completed", totals.completed)}
-        ${tChip("★ Verified", totals.verified)}
+        ${clickChip("📍 Sites", totals.sites, "view", "sites")}
+        ${clickChip("Poles", totals.poles, "all", "poles")}
+        ${clickChip("🪢 External", totals.external, "type", "external")}
+        ${clickChip("🧵 Internal", totals.internal, "type", "internal")}
+        ${clickChip("🛢 Cylinder", totals.cylinder, "type", "cylinder")}
+        ${clickChip("In Review", totals.in_review, "status", "in_review")}
+        ${clickChip("Scheduled", totals.scheduled, "status", "scheduled")}
+        ${clickChip("In Progress", totals.in_progress, "status", "in_progress")}
+        ${clickChip("✓ Completed", totals.completed, "status", "completed")}
+        ${clickChip("★ Verified", totals.verified, "status", "verified")}
         ${tRemaining}
       </div>
     </div></div>`;
@@ -4316,6 +4372,35 @@ function renderBrowse(){
 
   return html;
 }
+
+// Rev 2.16: totals-row chip dispatcher. Switches view and applies the matching
+// filter. Same filter setters as the top filter bar so toggling/clearing works
+// the same way.
+window.totalsChipClick = (kind, value) => {
+  if(kind === "view" && value === "sites"){
+    state.view = "sites";
+    document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+    renderActive();
+    return;
+  }
+  if(kind === "all"){
+    // "Poles" → switch to List with no extra filter applied (preserve current top-bar filters)
+    switchView("list");
+    return;
+  }
+  if(kind === "type"){
+    // Set the type filter directly (don't toggle — the chip says "switch to External"
+    // not "toggle External"). If already matching, leave it. Then switch to List.
+    state.filter.installType = value;
+    switchView("list");
+    return;
+  }
+  if(kind === "status"){
+    state.filter.status = value;
+    switchView("list");
+    return;
+  }
+};
 
 window.toggleCustomer = (cid) => {
   if(state.expanded.customers.has(cid)){
@@ -4877,6 +4962,73 @@ function getCompletedByName(key){
   return key.length > 12 ? key.slice(0,8) + "…" : key;
 }
 
+// Rev 2.16: Sites drilldown view. Lists every site across all customers with
+// address, contact (inherited from customer), pole count by status. Reachable
+// from the totals chip "📍 Sites N" in Browse view. Each row clickable to drill
+// into that site's detail page (existing drillTo behavior).
+function renderSites(){
+  // Collect sites with their parent customer and aggregated pole stats
+  const allSites = [];
+  Object.values(state.data.customers || {}).forEach(c => {
+    Object.entries(c.sites || {}).forEach(([sid, s]) => {
+      const poles = Object.values(s.poles || {});
+      const stats = { total: poles.length, in_review:0, scheduled:0, in_progress:0, completed:0, verified:0, remaining:0 };
+      poles.forEach(p => {
+        if(stats.hasOwnProperty(p.status)) stats[p.status]++;
+        if(["in_review","scheduled","in_progress"].includes(p.status)) stats.remaining++;
+      });
+      allSites.push({ c, s, sid, stats });
+    });
+  });
+  // Sort by customer name then site name
+  allSites.sort((a, b) =>
+    (a.c.name || "").localeCompare(b.c.name || "") || (a.s.name || "").localeCompare(b.s.name || "")
+  );
+
+  let html = renderViewHeaderStrip();
+  html += `<div class="list-toolbar no-print">
+    <div class="list-toolbar-left">
+      <strong>${allSites.length}</strong> site${allSites.length===1?'':'s'}
+      <div class="list-subtitle">across ${Object.keys(state.data.customers || {}).length} customers</div>
+    </div>
+    <div class="list-toolbar-right">
+      <button class="list-print-btn" onclick="window.print()" title="Print this list">🖨️ Print</button>
+    </div>
+  </div>
+  <div class="list-print-header print-only">
+    <div class="list-print-title">AutoFlag · Site List</div>
+    <div class="list-print-meta">${allSites.length} sites · printed ${new Date().toLocaleString()}</div>
+  </div>`;
+
+  if(allSites.length === 0){
+    html += `<div class="empty">No sites yet.</div>`;
+    return html;
+  }
+
+  html += `<table class="list-table"><thead><tr>
+    <th>Customer</th><th>Site</th><th>Address</th><th>Contact</th><th>Phone</th>
+    <th style="text-align:right">Poles</th><th style="text-align:right">Remaining</th><th style="text-align:right">Completed</th><th style="text-align:right">Verified</th>
+  </tr></thead><tbody>`;
+  allSites.forEach(({ c, s, sid, stats }) => {
+    const phone = s.phone || c.phone || "—";
+    const contact = s.contact || c.contact || "—";
+    const addr = s.address || "—";
+    html += `<tr onclick="drillTo('${c.id}','${sid}')">
+      <td><strong>${escapeHtml(c.name || "—")}</strong></td>
+      <td>${escapeHtml(s.name || "—")}</td>
+      <td>${escapeHtml(addr)}</td>
+      <td>${escapeHtml(contact)}</td>
+      <td>${escapeHtml(phone)}</td>
+      <td style="text-align:right"><strong>${stats.total}</strong></td>
+      <td style="text-align:right">${stats.remaining}</td>
+      <td style="text-align:right">${stats.completed}</td>
+      <td style="text-align:right">${stats.verified}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+}
+
 function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return renderViewHeaderStrip() + `<div class="empty">No poles match.</div>`;
@@ -4907,6 +5059,32 @@ function renderList(){
   const th = (col, label) => `<th onclick="setListSort('${col}')" style="cursor:pointer;user-select:none">${label}${ind(col)}</th>`;
 
   let html = renderViewHeaderStrip();
+  // Rev 2.16: 🖨️ Print button — formatted for paper via @media print CSS below.
+  // Reflects the current filter set, so the printed list is exactly what's on screen.
+  const filterSummary = [];
+  if(state.filter.status !== "all") filterSummary.push(`Status: ${STATUS_LABELS[state.filter.status] || state.filter.status}`);
+  if(state.filter.installType !== "all") filterSummary.push(`Type: ${formatInstallType(state.filter.installType)}`);
+  if(state.filter.customer !== "all") filterSummary.push(`Customer: ${state.data.customers[state.filter.customer]?.name || state.filter.customer}`);
+  const subtitle = filterSummary.length
+    ? `<div class="list-subtitle no-print">${escapeHtml(filterSummary.join(" · "))}</div>`
+    : "";
+  const printSubtitle = filterSummary.length
+    ? `<div class="list-print-subtitle print-only">${escapeHtml(filterSummary.join(" · "))}</div>`
+    : "";
+  html += `<div class="list-toolbar no-print">
+    <div class="list-toolbar-left">
+      <strong>${allPoles.length}</strong> pole${allPoles.length===1?'':'s'}
+      ${subtitle}
+    </div>
+    <div class="list-toolbar-right">
+      <button class="list-print-btn" onclick="window.print()" title="Print this list">🖨️ Print</button>
+    </div>
+  </div>
+  <div class="list-print-header print-only">
+    <div class="list-print-title">AutoFlag · Pole List</div>
+    ${printSubtitle}
+    <div class="list-print-meta">${allPoles.length} poles · printed ${new Date().toLocaleString()}</div>
+  </div>`;
   html += `<table class="list-table"><thead><tr>
     ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
