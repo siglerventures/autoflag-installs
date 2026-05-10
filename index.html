@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.10" />
+<meta name="app-rev" content="2.11" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -499,6 +499,12 @@
   .tree-caret.open{transform:rotate(90deg)}
   .tree-caret-spacer{width:12px;flex-shrink:0}
   .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Rev 2.11: customer-row override — name doesn't expand to fill the row.
+     Sits naturally next to its Details button, with a flex spacer pushing the
+     stats cluster to the right. Closes the visual gap that made customer rows
+     look unbalanced on wide desktops. */
+  .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:8px}
+  .tree-row-spacer{flex:1 1 auto}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
   .tree-stat-date{padding:2px 8px;background:#1a2a3a;color:#a8c5e6;border-radius:var(--radius-pill);font-size:10px;font-weight:600;white-space:nowrap}
@@ -517,8 +523,12 @@
   .tree-details-btn{padding:4px 12px;background:var(--surface3);border:1px solid var(--amber-dim);border-radius:var(--radius-sm);color:var(--amber);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
   .tree-details-btn:hover{background:var(--amber);color:#0d0d0f;border-color:var(--amber)}
   .tree-site-status{display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:flex-end;flex-shrink:1;min-width:0}
-  .tree-stat-remaining{padding:3px 10px;background:linear-gradient(135deg,#3a2a14,#4a3520);border:1px solid var(--amber);border-radius:var(--radius-pill);font-size:10px;font-weight:700;color:var(--amber-bright);cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.4px;transition:background .15s,transform .1s}
-  .tree-stat-remaining:hover{background:linear-gradient(135deg,#4a3520,#5a4530);transform:scale(1.04)}
+  /* Rev 2.11: Remaining badge toned down — same geometry as other stat chips,
+     amber accent on background and text but no uppercase/letter-spacing/bold-700.
+     The badge still reads as actionable (cursor:pointer) but no longer shouts
+     louder than every other stat in the row. */
+  .tree-stat-remaining{padding:2px 8px;background:rgba(212,134,10,0.12);border:1px solid var(--amber-dim);border-radius:var(--radius-pill);font-size:10px;font-weight:500;color:var(--amber-bright);cursor:pointer;white-space:nowrap;transition:background .15s}
+  .tree-stat-remaining:hover{background:rgba(212,134,10,0.22)}
   .tree-stat-remaining.active{background:var(--amber);color:#0d0d0f;border-color:var(--amber-bright)}
   .tree-empty{padding:8px 12px;color:var(--text-muted);font-size:12px;font-style:italic}
   .tree-link{color:var(--amber);cursor:pointer;text-decoration:underline;font-style:normal}
@@ -776,7 +786,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.10</div>
+  <div class="ver">AutoFlag© · v2.11</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -846,7 +856,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.10</span>
+    <span>v2.11</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1124,12 +1134,35 @@
 <!-- ==== Modal: Add menu ==== -->
 <div class="modal-overlay" id="modalAddMenu">
   <div class="modal" style="max-width:380px">
-    <div class="modal-header"><h2>Add</h2><button class="modal-close" onclick="closeModal('modalAddMenu')">×</button></div>
+    <div class="modal-header"><h2 id="addMenuTitle">Add</h2><button class="modal-close" onclick="closeModal('modalAddMenu')">×</button></div>
     <div class="modal-body">
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn-secondary btn" id="add-customer-btn" onclick="closeModal('modalAddMenu');openCustomerModal()">+ New Customer</button>
-        <button class="btn-secondary btn" onclick="closeModal('modalAddMenu');openSiteModal()" id="add-site-btn">+ New Site</button>
-        <button class="btn-secondary btn" onclick="closeModal('modalAddMenu');openPoleModal()" id="add-pole-btn">+ New Pole</button>
+      <!-- Default state: 3 buttons, one per add-target -->
+      <div id="addMenuButtons" style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn-secondary btn" id="add-customer-btn" onclick="handleAddMenuClick('customer')">+ New Customer</button>
+        <button class="btn-secondary btn" id="add-site-btn" onclick="handleAddMenuClick('site')">+ New Site</button>
+        <button class="btn-secondary btn" id="add-pole-btn" onclick="handleAddMenuClick('pole')">+ New Pole</button>
+      </div>
+      <!-- Picker state: shown when adding a Site/Pole and there's no clear customer/site target -->
+      <div id="addMenuPicker" style="display:none;flex-direction:column;gap:10px">
+        <div id="addMenuPickerHint" style="font-size:12px;color:var(--text-muted)"></div>
+        <div id="addMenuCustomerPickerWrap" style="display:none">
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Customer</label>
+          <select id="addMenuCustomerPicker" onchange="addMenuOnCustomerPicked()"
+                  style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font-size:13px">
+            <option value="">— Select customer —</option>
+          </select>
+        </div>
+        <div id="addMenuSitePickerWrap" style="display:none">
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Site</label>
+          <select id="addMenuSitePicker"
+                  style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font-size:13px">
+            <option value="">— Select site —</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary btn" onclick="addMenuBack()">← Back</button>
+          <button class="btn-primary btn" id="addMenuContinueBtn" onclick="addMenuContinue()" disabled>Continue</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3986,7 +4019,21 @@ function renderBrowse(){
       );
     })
     .sort((a,b)=> a.name.localeCompare(b.name));
-  if(list.length===0) return renderViewHeaderStrip({ showExpand: true }) + `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
+
+  // Rev 2.11 fix: when search matches Tools/BOM items but no customers, we must
+  // still render the TB search panel. The previous early-return on empty customer
+  // list dropped the panel — search appeared "broken" for queries like "mot" that
+  // only matched tool/part names. (See Lessons L-014.)
+  if(list.length===0){
+    const headerStrip = renderViewHeaderStrip({ showExpand: true });
+    const tbPanel = renderTbSearchResultsPanel();
+    if(state.search && tbPanel){
+      // Search active + TB matches exist: show the panel + an explanatory note
+      // for the customer tree so it's clear customers were also searched.
+      return headerStrip + tbPanel + `<div class="empty" style="margin-top:14px;padding:14px;font-size:12px;color:var(--text-muted)">No customers, sites, or poles match "${escapeHtml(state.search)}".</div>`;
+    }
+    return headerStrip + `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
+  }
 
   const countHtml = `<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>`;
   let html = renderViewHeaderStrip({ leftContent: countHtml, showExpand: true });
@@ -4041,8 +4088,9 @@ function renderBrowse(){
     html += `<div class="tree-customer ${cExpanded?'expanded':''}">
       <div class="tree-row tree-row-customer" onclick="toggleCustomer('${c.id}')">
         <span class="tree-caret ${cExpanded?'open':''}">▶</span>
-        <div class="tree-name">${c.name||'(unnamed)'}</div>
+        <div class="tree-name tree-name-customer">${c.name||'(unnamed)'}</div>
         ${detailsBtn}
+        <span class="tree-row-spacer"></span>
         <div class="tree-stats">${rowChipsHTML}</div>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
       </div>`;
@@ -6329,12 +6377,208 @@ document.addEventListener("keydown", e => {
 });
 
 window.openAddMenu = () => {
-  // Hide invalid options based on context
-  document.getElementById("add-site-btn").style.display = state.drillCustomer ? "" : "none";
-  document.getElementById("add-pole-btn").style.display = (state.drillCustomer && state.drillSite) ? "" : "none";
-  if(!state.drillCustomer && !state.isAdmin){ toast("Pick a customer first"); return; }
+  // Reset to default button-list state every time the menu opens
+  document.getElementById("addMenuTitle").textContent = "Add";
+  document.getElementById("addMenuButtons").style.display = "flex";
+  document.getElementById("addMenuPicker").style.display = "none";
+  __addMenuPending = null;
+
+  // Customer button: admin-only (only admins can create customers)
+  document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
+
+  // Rev 2.11: Site + Pole buttons are ALWAYS shown (assuming at least one customer
+  // exists). Targeting context is resolved when the user clicks the button — we
+  // either auto-target a clear context or step into the picker UI.
+  const haveAnyCustomer = Object.keys(state.data.customers || {}).length > 0;
+  document.getElementById("add-site-btn").style.display = haveAnyCustomer ? "" : "none";
+  document.getElementById("add-pole-btn").style.display = haveAnyCustomer ? "" : "none";
+
+  if(!state.isAdmin && !haveAnyCustomer){ toast("No customers yet"); return; }
   openModal("modalAddMenu");
 };
+
+// Pending pick state — { kind: "site" | "pole", customerId? }
+let __addMenuPending = null;
+
+// Resolves the implicit customer/site target from the current view state.
+// Priority: explicit drill > single expanded > single existing > null (needs picker).
+function resolveAddTarget(kind){
+  // Explicit drill always wins
+  if(kind === "site" && state.drillCustomer) return { customerId: state.drillCustomer };
+  if(kind === "pole" && state.drillCustomer && state.drillSite) return { customerId: state.drillCustomer, siteId: state.drillSite };
+
+  const allCustomers = Object.keys(state.data.customers || {});
+  const expandedCustomers = allCustomers.filter(cid => state.expanded.customers.has(cid));
+
+  if(kind === "site"){
+    // Auto-target if exactly one expanded customer, else if exactly one customer total
+    if(expandedCustomers.length === 1) return { customerId: expandedCustomers[0] };
+    if(allCustomers.length === 1) return { customerId: allCustomers[0] };
+    return null;
+  }
+  if(kind === "pole"){
+    // Need both customer and site
+    let cid = null;
+    if(expandedCustomers.length === 1) cid = expandedCustomers[0];
+    else if(allCustomers.length === 1) cid = allCustomers[0];
+    if(!cid) return null;
+    const sites = state.data.customers[cid]?.sites || {};
+    const allSites = Object.keys(sites);
+    const expandedSites = allSites.filter(sid => state.expanded.sites.has(sid));
+    if(expandedSites.length === 1) return { customerId: cid, siteId: expandedSites[0] };
+    if(allSites.length === 1) return { customerId: cid, siteId: allSites[0] };
+    // Customer is clear but site isn't — return partial so picker can pre-fill customer
+    return { customerId: cid };
+  }
+  return null;
+}
+
+window.handleAddMenuClick = (kind) => {
+  if(kind === "customer"){
+    closeModal("modalAddMenu");
+    openCustomerModal();
+    return;
+  }
+  const target = resolveAddTarget(kind);
+  if(kind === "site"){
+    if(target?.customerId){
+      // Auto-targeted — open Site modal directly with the resolved customer
+      closeModal("modalAddMenu");
+      openSiteModalForCustomer(target.customerId);
+      return;
+    }
+    showAddMenuPicker("site", null);
+    return;
+  }
+  if(kind === "pole"){
+    if(target?.customerId && target?.siteId){
+      closeModal("modalAddMenu");
+      openPoleModalFor(target.customerId, target.siteId);
+      return;
+    }
+    // Partial target (customer known, site not) → picker pre-fills customer
+    showAddMenuPicker("pole", target?.customerId || null);
+    return;
+  }
+};
+
+function showAddMenuPicker(kind, prefilledCustomerId){
+  __addMenuPending = { kind, customerId: prefilledCustomerId };
+  document.getElementById("addMenuTitle").textContent = kind === "site" ? "New Site — pick customer" : "New Pole — pick customer & site";
+  document.getElementById("addMenuButtons").style.display = "none";
+  document.getElementById("addMenuPicker").style.display = "flex";
+
+  // Customer dropdown
+  const custWrap = document.getElementById("addMenuCustomerPickerWrap");
+  const custSel = document.getElementById("addMenuCustomerPicker");
+  if(prefilledCustomerId){
+    // Customer is locked in — don't show the picker, just show what we picked
+    custWrap.style.display = "none";
+    document.getElementById("addMenuPickerHint").textContent = `Adding to ${state.data.customers[prefilledCustomerId]?.name || "(customer)"}.`;
+  } else {
+    custWrap.style.display = "";
+    custSel.innerHTML = '<option value="">— Select customer —</option>' +
+      Object.values(state.data.customers || {})
+        .sort((a,b) => (a.name||"").localeCompare(b.name||""))
+        .map(c => `<option value="${c.id}">${escapeHtml(c.name||"(unnamed)")}</option>`)
+        .join("");
+    custSel.value = "";
+    document.getElementById("addMenuPickerHint").textContent = kind === "site" ? "Which customer is this site for?" : "Which customer and site is this pole for?";
+  }
+
+  // Site dropdown only relevant for pole
+  const siteWrap = document.getElementById("addMenuSitePickerWrap");
+  if(kind === "pole"){
+    siteWrap.style.display = "";
+    if(prefilledCustomerId){
+      populateSitePickerFor(prefilledCustomerId);
+    } else {
+      document.getElementById("addMenuSitePicker").innerHTML = '<option value="">— Select customer first —</option>';
+      document.getElementById("addMenuSitePicker").disabled = true;
+    }
+  } else {
+    siteWrap.style.display = "none";
+  }
+  updateAddMenuContinueState();
+}
+
+function populateSitePickerFor(customerId){
+  const sites = Object.values(state.data.customers[customerId]?.sites || {})
+    .sort((a,b) => (a.name||"").localeCompare(b.name||""));
+  const sel = document.getElementById("addMenuSitePicker");
+  if(sites.length === 0){
+    sel.innerHTML = '<option value="">— No sites yet —</option>';
+    sel.disabled = true;
+  } else {
+    sel.innerHTML = '<option value="">— Select site —</option>' +
+      sites.map(s => `<option value="${s.id}">${escapeHtml(s.name||"(unnamed)")}</option>`).join("");
+    sel.disabled = false;
+  }
+}
+
+window.addMenuOnCustomerPicked = () => {
+  const cid = document.getElementById("addMenuCustomerPicker").value;
+  if(__addMenuPending) __addMenuPending.customerId = cid || null;
+  if(__addMenuPending?.kind === "pole"){
+    if(cid) populateSitePickerFor(cid);
+    else {
+      document.getElementById("addMenuSitePicker").innerHTML = '<option value="">— Select customer first —</option>';
+      document.getElementById("addMenuSitePicker").disabled = true;
+    }
+  }
+  updateAddMenuContinueState();
+};
+
+function updateAddMenuContinueState(){
+  const btn = document.getElementById("addMenuContinueBtn");
+  if(!__addMenuPending){ btn.disabled = true; return; }
+  const cid = __addMenuPending.customerId;
+  if(__addMenuPending.kind === "site"){
+    btn.disabled = !cid;
+  } else if(__addMenuPending.kind === "pole"){
+    const sid = document.getElementById("addMenuSitePicker").value;
+    btn.disabled = !cid || !sid;
+  } else {
+    btn.disabled = true;
+  }
+}
+
+// Re-evaluate Continue every time the site dropdown changes
+document.addEventListener("change", (ev) => {
+  if(ev.target?.id === "addMenuSitePicker") updateAddMenuContinueState();
+}, true);
+
+window.addMenuContinue = () => {
+  if(!__addMenuPending) return;
+  const { kind, customerId } = __addMenuPending;
+  if(kind === "site" && customerId){
+    closeModal("modalAddMenu");
+    openSiteModalForCustomer(customerId);
+  } else if(kind === "pole" && customerId){
+    const sid = document.getElementById("addMenuSitePicker").value;
+    if(!sid) return;
+    closeModal("modalAddMenu");
+    openPoleModalFor(customerId, sid);
+  }
+};
+
+window.addMenuBack = () => {
+  __addMenuPending = null;
+  document.getElementById("addMenuTitle").textContent = "Add";
+  document.getElementById("addMenuButtons").style.display = "flex";
+  document.getElementById("addMenuPicker").style.display = "none";
+};
+
+// Wrappers that pass explicit cid/sid to the underlying modals so drill state
+// is NOT mutated. The Site/Pole modals accept cid/sid args directly; the
+// existing drillCustomer fallback inside those modals handles legacy callers.
+function openSiteModalForCustomer(customerId){
+  openSiteModal(null, customerId);
+}
+
+function openPoleModalFor(customerId, siteId){
+  openPoleModal(null, customerId, siteId);
+}
 
 // ==== Customer CRUD ====
 window.openCustomerModal = (cid) => {
@@ -6379,11 +6623,15 @@ window.deleteCustomer = async () => {
 };
 
 // ==== Site CRUD ====
-window.openSiteModal = (sid) => {
-  if(!state.drillCustomer){ toast("Open a customer first"); return; }
-  state.editing = { type:"site", customerId: state.drillCustomer, siteId: sid||null };
+window.openSiteModal = (sid, cid) => {
+  // Rev 2.11: cid argument allows opening from Add menu without setting drill state.
+  // Falls back to state.drillCustomer for legacy call sites (Edit Site button on a
+  // drilled-in customer detail page).
+  const customerId = cid || state.drillCustomer;
+  if(!customerId){ toast("Open a customer first"); return; }
+  state.editing = { type:"site", customerId: customerId, siteId: sid||null };
   state.siteTempPhotos = [];
-  const s = sid ? state.data.customers[state.drillCustomer]?.sites[sid] : null;
+  const s = sid ? state.data.customers[customerId]?.sites[sid] : null;
   document.getElementById("ms-title").textContent = s ? "Edit Site" : "New Site";
   document.getElementById("ms-name").value = s?.name || "";
   document.getElementById("ms-address").value = s?.address || "";
