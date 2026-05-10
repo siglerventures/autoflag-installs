@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.11" />
+<meta name="app-rev" content="2.13" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -499,11 +499,13 @@
   .tree-caret.open{transform:rotate(90deg)}
   .tree-caret-spacer{width:12px;flex-shrink:0}
   .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* Rev 2.11: customer-row override — name doesn't expand to fill the row.
-     Sits naturally next to its Details button, with a flex spacer pushing the
-     stats cluster to the right. Closes the visual gap that made customer rows
-     look unbalanced on wide desktops. */
-  .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:8px}
+  /* Rev 2.13: customer-row layout — name takes its content width plus a small
+     fixed margin, then DETAILS button, then a small fixed gap, then stats
+     cluster sits next to them. Final flex spacer pushes the ↗ action button
+     to the far right. Fixed gaps replace the previous flex-1 spacer that
+     created huge whitespace on wide desktops. */
+  .tree-name-customer{flex:0 1 auto;max-width:50%;margin-right:24px}
+  .tree-row-customer .tree-stats{margin-left:48px;justify-content:flex-start}
   .tree-row-spacer{flex:1 1 auto}
   .tree-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .tree-stat{padding:2px 8px;background:var(--surface3);border-radius:var(--radius-pill);font-size:10px;color:var(--text-dim);white-space:nowrap}
@@ -786,7 +788,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.11</div>
+  <div class="ver">AutoFlag© · v2.13</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -856,7 +858,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.11</span>
+    <span>v2.13</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4090,8 +4092,8 @@ function renderBrowse(){
         <span class="tree-caret ${cExpanded?'open':''}">▶</span>
         <div class="tree-name tree-name-customer">${c.name||'(unnamed)'}</div>
         ${detailsBtn}
-        <span class="tree-row-spacer"></span>
         <div class="tree-stats">${rowChipsHTML}</div>
+        <span class="tree-row-spacer"></span>
         <button class="tree-action" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="Open">↗</button>
       </div>`;
 
@@ -7747,11 +7749,22 @@ window.askAI = async () => {
   aiHistory.push({ role: "user", content: fullMessage });
 
   const ctx = buildAIContext();
+  // Rev 2.12: Bump context budget from 12,000 → 80,000 chars. The old limit was
+  // truncating away _tools, _installBom, _mechanicalBom (they live LATER in the
+  // serialized object than the customer tree). 80,000 chars ≈ 20-25k tokens —
+  // still well under model context window, leaves plenty for system prompt + chat
+  // history + response. If the data ever exceeds 80k, we log a warning so we know
+  // to add summarization. See L-015.
+  const ctxStr = JSON.stringify(ctx);
+  const CTX_BUDGET = 80000;
+  if(ctxStr.length > CTX_BUDGET){
+    console.warn(`[AI context] data is ${ctxStr.length} chars, truncating to ${CTX_BUDGET}. Some data will not be visible to the AI.`);
+  }
   const sys = `You are the AutoFlag© Installs assistant. Today is ${new Date().toISOString().slice(0,10)}.
 The user is ${state.user.displayName || state.user.email}. Role: ${state.isAdmin?"admin":"installer"}.
 
 Current data (pruned snapshot):
-${JSON.stringify(ctx).slice(0, 12000)}
+${ctxStr.slice(0, CTX_BUDGET)}
 
 You can perform actions by emitting JSON action blocks at the END of your response.
 Emit each action as raw JSON on its own line (NO markdown code fences).
@@ -7861,36 +7874,15 @@ CRITICAL TOOLS/BOM RULES:
 };
 
 function buildAIContext(){
-  // Compact representation; respect installer scope (already applied to state.data)
+  // Rev 2.12: Reordered so reference data (Tools, BOMs, procedures) comes FIRST
+  // in the JSON object. Customer tree comes last. Reason: when context overflows
+  // the budget and gets truncated, the customer tree (largest section) loses
+  // poles from the bottom, but reference data is preserved. Previously the
+  // 12,000-char slice was chopping off ALL Tools/BOM data because customers
+  // serialized first. See L-015.
   const out = {};
-  Object.entries(state.data.customers).forEach(([cid,c]) => {
-    out[cid] = { id:cid, name:c.name, sites:{} };
-    Object.entries(c.sites).forEach(([sid,s]) => {
-      out[cid].sites[sid] = {
-        id:sid, name:s.name, address:s.address,
-        poles: Object.fromEntries(Object.entries(s.poles).map(([pid,p]) => {
-          // Compact pole — include checklist progress as fraction-only summary
-          const cl = p.checklist || {};
-          const tpl = state.procedures[p.installType];
-          const tplSteps = getTemplateSteps(tpl);
-          const totalSteps = tplSteps.length;
-          const checkedSteps = totalSteps ? tplSteps.filter(st => cl[st.id]?.checked).length : 0;
-          return [pid, {
-            id:pid, label:p.label, status:p.status, installType:p.installType,
-            // serial=Flag Pole Height, fw=Serial #, flagSize=physical flag dimensions
-            serial:p.serial, flagSize:p.flagSize, sim:p.sim, fw:p.fw,
-            plan:p.plan, saas:p.saas,
-            expectedInstallDate:p.expectedInstallDate, completedDate:p.completedDate,
-            completedBy:p.completedBy,
-            survey:p.survey, notes:p.notes,
-            ...(totalSteps ? { progress: `${checkedSteps}/${totalSteps} steps done` } : {})
-          }];
-        }))
-      };
-    });
-  });
-  // Include procedure templates so the AI can answer "what's next on Pole X".
-  // Schema-aware: flatten sectioned templates, fall back to legacy steps[].
+
+  // 1) Procedure templates — small, used for "what's next on Pole X" answers
   const procExport = (type) => {
     const tpl = state.procedures[type];
     return getTemplateSteps(tpl).map(s => ({
@@ -7907,8 +7899,8 @@ function buildAIContext(){
     cylinder: procExport("cylinder")
   };
 
-  // Rev 2.06: Tools / BOMs context for AI search + edit. Compact representation
-  // — strip history, deletedAt, created/updatedBy. Costs computed on the fly.
+  // 2) Tools / BOMs context for AI search + edit. Compact representation
+  //    — strip history, deletedAt, created/updatedBy. Costs computed on the fly.
   const tbCompact = (item, computePerLabel) => {
     if(!item || item.deletedAt) return null;
     const qty = Number(item.qty) || 1;
@@ -7952,6 +7944,37 @@ function buildAIContext(){
     const c = tbCompact(item, "per device");
     if(c) out._mechanicalBom[id] = c;
   });
+
+  // 3) Customer tree LAST. This is by far the largest section because of nested
+  //    poles. If the context ever overflows, we lose poles from the bottom rather
+  //    than losing all reference data.
+  Object.entries(state.data.customers).forEach(([cid,c]) => {
+    out[cid] = { id:cid, name:c.name, sites:{} };
+    Object.entries(c.sites).forEach(([sid,s]) => {
+      out[cid].sites[sid] = {
+        id:sid, name:s.name, address:s.address,
+        poles: Object.fromEntries(Object.entries(s.poles).map(([pid,p]) => {
+          // Compact pole — include checklist progress as fraction-only summary
+          const cl = p.checklist || {};
+          const tpl = state.procedures[p.installType];
+          const tplSteps = getTemplateSteps(tpl);
+          const totalSteps = tplSteps.length;
+          const checkedSteps = totalSteps ? tplSteps.filter(st => cl[st.id]?.checked).length : 0;
+          return [pid, {
+            id:pid, label:p.label, status:p.status, installType:p.installType,
+            // serial=Flag Pole Height, fw=Serial #, flagSize=physical flag dimensions
+            serial:p.serial, flagSize:p.flagSize, sim:p.sim, fw:p.fw,
+            plan:p.plan, saas:p.saas,
+            expectedInstallDate:p.expectedInstallDate, completedDate:p.completedDate,
+            completedBy:p.completedBy,
+            survey:p.survey, notes:p.notes,
+            ...(totalSteps ? { progress: `${checkedSteps}/${totalSteps} steps done` } : {})
+          }];
+        }))
+      };
+    });
+  });
+
   return out;
 }
 
