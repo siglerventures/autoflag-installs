@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.31" />
+<meta name="app-rev" content="2.32" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -966,7 +966,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.31</div>
+  <div class="ver">AutoFlag© · v2.32</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1043,7 +1043,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.31</span>
+    <span>v2.32</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2553,9 +2553,22 @@ function subscribeIssues(){
     state.issues = sanitized;
     // Update the open-issues badge on the 🚨 button if it's mounted
     updateIssueBadge();
-    if(state.view === "issues"){
-      const focused = document.activeElement?.id?.startsWith?.("iss-");
-      if(!focused) renderActive();
+    // Rev 2.32: Re-render the active view if it shows issue data. Bug Phil hit
+    // on mobile: issues subscription resolves AFTER Browse renders (slow mobile
+    // network), so the totals row 🚨 chip never appears. Fix: also re-render
+    // when on Browse/Sites/List/Kanban — anywhere the totals row or other
+    // issue-aware UI is displayed. Skips re-render if user is typing in a
+    // text input to avoid clobbering work-in-progress.
+    const isFocusedInInput = (() => {
+      const el = document.activeElement;
+      if(!el) return false;
+      if(el.id?.startsWith?.("iss-")) return true;
+      const tag = el.tagName;
+      return (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
+    })();
+    const reRenderViews = ["issues", "browse", "kanban", "list", "sites"];
+    if(reRenderViews.includes(state.view) && !isFocusedInInput){
+      renderActive();
     }
   }, err => console.error("Issues subscribe error:", err));
 }
