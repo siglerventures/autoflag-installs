@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.18" />
+<meta name="app-rev" content="2.19" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -253,8 +253,13 @@
   /* ==== Map ==== */
   #mapContainer{height:calc(100vh - 180px);min-height:400px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
 
-  /* ==== Modals ==== */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:20px;overflow-y:auto}
+  /* ==== Modals ====
+     Rev 2.19: z-index bumped from 200 → 1500 so modals render above Leaflet's
+     internal pane stack. Leaflet uses up to 800 for popups + 1000 for some
+     control wrappers, and the existing 200 left modals BEHIND map elements when
+     opening from the Map view (the X button + backdrop dim were obscured).
+     Toast also bumped to 1600 so it appears above active modals. See L-017. */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;z-index:1500;padding:20px;overflow-y:auto}
   .modal-overlay.open{display:flex}
   .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:680px;width:100%;margin:auto;box-shadow:var(--shadow);max-height:calc(100vh - 40px);overflow-y:auto}
   .modal-header{position:sticky;top:0;background:var(--surface);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;z-index:1}
@@ -873,7 +878,7 @@
   .empty .hint{color:var(--amber);cursor:pointer;text-decoration:underline;margin-top:8px;display:inline-block}
 
   /* Toast */
-  #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--amber-dim);color:var(--amber-bright);padding:8px 16px;border-radius:var(--radius-pill);font-size:13px;box-shadow:var(--shadow);z-index:300;display:none}
+  #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--amber-dim);color:var(--amber-bright);padding:8px 16px;border-radius:var(--radius-pill);font-size:13px;box-shadow:var(--shadow);z-index:1600;display:none}
   #toast.show{display:block}
   #toast.error{border-color:var(--red);color:var(--red)}
 
@@ -894,7 +899,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.18</div>
+  <div class="ver">AutoFlag© · v2.19</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -965,7 +970,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.18</span>
+    <span>v2.19</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
