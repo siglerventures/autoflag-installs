@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.23" />
+<meta name="app-rev" content="2.24" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -924,7 +924,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.23</div>
+  <div class="ver">AutoFlag© · v2.24</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -940,6 +940,12 @@
       <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
     </button>
     <button class="ai-icon-btn" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
+    <!-- Rev 2.24: Report Issue / Repair Log button. Opens picker → form for filing
+         a new issue against a specific pole. Badge shows count of open issues. -->
+    <button class="ai-icon-btn" onclick="openIssueFiler()" title="Report a repair / issue" style="position:relative">
+      🚨
+      <span id="issueOpenBadge" class="ai-photo-badge" style="display:none">0</span>
+    </button>
   </header>
 
   <!-- Combined view tabs + filter bar on one row. Top-row tabs are now Map + Installs only;
@@ -950,6 +956,7 @@
       <button class="view-tab" data-view="home" id="homeBtnTop" onclick="softGoBrowse()" title="Back to Browse" style="display:none">🏡 Home</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
+      <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues</button>
       <button class="view-tab" onclick="openSuggestionModal()" title="Submit a suggestion or report an issue">💡 Suggest</button>
     </div>
     <!-- Rev 2.04: Installs sub-tabs render here inline when state.view === "installs".
@@ -995,7 +1002,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.23</span>
+    <span>v2.24</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1184,6 +1191,8 @@
 
       <div class="btn-row">
         <button class="btn-secondary btn" id="mp-delete" onclick="deletePole()">Delete</button>
+        <!-- Rev 2.24: Report Issue / Repair Log entry from inside the pole modal -->
+        <button class="btn-secondary btn" onclick="openIssueFilerForPole(state.editing.customerId, state.editing.siteId, state.editing.poleId)" style="border-color:#7d3838;color:#e88a8a">🚨 Report Issue</button>
         <button class="btn-secondary btn" onclick="closeModal('modalPole')">Cancel</button>
         <button class="btn" onclick="savePole()">Save</button>
       </div>
@@ -1435,6 +1444,63 @@
   </div>
 </div>
 
+<!-- ==== Modal: Issue File (Rev 2.24) ====
+     Used for both new issues (no issueId in state.editing.issue) and editing
+     in-progress drafts. The picker fields (customer/site/pole) become readonly
+     once an issue is filed. Photos uploaded directly to Firebase Storage. -->
+<div class="modal-overlay" id="modalIssueFiler">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <h2>🚨 <span id="iss-modal-title">Report Issue</span></h2>
+      <button class="modal-close" onclick="closeModal('modalIssueFiler')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row" id="iss-picker-row">
+        <label>Pole</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select id="iss-customer" onchange="onIssueCustomerChange()" style="flex:1;min-width:140px"></select>
+          <select id="iss-site" onchange="onIssueSiteChange()" style="flex:1;min-width:140px"></select>
+          <select id="iss-pole" style="flex:1;min-width:140px"></select>
+        </div>
+        <div id="iss-picker-readonly" style="display:none;font-size:12px;color:var(--text-dim);margin-top:4px"></div>
+      </div>
+      <div class="form-row">
+        <label>Title <span style="color:var(--red)">*</span></label>
+        <input id="iss-title" maxlength="120" placeholder="e.g. Leaking gearbox, broken halyard" />
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <textarea id="iss-description" rows="4" placeholder="What's wrong? When did it start? Any context the installer should know..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>Photos <span id="iss-photo-count" style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— up to 4</span></label>
+        <input type="file" id="iss-photo-input" accept="image/*" multiple style="display:none" onchange="handleIssuePhotoSelect(event)" />
+        <button class="btn-secondary btn" type="button" onclick="document.getElementById('iss-photo-input').click()">📷 Add Photos</button>
+        <div id="iss-photo-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary btn" onclick="closeModal('modalIssueFiler')">Cancel</button>
+        <button class="btn" onclick="submitNewIssue()">File Issue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Issue Detail (Rev 2.24) ====
+     Shows a single issue with dispatch + resolve actions. Read-only for the
+     pole reference (can't move an issue to a different pole). Admins can
+     dispatch, resolve, and delete. Filers can edit their own description
+     while open. -->
+<div class="modal-overlay" id="modalIssueDetail">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h2 id="issd-title">🚨 Issue</h2>
+      <button class="modal-close" onclick="closeModal('modalIssueDetail')">×</button>
+    </div>
+    <div class="modal-body" id="issd-body"></div>
+  </div>
+</div>
+
 <!-- ==== Modal: AI Chat History (Rev 2.18) ==== -->
 <!-- Two-pane layout: left list of past conversations, right pane shows the
      selected conversation's full thread. Admins see all users' chats; installers
@@ -1596,7 +1662,12 @@ const state = {
   userRole: null,            // "admin" | "installer" | "customer" | null
   userPersonRecord: null,    // entry from autoflag/people, if any
   data: { customers: {} },           // { customerId: {name, sites:{siteId:{poles:{poleId:{...}}}}} }
-  view: "browse",                    // browse | kanban | list | map | installs
+  // Rev 2.24: Top-level issue store. Each issue is keyed by issueId and references
+  // a specific pole via {customerId, siteId, poleId}. Also stored: status, photos,
+  // dispatch + resolve metadata. Pole history references issues by issueId so the
+  // pole's history surface stays focused while issues are queryable separately.
+  issues: {},                        // { issueId: {...} }
+  view: "browse",                    // browse | kanban | list | map | installs | sites | issues
   installsTab: "external",           // External | Internal | Cylinder — sub-tab on Installs view
   installsExpanded: new Set(),       // section ids the user has manually expanded in Installs view (default: all collapsed)
   drillCustomer: null, drillSite: null,
@@ -1714,6 +1785,37 @@ function sanitizeCustomer(c, id){
     // pole-level `assignedInstallers` (see sanitizePole). Stored data may still
     // have legacy `c.installers` — we just stop reading it; doesn't hurt anything.
     sites, createdAt: c.createdAt||Date.now(), updatedAt: c.updatedAt||Date.now()
+  };
+}
+
+// Rev 2.24: Issue / Repair Log records. Top-level keyed by issueId; references
+// a pole via (customerId, siteId, poleId). Status is just open|resolved.
+function sanitizeIssue(iss, id){
+  if(!iss || typeof iss !== "object") iss = {};
+  const status = ["open","resolved"].includes(iss.status) ? iss.status : "open";
+  return {
+    id,
+    customerId: stripHTML(iss.customerId||""),
+    siteId: stripHTML(iss.siteId||""),
+    poleId: stripHTML(iss.poleId||""),
+    status,
+    title: stripHTML(iss.title||""),
+    description: stripHTML(iss.description||""),
+    photos: Array.isArray(iss.photos) ? iss.photos.filter(x => typeof x==="string" && /^https:\/\//.test(x)) : [],
+    filedBy: stripHTML(iss.filedBy||""),
+    filedByName: stripHTML(iss.filedByName||""),
+    filedByRole: ["admin","installer","customer"].includes(iss.filedByRole) ? iss.filedByRole : "admin",
+    filedAt: Number(iss.filedAt) || Date.now(),
+    dispatchedTo: stripHTML(iss.dispatchedTo||""),     // emailKey
+    dispatchedToName: stripHTML(iss.dispatchedToName||""),
+    dispatchedAt: Number(iss.dispatchedAt) || 0,
+    dispatchedBy: stripHTML(iss.dispatchedBy||""),
+    resolvedBy: stripHTML(iss.resolvedBy||""),
+    resolvedByName: stripHTML(iss.resolvedByName||""),
+    resolvedAt: Number(iss.resolvedAt) || 0,
+    resolution: stripHTML(iss.resolution||""),
+    resolutionPhotos: Array.isArray(iss.resolutionPhotos) ? iss.resolutionPhotos.filter(x => typeof x==="string" && /^https:\/\//.test(x)) : [],
+    updatedAt: Number(iss.updatedAt) || Date.now()
   };
 }
 
@@ -1958,6 +2060,7 @@ onAuthStateChanged(auth, async user => {
   if(state.isAdmin) subscribePeople();
   subscribeProcedures();
   subscribeToolsAndParts();
+  subscribeIssues();
 
   // Customer role: portal not yet implemented. Show a "coming soon" message and sign out.
   // (Their email is whitelisted, but the customer-facing UI is a future rev.)
@@ -2374,6 +2477,23 @@ function subscribeToolsAndParts(){
       if(!focusedInsideTb) renderActive();
     }
   }, err => console.error("Mechanical BOM subscribe error:", err));
+}
+
+// Rev 2.24: Issues subscription. Top-level live-stream of every issue.
+// Re-renders the Issues view + the issue badge in the top header on every change.
+function subscribeIssues(){
+  onValue(ref(db, "autoflag/issues"), snap => {
+    const raw = snap.val() || {};
+    const sanitized = {};
+    Object.entries(raw).forEach(([id, v]) => { sanitized[id] = sanitizeIssue(v, id); });
+    state.issues = sanitized;
+    // Update the open-issues badge on the 🚨 button if it's mounted
+    updateIssueBadge();
+    if(state.view === "issues"){
+      const focused = document.activeElement?.id?.startsWith?.("iss-");
+      if(!focused) renderActive();
+    }
+  }, err => console.error("Issues subscribe error:", err));
 }
 
 // ==== People management (admin only) ====
@@ -4127,6 +4247,7 @@ window.renderActive = () => {
   else if(state.view === "kanban")   main.innerHTML = renderKanban();
   else if(state.view === "list")     main.innerHTML = renderList();
   else if(state.view === "sites")    main.innerHTML = renderSites();
+  else if(state.view === "issues")   main.innerHTML = renderIssues();
   else if(state.view === "map"){ main.innerHTML = `<div id="mapContainer"></div>`; setTimeout(renderMap,50); }
   else if(state.view === "installs") main.innerHTML = renderInstalls();
 };
@@ -7358,6 +7479,31 @@ function renderPoleHistory(history){
   wrap.innerHTML = sorted.map(entry => {
     const dt = new Date(entry.at);
     const ts = dt.toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+
+    // Rev 2.24: Issue events are tagged with `kind` (issue_filed, issue_dispatched,
+    // issue_resolved). They have a different shape than regular history changes —
+    // single-line summaries with click-through to the issue detail modal.
+    if(entry.kind === "issue_filed" || entry.kind === "issue_dispatched" || entry.kind === "issue_resolved"){
+      const iconMap = { issue_filed: "🚨", issue_dispatched: "📨", issue_resolved: "✓" };
+      const labelMap = { issue_filed: "Issue filed", issue_dispatched: "Issue dispatched", issue_resolved: "Issue resolved" };
+      const color = entry.kind === "issue_resolved" ? "var(--green)" : entry.kind === "issue_filed" ? "var(--red)" : "var(--amber)";
+      const titleEsc = escapeHtml(entry.title || "(untitled)");
+      const detailLine = entry.kind === "issue_dispatched"
+        ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ ${escapeHtml(entry.toName||entry.to||"?")}</div>`
+        : entry.kind === "issue_resolved" && entry.resolution
+        ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;font-style:italic">"${escapeHtml(entry.resolution.slice(0,80))}${entry.resolution.length>80?'...':''}"</div>`
+        : "";
+      return `<div onclick="openIssueDetail('${entry.issueId}')" style="border-left:2px solid ${color};padding:6px 10px;margin-bottom:6px;background:var(--surface3);border-radius:var(--radius-sm);cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:11px;color:${color};font-weight:600">${iconMap[entry.kind]} ${labelMap[entry.kind]} · ${escapeHtml(entry.byName||"")}</span>
+          <span style="font-size:10px;color:var(--text-muted);font-family:monospace">${ts}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text)"><strong>${titleEsc}</strong></div>
+        ${detailLine}
+      </div>`;
+    }
+
+    // Regular history entry (edits to pole fields)
     const roleColor = entry.role === "admin" ? "var(--amber-bright)" : "var(--blue)";
     const roleEmoji = entry.role === "admin" ? "★" : "👷";
     let changeHtml = "";
@@ -9422,7 +9568,516 @@ window.deleteAIConversation = async (uid, convId) => {
 };
 
 
-// ===== Rev 2.09: Bulk image importer =====
+// ===== Rev 2.24: Repair / Issue Log =====
+// Three concerns:
+// 1. File a new issue — picker (customer/site/pole) + form. Top-bar 🚨 launches
+//    the empty picker; pole-modal 🚨 prefills.
+// 2. Issues view — top-level list of all issues (open + resolved).
+// 3. Detail modal — single issue with dispatch + resolve actions.
+//
+// Identity scheme: filedBy/dispatchedTo/resolvedBy use the same email-key as
+// assignedInstallers (so cross-references work). For people not in peopleRoster
+// yet (e.g. Phil signing in as PHIL_UID), we store the UID and resolve names
+// at render-time via getCompletedByName which already handles both.
+
+// Pending photos for the issue filer modal (parallel to aiPendingPhotos)
+let issuePendingPhotos = []; // [{file, dataUrl, uploadedUrl?}]
+
+window.openIssueFiler = () => openIssueFilerForPole(null, null, null);
+
+window.openIssueFilerForPole = (cid, sid, pid) => {
+  // Reset modal state
+  issuePendingPhotos = [];
+  state.editing.issue = null; // null = creating new
+  document.getElementById("iss-modal-title").textContent = "Report Issue";
+  document.getElementById("iss-title").value = "";
+  document.getElementById("iss-description").value = "";
+  renderIssuePhotoThumbs();
+  populateIssueCustomerDropdown(cid);
+  if(cid){
+    populateIssueSiteDropdown(cid, sid);
+    if(sid) populateIssuePoleDropdown(cid, sid, pid);
+  }
+  // If we got specifically a pole, lock the picker (showing it as readonly)
+  // because the user already picked the target. Top-bar 🚨 leaves it editable.
+  const pickerLocked = !!(cid && sid && pid);
+  document.querySelectorAll("#iss-picker-row select").forEach(s => { s.style.display = pickerLocked ? "none" : ""; });
+  const ro = document.getElementById("iss-picker-readonly");
+  if(pickerLocked){
+    const c = state.data.customers[cid], s = c?.sites?.[sid], p = s?.poles?.[pid];
+    ro.style.display = "";
+    ro.innerHTML = `📍 <strong>${escapeHtml(p?.label||pid)}</strong> · ${escapeHtml(s?.name||sid)} · ${escapeHtml(c?.name||cid)}`;
+    // Stash so submit can read without selects
+    document.getElementById("iss-customer").dataset.lockedCid = cid;
+    document.getElementById("iss-site").dataset.lockedSid = sid;
+    document.getElementById("iss-pole").dataset.lockedPid = pid;
+  } else {
+    ro.style.display = "none";
+    delete document.getElementById("iss-customer").dataset.lockedCid;
+    delete document.getElementById("iss-site").dataset.lockedSid;
+    delete document.getElementById("iss-pole").dataset.lockedPid;
+  }
+  openModal("modalIssueFiler");
+};
+
+function populateIssueCustomerDropdown(selectedCid){
+  const sel = document.getElementById("iss-customer");
+  const list = Object.values(state.data.customers || {}).sort((a,b) => (a.name||"").localeCompare(b.name||""));
+  sel.innerHTML = `<option value="">Select customer...</option>` +
+    list.map(c => `<option value="${c.id}" ${c.id===selectedCid?'selected':''}>${escapeHtml(c.name||c.id)}</option>`).join("");
+}
+function populateIssueSiteDropdown(cid, selectedSid){
+  const sel = document.getElementById("iss-site");
+  const c = state.data.customers[cid];
+  const sites = c ? Object.values(c.sites || {}).sort((a,b) => (a.name||"").localeCompare(b.name||"")) : [];
+  sel.innerHTML = `<option value="">Select site...</option>` +
+    sites.map(s => `<option value="${s.id}" ${s.id===selectedSid?'selected':''}>${escapeHtml(s.name||s.id)}</option>`).join("");
+}
+function populateIssuePoleDropdown(cid, sid, selectedPid){
+  const sel = document.getElementById("iss-pole");
+  const c = state.data.customers[cid];
+  const s = c?.sites?.[sid];
+  const poles = s ? Object.values(s.poles || {}).sort((a,b) => (a.label||"").localeCompare(b.label||"")) : [];
+  sel.innerHTML = `<option value="">Select pole...</option>` +
+    poles.map(p => `<option value="${p.id}" ${p.id===selectedPid?'selected':''}>${escapeHtml(p.label||p.id)}</option>`).join("");
+}
+window.onIssueCustomerChange = () => {
+  const cid = document.getElementById("iss-customer").value;
+  populateIssueSiteDropdown(cid);
+  populateIssuePoleDropdown("", "");
+};
+window.onIssueSiteChange = () => {
+  const cid = document.getElementById("iss-customer").value;
+  const sid = document.getElementById("iss-site").value;
+  populateIssuePoleDropdown(cid, sid);
+};
+
+// Photo handling (mirrors aiPendingPhotos pattern but scoped to issues)
+window.handleIssuePhotoSelect = (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";
+  files.forEach(f => {
+    if(issuePendingPhotos.length >= 4) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      issuePendingPhotos.push({ file: f, dataUrl: e.target.result });
+      renderIssuePhotoThumbs();
+    };
+    reader.readAsDataURL(f);
+  });
+};
+function renderIssuePhotoThumbs(){
+  const wrap = document.getElementById("iss-photo-thumbs");
+  if(!wrap) return;
+  document.getElementById("iss-photo-count").textContent = `— ${issuePendingPhotos.length} of 4`;
+  wrap.innerHTML = issuePendingPhotos.map((p, idx) =>
+    `<div style="position:relative;width:64px;height:64px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border)">
+      <img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover" />
+      <button onclick="removeIssuePhoto(${idx})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;padding:0">×</button>
+    </div>`
+  ).join("");
+}
+window.removeIssuePhoto = (idx) => {
+  issuePendingPhotos.splice(idx, 1);
+  renderIssuePhotoThumbs();
+};
+
+window.submitNewIssue = async () => {
+  // Read picker — locked or live
+  const lockedCid = document.getElementById("iss-customer").dataset.lockedCid;
+  const lockedSid = document.getElementById("iss-site").dataset.lockedSid;
+  const lockedPid = document.getElementById("iss-pole").dataset.lockedPid;
+  const cid = lockedCid || document.getElementById("iss-customer").value;
+  const sid = lockedSid || document.getElementById("iss-site").value;
+  const pid = lockedPid || document.getElementById("iss-pole").value;
+  const title = document.getElementById("iss-title").value.trim();
+  const description = document.getElementById("iss-description").value.trim();
+
+  if(!cid || !sid || !pid) return toast("Pick customer, site, and pole", true);
+  if(!title) return toast("Title is required", true);
+
+  toast("Filing issue...");
+  // Upload photos first so the document write is atomic w/ photo URLs
+  const photoUrls = [];
+  for(const p of issuePendingPhotos){
+    try {
+      const safeName = (p.file?.name || "photo").replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `autoflag/issues/${pid}/${Date.now()}_${safeName}`;
+      const sr = sref(storage, path);
+      await uploadBytes(sr, p.file);
+      const url = await getDownloadURL(sr);
+      photoUrls.push(url);
+    } catch(e){
+      console.error("Issue photo upload failed:", e);
+      toast("Photo upload failed: " + e.message, true);
+      return;
+    }
+  }
+
+  // Write the issue
+  const issueId = push(ref(db, "autoflag/issues")).key;
+  const filerKey = peopleEmailKeyForCurrentUser();
+  const filerName = state.user?.displayName || state.user?.email || "(unknown)";
+  const filerRole = state.userRole || "admin";
+  const now = Date.now();
+  const issue = {
+    customerId: cid, siteId: sid, poleId: pid,
+    status: "open",
+    title, description, photos: photoUrls,
+    filedBy: filerKey, filedByName: filerName, filedByRole: filerRole, filedAt: now,
+    dispatchedTo: "", dispatchedToName: "", dispatchedAt: 0, dispatchedBy: "",
+    resolvedBy: "", resolvedByName: "", resolvedAt: 0, resolution: "", resolutionPhotos: [],
+    updatedAt: now
+  };
+  try {
+    await set(ref(db, `autoflag/issues/${issueId}`), issue);
+    // Also append a history entry on the pole — pole history references the issue.
+    await appendPoleHistoryEntry(cid, sid, pid, {
+      kind: "issue_filed",
+      issueId,
+      title,
+      at: now, by: filerKey, byName: filerName
+    });
+    toast("✓ Issue filed");
+    closeModal("modalIssueFiler");
+  } catch(e){
+    console.error("Failed to save issue:", e);
+    toast("Save failed: " + e.message, true);
+  }
+};
+
+// Resolve current user → emailKey or UID. Mirrors the same logic used
+// elsewhere for filedBy/dispatchedTo/resolvedBy attribution.
+function peopleEmailKeyForCurrentUser(){
+  if(!state.user) return "";
+  // If Phil signed in as the hardcoded root admin, use PHIL_UID for stability —
+  // his actual email may be philps1224@gmail.com, but UI displays use the UID.
+  if(state.user.uid === PHIL_UID) return PHIL_UID;
+  return emailToKey(state.user.email || "");
+}
+
+// Append an entry to the pole's history array. Pole history is currently a
+// `history: [...]` array on the pole record; we read-modify-write it.
+async function appendPoleHistoryEntry(cid, sid, pid, entry){
+  const path = `autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}/history`;
+  try {
+    const snap = await get(ref(db, path));
+    const arr = Array.isArray(snap.val()) ? snap.val() : [];
+    arr.push(entry);
+    await set(ref(db, path), arr);
+  } catch(e){
+    console.warn("Pole history append failed:", e);
+  }
+}
+
+// ===== Issue detail modal =====
+window.openIssueDetail = (issueId) => {
+  const iss = state.issues[issueId];
+  if(!iss) return toast("Issue not found", true);
+  state.editing.issue = issueId;
+  const c = state.data.customers[iss.customerId];
+  const s = c?.sites?.[iss.siteId];
+  const p = s?.poles?.[iss.poleId];
+  const statusBadge = iss.status === "resolved"
+    ? `<span class="status-badge status-completed">RESOLVED</span>`
+    : `<span class="status-badge status-in_review">OPEN</span>`;
+  document.getElementById("issd-title").innerHTML = `🚨 ${escapeHtml(iss.title)} ${statusBadge}`;
+  const isOpen = iss.status === "open";
+  // Build the dispatch options (admins + installers from peopleRoster + Phil)
+  const dispatchOptions = [];
+  dispatchOptions.push({ key: PHIL_UID, name: "Phil Sigler" });
+  if(typeof peopleRoster === "object" && peopleRoster){
+    Object.entries(peopleRoster).forEach(([key, info]) => {
+      if(info.role === "admin" || info.role === "installer"){
+        dispatchOptions.push({ key, name: info.name || info.email || key });
+      }
+    });
+  }
+  dispatchOptions.sort((a, b) => (a.name||"").localeCompare(b.name||""));
+
+  const photosHtml = (iss.photos || []).map(url =>
+    `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)" /></a>`
+  ).join("");
+  const resolutionPhotosHtml = (iss.resolutionPhotos || []).map(url =>
+    `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)" /></a>`
+  ).join("");
+
+  let html = `
+    <div style="background:var(--surface2);padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:14px;font-size:12px">
+      📍 <strong>${escapeHtml(p?.label||iss.poleId)}</strong> · ${escapeHtml(s?.name||iss.siteId)} · ${escapeHtml(c?.name||iss.customerId)}
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <div style="background:var(--surface2);padding:10px 12px;border-radius:var(--radius-sm);min-height:50px;white-space:pre-wrap;font-size:13px">${escapeHtml(iss.description||"(no description provided)")}</div>
+    </div>
+    ${photosHtml ? `<div class="form-row"><label>Photos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${photosHtml}</div></div>` : ""}
+    <div class="form-row" style="font-size:12px;color:var(--text-dim)">
+      Filed by <strong>${escapeHtml(iss.filedByName||iss.filedBy||"unknown")}</strong> (${iss.filedByRole}) · ${new Date(iss.filedAt).toLocaleString()}
+    </div>
+  `;
+
+  if(state.isAdmin && isOpen){
+    html += `<hr style="border-color:var(--border);margin:14px 0" />
+      <div class="form-row">
+        <label>Dispatch to</label>
+        <div style="display:flex;gap:6px">
+          <select id="issd-dispatch" style="flex:1">
+            <option value="">— pick installer —</option>
+            ${dispatchOptions.map(o => `<option value="${escapeHtml(o.key)}" ${iss.dispatchedTo===o.key?'selected':''}>${escapeHtml(o.name)}</option>`).join("")}
+          </select>
+          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')">Dispatch</button>
+        </div>
+        ${iss.dispatchedTo ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Currently dispatched to <strong>${escapeHtml(iss.dispatchedToName)}</strong></div>` : ""}
+      </div>`;
+  } else if(iss.dispatchedTo){
+    html += `<div class="form-row" style="font-size:12px;color:var(--text-dim)">
+      Dispatched to <strong>${escapeHtml(iss.dispatchedToName)}</strong> on ${new Date(iss.dispatchedAt).toLocaleString()}
+    </div>`;
+  }
+
+  if(isOpen){
+    html += `<hr style="border-color:var(--border);margin:14px 0" />
+      <div class="form-row">
+        <label>Resolution notes <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— what did we do to fix it</span></label>
+        <textarea id="issd-resolution" rows="3" placeholder="Replaced gearbox, retensioned halyard..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>After photos <span id="issd-photo-count" style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— up to 4</span></label>
+        <input type="file" id="issd-photo-input" accept="image/*" multiple style="display:none" onchange="handleResolutionPhotoSelect(event)" />
+        <button class="btn-secondary btn" type="button" onclick="document.getElementById('issd-photo-input').click()">📷 Add Photos</button>
+        <div id="issd-photo-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+      <div class="btn-row">
+        ${state.isAdmin ? `<button class="btn-secondary btn" onclick="deleteIssue('${issueId}')" style="color:var(--red)">🗑 Delete</button>` : ""}
+        <button class="btn-secondary btn" onclick="closeModal('modalIssueDetail')">Cancel</button>
+        <button class="btn" onclick="resolveIssue('${issueId}')">✓ Mark Resolved</button>
+      </div>`;
+  } else {
+    // Resolved — show resolution + reopen option for admins
+    html += `<hr style="border-color:var(--border);margin:14px 0" />
+      <div class="form-row">
+        <label>Resolution</label>
+        <div style="background:var(--surface2);padding:10px 12px;border-radius:var(--radius-sm);min-height:40px;white-space:pre-wrap;font-size:13px">${escapeHtml(iss.resolution||"(no resolution notes)")}</div>
+      </div>
+      ${resolutionPhotosHtml ? `<div class="form-row"><label>After photos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${resolutionPhotosHtml}</div></div>` : ""}
+      <div class="form-row" style="font-size:12px;color:var(--text-dim)">
+        Resolved by <strong>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"unknown")}</strong> · ${new Date(iss.resolvedAt).toLocaleString()}
+      </div>
+      <div class="btn-row">
+        ${state.isAdmin ? `<button class="btn-secondary btn" onclick="reopenIssue('${issueId}')">↩ Reopen</button>` : ""}
+        ${state.isAdmin ? `<button class="btn-secondary btn" onclick="deleteIssue('${issueId}')" style="color:var(--red)">🗑 Delete</button>` : ""}
+        <button class="btn" onclick="closeModal('modalIssueDetail')">Close</button>
+      </div>`;
+  }
+
+  document.getElementById("issd-body").innerHTML = html;
+  // Reset resolution-photos pending bucket
+  resolutionPendingPhotos = [];
+  openModal("modalIssueDetail");
+};
+
+let resolutionPendingPhotos = [];
+window.handleResolutionPhotoSelect = (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";
+  files.forEach(f => {
+    if(resolutionPendingPhotos.length >= 4) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      resolutionPendingPhotos.push({ file: f, dataUrl: e.target.result });
+      renderResolutionPhotoThumbs();
+    };
+    reader.readAsDataURL(f);
+  });
+};
+function renderResolutionPhotoThumbs(){
+  const wrap = document.getElementById("issd-photo-thumbs");
+  if(!wrap) return;
+  document.getElementById("issd-photo-count").textContent = `— ${resolutionPendingPhotos.length} of 4`;
+  wrap.innerHTML = resolutionPendingPhotos.map((p, idx) =>
+    `<div style="position:relative;width:64px;height:64px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border)">
+      <img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover" />
+      <button onclick="removeResolutionPhoto(${idx})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;padding:0">×</button>
+    </div>`
+  ).join("");
+}
+window.removeResolutionPhoto = (idx) => {
+  resolutionPendingPhotos.splice(idx, 1);
+  renderResolutionPhotoThumbs();
+};
+
+window.dispatchIssue = async (issueId) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  const sel = document.getElementById("issd-dispatch");
+  const key = sel?.value;
+  if(!key) return toast("Pick an installer first", true);
+  const opt = sel.options[sel.selectedIndex];
+  const name = opt?.text || key;
+  const iss = state.issues[issueId];
+  if(!iss) return;
+  const now = Date.now();
+  try {
+    await update(ref(db, `autoflag/issues/${issueId}`), {
+      dispatchedTo: key, dispatchedToName: name,
+      dispatchedAt: now, dispatchedBy: peopleEmailKeyForCurrentUser(),
+      updatedAt: now
+    });
+    await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
+      kind: "issue_dispatched", issueId, title: iss.title,
+      to: key, toName: name, at: now,
+      by: peopleEmailKeyForCurrentUser(), byName: state.user?.displayName || state.user?.email || ""
+    });
+    toast("✓ Dispatched to " + name);
+    openIssueDetail(issueId); // re-render
+  } catch(e){ toast("Dispatch failed: " + e.message, true); }
+};
+
+window.resolveIssue = async (issueId) => {
+  const iss = state.issues[issueId];
+  if(!iss) return;
+  const resolution = document.getElementById("issd-resolution")?.value.trim() || "";
+  if(!resolution){
+    if(!confirm("No resolution notes — mark resolved anyway?")) return;
+  }
+  toast("Resolving...");
+  // Upload after-photos
+  const photoUrls = [];
+  for(const p of resolutionPendingPhotos){
+    try {
+      const safeName = (p.file?.name || "photo").replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `autoflag/issues/${iss.poleId}/resolution_${Date.now()}_${safeName}`;
+      const sr = sref(storage, path);
+      await uploadBytes(sr, p.file);
+      const url = await getDownloadURL(sr);
+      photoUrls.push(url);
+    } catch(e){
+      toast("Photo upload failed: " + e.message, true); return;
+    }
+  }
+  const now = Date.now();
+  const resolverKey = peopleEmailKeyForCurrentUser();
+  const resolverName = state.user?.displayName || state.user?.email || "(unknown)";
+  try {
+    await update(ref(db, `autoflag/issues/${issueId}`), {
+      status: "resolved",
+      resolution, resolutionPhotos: photoUrls,
+      resolvedBy: resolverKey, resolvedByName: resolverName, resolvedAt: now,
+      updatedAt: now
+    });
+    await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
+      kind: "issue_resolved", issueId, title: iss.title,
+      at: now, by: resolverKey, byName: resolverName, resolution
+    });
+    toast("✓ Resolved");
+    closeModal("modalIssueDetail");
+  } catch(e){ toast("Resolve failed: " + e.message, true); }
+};
+
+window.reopenIssue = async (issueId) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  if(!confirm("Reopen this issue?")) return;
+  try {
+    await update(ref(db, `autoflag/issues/${issueId}`), {
+      status: "open",
+      updatedAt: Date.now()
+    });
+    toast("Reopened");
+    openIssueDetail(issueId);
+  } catch(e){ toast("Reopen failed: " + e.message, true); }
+};
+
+window.deleteIssue = async (issueId) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  if(!confirm("Delete this issue permanently? Pole history entries will remain.")) return;
+  try {
+    await remove(ref(db, `autoflag/issues/${issueId}`));
+    toast("Deleted");
+    closeModal("modalIssueDetail");
+  } catch(e){ toast("Delete failed: " + e.message, true); }
+};
+
+// ===== Top-level Issues view =====
+function renderIssues(){
+  const all = Object.values(state.issues || {}).sort((a,b) => b.filedAt - a.filedAt);
+  const open = all.filter(i => i.status === "open");
+  const resolved = all.filter(i => i.status === "resolved");
+
+  let html = renderViewHeaderStrip();
+  html += `<div class="list-toolbar no-print">
+    <div class="list-toolbar-left">
+      <strong>${all.length}</strong> issue${all.length===1?'':'s'}
+      <div class="list-subtitle">${open.length} open · ${resolved.length} resolved</div>
+    </div>
+    <div class="list-toolbar-right">
+      <button class="list-print-btn" onclick="openIssueFiler()">+ New Issue</button>
+    </div>
+  </div>`;
+
+  if(all.length === 0){
+    html += `<div class="empty">No issues yet. Click 🚨 in the top header (or on any pole) to file one.</div>`;
+    return html;
+  }
+
+  // Open issues first, then resolved
+  const renderRows = (issues) => issues.map(iss => {
+    const c = state.data.customers[iss.customerId];
+    const s = c?.sites?.[iss.siteId];
+    const p = s?.poles?.[iss.poleId];
+    const dispatchInfo = iss.dispatchedTo
+      ? `→ ${escapeHtml(iss.dispatchedToName||iss.dispatchedTo)}`
+      : `<span style="color:var(--text-muted);font-style:italic">unassigned</span>`;
+    return `<tr onclick="openIssueDetail('${iss.id}')">
+      <td><strong>${escapeHtml(iss.title)}</strong></td>
+      <td>${escapeHtml(p?.label||iss.poleId)}</td>
+      <td>${escapeHtml(s?.name||iss.siteId)}</td>
+      <td>${escapeHtml(c?.name||iss.customerId)}</td>
+      <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
+      <td>${dispatchInfo}</td>
+      <td>${new Date(iss.filedAt).toLocaleDateString()}</td>
+    </tr>`;
+  }).join("");
+
+  if(open.length){
+    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Open (${open.length})</h3>`;
+    html += `<table class="list-table"><thead><tr>
+      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
+    </tr></thead><tbody>${renderRows(open)}</tbody></table>`;
+  }
+  if(resolved.length){
+    html += `<h3 style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px">✓ Resolved (${resolved.length})</h3>`;
+    html += `<table class="list-table"><thead><tr>
+      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
+    </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
+      const c = state.data.customers[iss.customerId];
+      const s = c?.sites?.[iss.siteId];
+      const p = s?.poles?.[iss.poleId];
+      return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
+        <td><strong>${escapeHtml(iss.title)}</strong></td>
+        <td>${escapeHtml(p?.label||iss.poleId)}</td>
+        <td>${escapeHtml(s?.name||iss.siteId)}</td>
+        <td>${escapeHtml(c?.name||iss.customerId)}</td>
+        <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
+        <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
+        <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+    if(resolved.length > 50){
+      html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+    }
+  }
+  return html;
+}
+
+// Update the open-issues badge on the 🚨 button in the top header.
+function updateIssueBadge(){
+  const badge = document.getElementById("issueOpenBadge");
+  if(!badge) return;
+  const openCount = Object.values(state.issues || {}).filter(i => i.status === "open").length;
+  badge.style.display = openCount > 0 ? "" : "none";
+  badge.textContent = openCount;
+}
+
+// ===== Bulk image importer (Rev 2.09) =====
 // Admin uploads a ZIP. Files whose names start with an item ID (e.g.
 // "mp_001_Main_Body.png") are matched to records in the corresponding kind's
 // data tree, uploaded to Firebase Storage, and written to imageUrl. Existing
