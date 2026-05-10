@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.19" />
+<meta name="app-rev" content="2.20" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -899,7 +899,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.19</div>
+  <div class="ver">AutoFlag© · v2.20</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -970,7 +970,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.19</span>
+    <span>v2.20</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -3862,11 +3862,25 @@ window.procTermTouchEnd = async (ev) => {
 function matchesSearch(c, s, p){
   if(!state.search) return true;
   const q = state.search.toLowerCase();
+  // Rev 2.20: Haystack expanded to include ALL searchable fields. Previously
+  // missing: pole installType, status, plan, flagSize, dates, completedBy.
+  // Also includes formatted versions of dates (e.g., "5/29/26" matches a pole
+  // expected on that date) and STATUS_LABELS lookup so a search for "in
+  // progress" finds matching poles even though the raw value is "in_progress".
+  const fmtDate = ts => {
+    if(!ts) return "";
+    try { return new Date(ts).toLocaleDateString(); } catch(_){ return ""; }
+  };
+  const statusLabel = p?.status ? (STATUS_LABELS?.[p.status] || p.status) : "";
+  const installerName = p?.completedBy ? (typeof getCompletedByName === "function" ? getCompletedByName(p.completedBy) : "") : "";
   const hay = [
     c?.name, c?.contact, c?.phone, c?.notes,
-    s?.name, s?.address, s?.notes,
-    p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes
-  ].filter(Boolean).join(" ").toLowerCase();
+    s?.name, s?.address, s?.notes, s?.contact, s?.phone,
+    p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes,
+    p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.saas,
+    installerName,
+    fmtDate(p?.expectedInstallDate), fmtDate(p?.completedDate), fmtDate(p?.updatedAt)
+  ].filter(v => v != null && v !== "").join(" ").toLowerCase();
   return hay.includes(q);
 }
 
@@ -3878,30 +3892,47 @@ function searchTbItems(query){
   const q = (query || "").trim().toLowerCase();
   if(!q) return [];
   const matches = [];
-  const matchItem = (item) => {
+  // Rev 2.20: Haystack now includes ALL searchable fields including numeric ones
+  // (price, qty, packCost, qtyPerUnit) plus computed costPerAssembly. Both raw
+  // numeric strings AND formatted dollar strings are included so users can find
+  // an item by its price ("169" → Atomic 20V Max at $169) or by per-install cost
+  // ("$6.50" → Adam Tech keylock at $6.50/device).
+  const matchItem = (item, extras = []) => {
     if(!item || item.deletedAt) return false;
     const hay = [
       item.name, item.category, item.material, item.notes,
-      ...(Array.isArray(item.links) ? item.links.map(l => `${l?.label||""} ${l?.url||""}`) : [])
-    ].filter(Boolean).join(" ").toLowerCase();
+      ...(Array.isArray(item.links) ? item.links.map(l => `${l?.label||""} ${l?.url||""}`) : []),
+      ...extras
+    ].filter(v => v != null && v !== "").join(" ").toLowerCase();
     return hay.includes(q);
   };
 
-  // Tools
+  // Tools — include price (raw number, formatted dollar, with-cents, w/o cents)
   Object.entries(state.tools || {}).forEach(([id, item]) => {
-    if(matchItem(item)) matches.push({
+    const price = Number(item.price) || 0;
+    const priceStrings = [
+      String(price),
+      `$${price.toFixed(2)}`,
+      `$${Math.round(price)}`
+    ];
+    if(matchItem(item, priceStrings)) matches.push({
       kind: "tool", id, item,
       label: item.name || "(unnamed tool)",
-      sublabel: `🔨 Tool · $${(Number(item.price)||0).toFixed(2)}${item.category ? ` · ${item.category}` : ""}`
+      sublabel: `🔨 Tool · $${price.toFixed(2)}${item.category ? ` · ${item.category}` : ""}`
     });
   });
 
-  // Install BOM (per-install-type)
+  // Install BOM (per-install-type) — include qty, packCost, qtyPerUnit, computed cost
   ["external","internal","cylinder"].forEach(installType => {
     Object.entries(state.parts?.[installType] || {}).forEach(([id, item]) => {
-      if(matchItem(item)){
-        const qty = Number(item.qty)||1, pack = Number(item.packCost)||0, qpu = Number(item.qtyPerUnit)||1;
-        const costPerAssembly = (qty>0 ? pack/qty : 0) * qpu;
+      const qty = Number(item.qty)||1, pack = Number(item.packCost)||0, qpu = Number(item.qtyPerUnit)||1;
+      const costPerAssembly = (qty>0 ? pack/qty : 0) * qpu;
+      const numStrings = [
+        String(qty), String(pack), String(qpu),
+        `$${pack.toFixed(2)}`, `$${costPerAssembly.toFixed(2)}`,
+        costPerAssembly.toFixed(2)
+      ];
+      if(matchItem(item, numStrings)){
         matches.push({
           kind: "part", installType, id, item,
           label: item.name || "(unnamed part)",
@@ -3911,11 +3942,16 @@ function searchTbItems(query){
     });
   });
 
-  // Mechanical BOM
+  // Mechanical BOM — same expanded haystack
   Object.entries(state.mechParts || {}).forEach(([id, item]) => {
-    if(matchItem(item)){
-      const qty = Number(item.qty)||1, pack = Number(item.packCost)||0, qpu = Number(item.qtyPerUnit)||1;
-      const costPerAssembly = (qty>0 ? pack/qty : 0) * qpu;
+    const qty = Number(item.qty)||1, pack = Number(item.packCost)||0, qpu = Number(item.qtyPerUnit)||1;
+    const costPerAssembly = (qty>0 ? pack/qty : 0) * qpu;
+    const numStrings = [
+      String(qty), String(pack), String(qpu),
+      `$${pack.toFixed(2)}`, `$${costPerAssembly.toFixed(2)}`,
+      costPerAssembly.toFixed(2)
+    ];
+    if(matchItem(item, numStrings)){
       matches.push({
         kind: "mechpart", id, item,
         label: item.name || "(unnamed part)",
