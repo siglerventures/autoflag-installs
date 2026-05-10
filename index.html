@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.17" />
+<meta name="app-rev" content="2.18" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -382,6 +382,14 @@
 
   /* Rev 2.07: History entries */
   .hist-entry{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px}
+
+  /* Rev 2.18: AI conversation list rows in the history modal */
+  .ai-conv-row{padding:10px 10px;border:1px solid transparent;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s,border-color .12s}
+  .ai-conv-row:hover{background:var(--surface2)}
+  .ai-conv-row-selected{background:var(--surface2);border-left:3px solid var(--amber);padding-left:7px}
+  .ai-conv-user{font-size:11px;color:var(--amber);font-weight:600;margin-bottom:3px}
+  .ai-conv-preview{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4}
+  .ai-conv-meta{font-size:10px;color:var(--text-muted);margin-top:4px;font-family:monospace}
   .hist-entry-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
   .hist-kind{font-size:14px;flex-shrink:0}
   .hist-label{font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -886,7 +894,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.17</div>
+  <div class="ver">AutoFlag© · v2.18</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -901,6 +909,7 @@
       📸
       <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
     </button>
+    <button class="ai-icon-btn" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
   </header>
 
   <!-- Combined view tabs + filter bar on one row. Top-row tabs are now Map + Installs only;
@@ -956,7 +965,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.17</span>
+    <span>v2.18</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1385,6 +1394,36 @@
       <div id="sugListPanel" style="display:none">
         <div id="sugListItems" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto"></div>
         <div id="sugListEmpty" style="display:none;padding:20px;text-align:center;color:var(--text-muted);font-size:13px;font-style:italic">No suggestions yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: AI Chat History (Rev 2.18) ==== -->
+<!-- Two-pane layout: left list of past conversations, right pane shows the
+     selected conversation's full thread. Admins see all users' chats; installers
+     see only their own. "Continue" button on a viewed thread loads it back into
+     the active aiHistory + chat panel for follow-up. -->
+<div class="modal-overlay" id="modalAIHistory">
+  <div class="modal" style="max-width:880px;max-height:85vh">
+    <div class="modal-header">
+      <h2 id="aiHistoryTitle">💬 AI Chat History</h2>
+      <button class="modal-close" onclick="closeModal('modalAIHistory')">×</button>
+    </div>
+    <div class="modal-body" style="padding:0;overflow:hidden">
+      <div id="aiHistoryToolbar" style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="aiHistorySearch" placeholder="🔍 Search conversations..." oninput="renderAIHistoryList()"
+               style="flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:6px 14px;color:var(--text);font-size:13px" />
+        <select id="aiHistoryUserFilter" onchange="renderAIHistoryList()"
+                style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:12px;display:none">
+          <option value="all">All users</option>
+        </select>
+      </div>
+      <div style="display:flex;height:60vh">
+        <div id="aiHistoryList" style="width:38%;border-right:1px solid var(--border);overflow-y:auto;padding:8px"></div>
+        <div id="aiHistoryDetail" style="flex:1;overflow-y:auto;padding:14px;background:var(--surface2)">
+          <div style="color:var(--text-muted);font-size:13px;font-style:italic;text-align:center;padding-top:30%">Select a conversation to view it.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -7895,6 +7934,53 @@ window.deletePole = async () => {
 let aiPendingPhotos = [];   // [{file, dataUrl}]
 let aiHistory = [];
 
+// Rev 2.18: Persistent AI conversations.
+// Schema: autoflag/ai-conversations/{uid}/{conversationId} = { startedAt, startedBy, startedByName, lastActivityAt, preview, messageCount, messages: [{role, content, at, photoUrls?}] }
+// Each "conversation" starts on the first user message and ends when clearAIChat is called.
+// Subsequent messages reload by setting state.aiConvId before askAI.
+let aiCurrentConvId = null;
+
+// Persists a single message to the current conversation. Creates the conversation
+// document on first call. Called twice per AI exchange: once for user message,
+// once for assistant response.
+async function persistAIMessage(role, content, photoUrls){
+  if(!state?.user?.uid) return; // no user, no persistence (eg sign-in race)
+  const now = Date.now();
+  const msg = { role, content, at: now };
+  if(photoUrls && photoUrls.length) msg.photoUrls = photoUrls;
+  try {
+    if(!aiCurrentConvId){
+      // First message of a new conversation — create the doc
+      aiCurrentConvId = push(ref(db, `autoflag/ai-conversations/${state.user.uid}`)).key;
+      const previewText = (content || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      await set(ref(db, `autoflag/ai-conversations/${state.user.uid}/${aiCurrentConvId}`), {
+        startedAt: now,
+        startedBy: state.user.uid,
+        startedByName: state.user.displayName || state.user.email || "(unknown)",
+        lastActivityAt: now,
+        preview: previewText,
+        messageCount: 1,
+        messages: [msg]
+      });
+    } else {
+      // Append to existing conversation. Read-modify-write to keep the array in order.
+      const path = `autoflag/ai-conversations/${state.user.uid}/${aiCurrentConvId}`;
+      const snap = await get(ref(db, path));
+      const conv = snap.val() || {};
+      const existing = Array.isArray(conv.messages) ? conv.messages : [];
+      // Cap at 200 messages per conversation to keep doc size sane (~50KB each)
+      const next = [...existing, msg].slice(-200);
+      await update(ref(db, path), {
+        lastActivityAt: now,
+        messageCount: next.length,
+        messages: next
+      });
+    }
+  } catch(e){
+    console.warn("[AI history] persistence failed (chat continues, history won't show this turn):", e);
+  }
+}
+
 window.toggleAIPhotoPanel = () => {
   const p = document.getElementById("aiPhotoPanel");
   p.style.display = p.style.display === "none" ? "" : "none";
@@ -8062,6 +8148,9 @@ function appendBubble(text, role){
 
 window.clearAIChat = () => {
   aiHistory = [];
+  // Rev 2.18: drop the current conversation pointer so the next message starts
+  // a new persisted conversation instead of appending to the cleared one.
+  aiCurrentConvId = null;
   const wrap = document.getElementById("aiResponse");
   if(wrap) wrap.innerHTML = "";
   toast("Chat cleared");
@@ -8094,6 +8183,8 @@ window.askAI = async () => {
   document.getElementById("aiThinking").classList.add("visible");
 
   aiHistory.push({ role: "user", content: fullMessage });
+  // Rev 2.18: persist user message (fire-and-forget; won't block the AI call)
+  persistAIMessage("user", q, photoUrls);
 
   const ctx = buildAIContext();
   // Rev 2.12: Bump context budget from 12,000 → 80,000 chars. The old limit was
@@ -8203,6 +8294,8 @@ CRITICAL TOOLS/BOM RULES:
     const text = (data.content || []).map(b => b.type==="text" ? b.text : "").join("\n").trim();
     aiHistory.push({ role: "assistant", content: text });
     appendBubble(text || "(no response)", "ai");
+    // Rev 2.18: persist assistant response
+    persistAIMessage("assistant", text || "(no response)");
 
     // Parse action JSON lines (Eats pattern: raw JSON, no fences)
     const lines = text.split("\n");
@@ -8912,6 +9005,191 @@ window.deleteSuggestion = async (id) => {
     loadSuggestionsList();
   } catch(e){ toast(e.message, true); }
 };
+
+// ===== Rev 2.18: AI Chat History modal =====
+// Admins see all users' conversations; installers see only their own.
+// Conversations are sorted by lastActivityAt desc (newest first).
+// Click a conversation row → renders its full thread in the right pane.
+// "Continue" loads the conversation back into aiHistory + chat panel for follow-up.
+
+// In-memory cache populated on modal open. Refreshed every time the modal opens.
+let __aiHistoryCache = []; // [{ uid, userName, convId, conv }]
+let __aiHistorySelected = null; // selected convId for highlighting
+
+window.openAIHistoryModal = async () => {
+  if(!state?.user?.uid){ toast("Sign in first"); return; }
+  document.getElementById("aiHistoryTitle").textContent = state.isAdmin ? "💬 AI Chat History (All Users)" : "💬 AI Chat History";
+  document.getElementById("aiHistorySearch").value = "";
+  document.getElementById("aiHistoryList").innerHTML = '<div style="padding:14px;color:var(--text-muted);font-size:12px;font-style:italic">Loading...</div>';
+  document.getElementById("aiHistoryDetail").innerHTML = '<div style="color:var(--text-muted);font-size:13px;font-style:italic;text-align:center;padding-top:30%">Select a conversation to view it.</div>';
+  __aiHistorySelected = null;
+  openModal("modalAIHistory");
+  await loadAIHistoryCache();
+  renderAIHistoryList();
+};
+
+async function loadAIHistoryCache(){
+  __aiHistoryCache = [];
+  try {
+    if(state.isAdmin){
+      // Admin: read whole subtree under autoflag/ai-conversations/
+      const snap = await get(ref(db, "autoflag/ai-conversations"));
+      const all = snap.val() || {};
+      Object.entries(all).forEach(([uid, byConv]) => {
+        Object.entries(byConv || {}).forEach(([convId, conv]) => {
+          __aiHistoryCache.push({
+            uid, convId,
+            userName: conv?.startedByName || uid,
+            conv: conv || {}
+          });
+        });
+      });
+      // Populate user dropdown
+      const userSel = document.getElementById("aiHistoryUserFilter");
+      const userMap = {};
+      __aiHistoryCache.forEach(c => { userMap[c.uid] = c.userName; });
+      userSel.style.display = "";
+      userSel.innerHTML = '<option value="all">All users</option>' +
+        Object.entries(userMap).sort((a,b) => a[1].localeCompare(b[1])).map(([uid, name]) => `<option value="${uid}">${escapeHtml(name)}</option>`).join("");
+    } else {
+      // Installer: only own conversations
+      const snap = await get(ref(db, `autoflag/ai-conversations/${state.user.uid}`));
+      const byConv = snap.val() || {};
+      Object.entries(byConv).forEach(([convId, conv]) => {
+        __aiHistoryCache.push({
+          uid: state.user.uid, convId,
+          userName: conv?.startedByName || state.user.displayName || state.user.email,
+          conv: conv || {}
+        });
+      });
+      document.getElementById("aiHistoryUserFilter").style.display = "none";
+    }
+  } catch(e){
+    console.error("loadAIHistoryCache failed:", e);
+    document.getElementById("aiHistoryList").innerHTML = `<div style="padding:14px;color:var(--red);font-size:12px">Failed to load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+window.renderAIHistoryList = () => {
+  const search = (document.getElementById("aiHistorySearch")?.value || "").trim().toLowerCase();
+  const userFilter = document.getElementById("aiHistoryUserFilter")?.value || "all";
+  const list = document.getElementById("aiHistoryList");
+  if(!__aiHistoryCache.length){
+    list.innerHTML = '<div style="padding:14px;color:var(--text-muted);font-size:12px;font-style:italic">No conversations yet.</div>';
+    return;
+  }
+  // Filter
+  let filtered = __aiHistoryCache.slice();
+  if(userFilter !== "all") filtered = filtered.filter(c => c.uid === userFilter);
+  if(search){
+    filtered = filtered.filter(c => {
+      const hay = [c.userName, c.conv?.preview || "",
+        ...(c.conv?.messages || []).map(m => m.content || "")
+      ].join(" ").toLowerCase();
+      return hay.includes(search);
+    });
+  }
+  // Sort newest first
+  filtered.sort((a, b) => (b.conv?.lastActivityAt || 0) - (a.conv?.lastActivityAt || 0));
+  if(filtered.length === 0){
+    list.innerHTML = '<div style="padding:14px;color:var(--text-muted);font-size:12px;font-style:italic">No matches.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(c => {
+    const when = c.conv?.lastActivityAt
+      ? new Date(c.conv.lastActivityAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+      : "—";
+    const count = c.conv?.messageCount || (c.conv?.messages?.length || 0);
+    const preview = c.conv?.preview || "(empty)";
+    const sel = (__aiHistorySelected === c.convId) ? " ai-conv-row-selected" : "";
+    const showUser = state.isAdmin ? `<div class="ai-conv-user">${escapeHtml(c.userName)}</div>` : "";
+    return `<div class="ai-conv-row${sel}" onclick="selectAIConversation('${c.uid}','${c.convId}')">
+      ${showUser}
+      <div class="ai-conv-preview">${escapeHtml(preview)}</div>
+      <div class="ai-conv-meta">${when} · ${count} msg${count===1?'':'s'}</div>
+    </div>`;
+  }).join("");
+};
+
+window.selectAIConversation = (uid, convId) => {
+  __aiHistorySelected = convId;
+  // Find the conversation in cache
+  const entry = __aiHistoryCache.find(c => c.uid === uid && c.convId === convId);
+  if(!entry){ return; }
+  const conv = entry.conv || {};
+  const messages = Array.isArray(conv.messages) ? conv.messages : [];
+  const detail = document.getElementById("aiHistoryDetail");
+
+  // Header with user/timestamp + Continue / Delete actions
+  const startedAt = conv.startedAt ? new Date(conv.startedAt).toLocaleString() : "—";
+  const isOwnConv = uid === state.user.uid;
+  const continueBtn = isOwnConv
+    ? `<button class="btn-primary btn" onclick="continueAIConversation('${uid}','${convId}')">↩ Continue this</button>`
+    : '<span style="font-size:11px;color:var(--text-muted);font-style:italic">Read-only (not your conversation)</span>';
+  const deleteBtn = (state.isAdmin || isOwnConv)
+    ? `<button class="btn-secondary btn" onclick="deleteAIConversation('${uid}','${convId}')" style="color:var(--red);border-color:var(--border)">🗑 Delete</button>`
+    : '';
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:13px;color:var(--text);font-weight:600">${escapeHtml(entry.userName)}</div>
+      <div style="font-size:11px;color:var(--text-muted)">Started ${escapeHtml(startedAt)}</div>
+    </div>
+    <div style="display:flex;gap:6px">${continueBtn}${deleteBtn}</div>
+  </div>`;
+
+  if(messages.length === 0){
+    html += '<div style="font-size:12px;color:var(--text-muted);font-style:italic">No messages.</div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:8px">';
+    messages.forEach(m => {
+      const cls = m.role === "user" ? "ai-bubble user" : "ai-bubble ai";
+      const photoTag = (m.photoUrls && m.photoUrls.length)
+        ? ` <span style="font-size:10px;color:var(--amber);margin-left:6px">📸 ${m.photoUrls.length}</span>` : "";
+      html += `<div class="${cls}" style="max-width:100%">${escapeHtml(m.content || "")}${photoTag}</div>`;
+    });
+    html += '</div>';
+  }
+  detail.innerHTML = html;
+  // Re-render list to update the selected highlight
+  renderAIHistoryList();
+};
+
+window.continueAIConversation = (uid, convId) => {
+  // Only allow continuing your own conversations (admins can VIEW others' but
+  // not continue them — that would mix two users' conversations together).
+  if(uid !== state.user.uid){ toast("Can't continue someone else's conversation", true); return; }
+  const entry = __aiHistoryCache.find(c => c.uid === uid && c.convId === convId);
+  if(!entry){ toast("Conversation not found", true); return; }
+  const messages = Array.isArray(entry.conv?.messages) ? entry.conv.messages : [];
+  // Repopulate aiHistory with the user/assistant turns
+  aiHistory = messages.map(m => ({ role: m.role, content: m.content }));
+  aiCurrentConvId = convId;
+  // Repaint the chat thread
+  const thread = document.getElementById("aiResponse");
+  if(thread){
+    thread.innerHTML = "";
+    messages.forEach(m => appendBubble(m.content || "", m.role === "user" ? "user" : "ai"));
+  }
+  closeModal("modalAIHistory");
+  toast("✓ Conversation loaded — type to continue");
+};
+
+window.deleteAIConversation = async (uid, convId) => {
+  if(!confirm("Delete this conversation? This can't be undone.")) return;
+  try {
+    await remove(ref(db, `autoflag/ai-conversations/${uid}/${convId}`));
+    // If we were currently in this conversation, drop the pointer too
+    if(aiCurrentConvId === convId) aiCurrentConvId = null;
+    // Refresh
+    await loadAIHistoryCache();
+    __aiHistorySelected = null;
+    document.getElementById("aiHistoryDetail").innerHTML = '<div style="color:var(--text-muted);font-size:13px;font-style:italic;text-align:center;padding-top:30%">Conversation deleted.</div>';
+    renderAIHistoryList();
+    toast("Deleted");
+  } catch(e){ toast("Delete failed: " + e.message, true); }
+};
+
 
 // ===== Rev 2.09: Bulk image importer =====
 // Admin uploads a ZIP. Files whose names start with an item ID (e.g.
