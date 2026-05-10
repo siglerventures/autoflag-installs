@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.26" />
+<meta name="app-rev" content="2.27" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -186,6 +186,11 @@
      value matches the current top filter. */
   .list-cell-clickable{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);cursor:pointer;border:1px solid transparent;transition:border-color .15s,background .15s}
   .list-cell-clickable:hover{border-color:var(--amber);background:var(--surface2)}
+  /* Rev 2.27: Underline-style link inside a table cell (used in Issues view's
+     Site + Customer columns). Distinct from .list-cell-clickable which renders
+     as a pill chip — link-cell stays inline + text-flow. */
+  .link-cell{color:var(--amber-bright);text-decoration:underline;text-decoration-color:var(--amber-dim);text-underline-offset:2px;cursor:pointer;transition:color .12s,text-decoration-color .12s}
+  .link-cell:hover{color:var(--amber);text-decoration-color:var(--amber)}
   .list-cell-clickable.active{border-color:var(--amber-bright);background:#3a2a14;color:var(--amber-bright);font-weight:600}
 
   /* Rev 2.16: List view toolbar (count + filter summary + print button) */
@@ -924,7 +929,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.26</div>
+  <div class="ver">AutoFlag© · v2.27</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1001,7 +1006,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.26</span>
+    <span>v2.27</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4955,6 +4960,16 @@ function fmtShortDate(iso){
 }
 
 window.drillTo = (customerId, siteId) => {
+  state.drillCustomer = customerId; state.drillSite = siteId;
+  renderActive();
+};
+// Rev 2.27: Wrapper for drilling out of the Issues view. Issues view doesn't
+// render drill state, so we have to flip back to Browse first or the click
+// would just update state.drillCustomer/Site invisibly. Other callers of
+// drillTo assume Browse is already active (they're called from inside Browse),
+// so they don't need this.
+window.drillToFromIssues = (customerId, siteId) => {
+  if(state.view !== "browse") state.view = "browse";
   state.drillCustomer = customerId; state.drillSite = siteId;
   renderActive();
 };
@@ -10079,8 +10094,8 @@ function renderIssues(){
     return `<tr onclick="openIssueDetail('${iss.id}')">
       <td><strong>${escapeHtml(iss.title)}</strong></td>
       <td>${escapeHtml(p?.label||iss.poleId)}</td>
-      <td>${escapeHtml(s?.name||iss.siteId)}</td>
-      <td>${escapeHtml(c?.name||iss.customerId)}</td>
+      <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
+      <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
       <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
       <td>${dispatchInfo}</td>
       <td>${new Date(iss.filedAt).toLocaleDateString()}</td>
@@ -10104,8 +10119,8 @@ function renderIssues(){
       return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
         <td><strong>${escapeHtml(iss.title)}</strong></td>
         <td>${escapeHtml(p?.label||iss.poleId)}</td>
-        <td>${escapeHtml(s?.name||iss.siteId)}</td>
-        <td>${escapeHtml(c?.name||iss.customerId)}</td>
+        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
+        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
         <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
         <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
         <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
