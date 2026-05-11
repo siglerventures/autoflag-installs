@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.32" />
+<meta name="app-rev" content="2.34" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -966,7 +966,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.32</div>
+  <div class="ver">AutoFlag© · v2.34</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1043,7 +1043,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.32</span>
+    <span>v2.34</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2262,14 +2262,132 @@ async function loadDataViaREST(){
   }
   try {
     const idToken = await auth.currentUser.getIdToken(false);
-    const url = `https://philinity-893d2-default-rtdb.firebaseio.com/autoflag/installs/customers.json?auth=${encodeURIComponent(idToken)}`;
-    const r = await fetch(url, { cache: "no-store", credentials: "omit" });
-    if(!r.ok){
-      console.error(`REST fallback failed: HTTP ${r.status}`);
-      return false;
+    const tokenParam = encodeURIComponent(idToken);
+    const baseUrl = "https://philinity-893d2-default-rtdb.firebaseio.com/autoflag";
+    // Rev 2.34: REST fallback now covers EVERY path the app subscribes to.
+    // Background: Rev 1.46 added REST fallback for customers only because that
+    // was the only path then. Rev 2.33 added issues. Phil hit cascading symptoms
+    // in Rev 2.33 testing on mobile: People modal empty, Add Person didn't show
+    // up, BOM data missing — all because their subscriptions were also wedged
+    // and had no REST coverage.
+    //
+    // Each fetch runs in parallel via Promise.all; partial success is OK
+    // (e.g. people fetch may 403 for non-admins because rules restrict that
+    // path; that's expected — we just don't apply it).
+    const fetchJSON = (path) => fetch(`${baseUrl}/${path}.json?auth=${tokenParam}`, { cache: "no-store", credentials: "omit" });
+    const [
+      customersR, issuesR, peopleR,
+      proceduresExtR, proceduresIntR, proceduresCylR,
+      toolsR, partsExtR, partsIntR, partsCylR, mechPartsR
+    ] = await Promise.all([
+      fetchJSON("installs/customers"),
+      fetchJSON("issues"),
+      fetchJSON("people"),
+      fetchJSON("procedures/external"),
+      fetchJSON("procedures/internal"),
+      fetchJSON("procedures/cylinder"),
+      fetchJSON("tools"),
+      fetchJSON("parts/external"),
+      fetchJSON("parts/internal"),
+      fetchJSON("parts/cylinder"),
+      fetchJSON("mechanical-parts")
+    ]);
+
+    let anyOk = false;
+
+    // --- Customers (everyone) ---
+    if(customersR.ok){
+      const data = await customersR.json();
+      if(applyCustomerSnapshot(data, "REST-fallback")) anyOk = true;
+    } else console.error(`REST fallback (customers): HTTP ${customersR.status}`);
+
+    // --- Issues (everyone; render gate handles role scoping) ---
+    if(issuesR.ok){
+      const raw = await issuesR.json() || {};
+      const sanitized = {};
+      Object.entries(raw).forEach(([id, v]) => { sanitized[id] = sanitizeIssue(v, id); });
+      state.issues = sanitized;
+      updateIssueBadge();
+      anyOk = true;
+    } else console.error(`REST fallback (issues): HTTP ${issuesR.status}`);
+
+    // --- People roster (admin only; non-admin will get 401/403 silently) ---
+    if(peopleR.ok){
+      const raw = await peopleR.json() || {};
+      const out = {};
+      Object.entries(raw).forEach(([key, v]) => {
+        if(!v || typeof v !== "object") return;
+        out[key] = {
+          email: stripHTML(v.email || ""),
+          name: stripHTML(v.name || "(unnamed)"),
+          role: ["admin","installer","customer"].includes(v.role) ? v.role : "installer",
+          customerId: stripHTML(v.customerId || ""),
+          addedAt: v.addedAt || 0,
+          addedBy: stripHTML(v.addedBy || "")
+        };
+      });
+      peopleRoster = out;
+      if(typeof renderPeopleList === "function") renderPeopleList();
+      anyOk = true;
+    } // 401/403 on /people for non-admins is normal — don't log as error
+
+    // --- Procedures (all 3 install types, everyone) ---
+    const procResults = [
+      ["external", proceduresExtR],
+      ["internal", proceduresIntR],
+      ["cylinder", proceduresCylR]
+    ];
+    for(const [type, r] of procResults){
+      if(r.ok){
+        const data = await r.json();
+        if(data && typeof data === "object"){
+          state.procedures = state.procedures || {};
+          state.procedures[type] = data;
+          anyOk = true;
+        }
+      }
     }
-    const data = await r.json();
-    return applyCustomerSnapshot(data, "REST-fallback");
+
+    // --- Tools (everyone) ---
+    if(toolsR.ok){
+      const v = await toolsR.json();
+      state.tools = v && typeof v === "object" ? v : {};
+      anyOk = true;
+    }
+
+    // --- Parts (per install type) ---
+    const partResults = [
+      ["external", partsExtR],
+      ["internal", partsIntR],
+      ["cylinder", partsCylR]
+    ];
+    for(const [type, r] of partResults){
+      if(r.ok){
+        const v = await r.json();
+        state.parts = state.parts || {};
+        state.parts[type] = v && typeof v === "object" ? v : {};
+        anyOk = true;
+      }
+    }
+
+    // --- Mechanical parts (universal) ---
+    if(mechPartsR.ok){
+      const v = await mechPartsR.json();
+      state.mechParts = v && typeof v === "object" ? v : {};
+      anyOk = true;
+    }
+
+    // Trigger a re-render of the active view so new data shows up.
+    // Skip if user is typing in any field (avoid clobbering work-in-progress).
+    const isFocusedInInput = (() => {
+      const el = document.activeElement;
+      if(!el) return false;
+      const tag = el.tagName;
+      return (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
+    })();
+    if(!isFocusedInInput && typeof renderActive === "function") renderActive();
+
+    return anyOk;
   } catch(e){
     console.error("REST fallback threw:", e?.message);
     return false;
@@ -2682,6 +2800,10 @@ window.addPerson = async () => {
     document.getElementById("ppl-customer-row").style.display = "none";
     document.getElementById("ppl-customer").value = "";
     toast("Person added — they'll be granted "+role+" role on next sign-in");
+    // Rev 2.34: Force an immediate REST poll on mobile so the just-added person
+    // shows up in the list without waiting for the 30s poll tick. The SDK
+    // subscription may also fire (if not wedged); whichever returns first wins.
+    if(typeof loadDataViaREST === "function") loadDataViaREST().catch(()=>{});
   }catch(e){ toast("Failed: "+e.message, true); }
 };
 
@@ -2697,6 +2819,7 @@ window.removePerson = async (key) => {
   try{
     await remove(ref(db, `autoflag/people/${key}`));
     toast("Removed");
+    if(typeof loadDataViaREST === "function") loadDataViaREST().catch(()=>{});
   }catch(e){ toast("Failed: "+e.message, true); }
 };
 
