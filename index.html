@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.36" />
+<meta name="app-rev" content="2.37" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.36</div>
+  <div class="ver">AutoFlag© · v2.37</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.36</span>
+    <span>v2.37</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2568,6 +2568,31 @@ async function writeNode(path, value){
 }
 async function patchNode(path, patch){  // update() preserves siblings, per 6.3.7
   await _writeWithFallback("PATCH", path, patch);
+}
+
+// Rev 2.37: One-shot read helper with REST fallback. Same pattern as
+// _writeWithFallback. SDK get() can hang on a wedged WebSocket; race against
+// timeout and fall through to REST GET. Returns the raw value (or null).
+// Used by AI history loader and any other one-shot reads. Real-time
+// subscriptions (onValue) don't need this — they have their own retry behavior
+// AND the global REST poll already covers the major paths.
+async function readNode(path){
+  const SDK_READ_TIMEOUT_MS = 2500;
+  const sdkCall = get(ref(db, path)).then(snap => snap.val());
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("SDK_TIMEOUT")), SDK_READ_TIMEOUT_MS));
+  try {
+    return await Promise.race([sdkCall, timeout]);
+  } catch(e){
+    if(e?.message !== "SDK_TIMEOUT") throw e;
+    console.warn(`readNode SDK timeout for ${path}, falling back to REST`);
+  }
+  // REST fallback
+  if(!auth?.currentUser) throw new Error("No auth token for REST read");
+  const idToken = await auth.currentUser.getIdToken(false);
+  const url = `https://philinity-893d2-default-rtdb.firebaseio.com/${path}.json?auth=${encodeURIComponent(idToken)}`;
+  const r = await fetch(url, { cache: "no-store", credentials: "omit" });
+  if(!r.ok) throw new Error(`REST GET failed: HTTP ${r.status}`);
+  return await r.json();
 }
 
 // ==== Audit log helpers ====
@@ -8608,7 +8633,10 @@ async function persistAIMessage(role, content, photoUrls){
       // First message of a new conversation — create the doc
       aiCurrentConvId = push(ref(db, `autoflag/ai-conversations/${state.user.uid}`)).key;
       const previewText = (content || "").replace(/\s+/g, " ").trim().slice(0, 80);
-      await set(ref(db, `autoflag/ai-conversations/${state.user.uid}/${aiCurrentConvId}`), {
+      // Rev 2.37: route through writeNode (PUT + REST fallback) instead of
+      // raw set() — fixes silent fail on mobile when SDK WebSocket is wedged.
+      // Phil reported AI exchanges weren't appearing in chat history on phone.
+      await writeNode(`autoflag/ai-conversations/${state.user.uid}/${aiCurrentConvId}`, {
         startedAt: now,
         startedBy: state.user.uid,
         startedByName: state.user.displayName || state.user.email || "(unknown)",
@@ -8619,13 +8647,15 @@ async function persistAIMessage(role, content, photoUrls){
       });
     } else {
       // Append to existing conversation. Read-modify-write to keep the array in order.
+      // Rev 2.37: the read step (get) is still SDK and could theoretically hang too,
+      // but that's a different problem to solve. For now, focus on the write step.
       const path = `autoflag/ai-conversations/${state.user.uid}/${aiCurrentConvId}`;
       const snap = await get(ref(db, path));
       const conv = snap.val() || {};
       const existing = Array.isArray(conv.messages) ? conv.messages : [];
       // Cap at 200 messages per conversation to keep doc size sane (~50KB each)
       const next = [...existing, msg].slice(-200);
-      await update(ref(db, path), {
+      await patchNode(path, {
         lastActivityAt: now,
         messageCount: next.length,
         messages: next
@@ -9688,8 +9718,9 @@ async function loadAIHistoryCache(){
   try {
     if(state.isAdmin){
       // Admin: read whole subtree under autoflag/ai-conversations/
-      const snap = await get(ref(db, "autoflag/ai-conversations"));
-      const all = snap.val() || {};
+      // Rev 2.37: use readNode (with REST fallback) — SDK get() hangs on
+      // wedged mobile WebSocket; Phil reported chat history not loading.
+      const all = (await readNode("autoflag/ai-conversations")) || {};
       Object.entries(all).forEach(([uid, byConv]) => {
         Object.entries(byConv || {}).forEach(([convId, conv]) => {
           __aiHistoryCache.push({
@@ -9708,8 +9739,7 @@ async function loadAIHistoryCache(){
         Object.entries(userMap).sort((a,b) => a[1].localeCompare(b[1])).map(([uid, name]) => `<option value="${uid}">${escapeHtml(name)}</option>`).join("");
     } else {
       // Installer: only own conversations
-      const snap = await get(ref(db, `autoflag/ai-conversations/${state.user.uid}`));
-      const byConv = snap.val() || {};
+      const byConv = (await readNode(`autoflag/ai-conversations/${state.user.uid}`)) || {};
       Object.entries(byConv).forEach(([convId, conv]) => {
         __aiHistoryCache.push({
           uid: state.user.uid, convId,
