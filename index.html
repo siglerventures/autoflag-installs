@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.43" />
+<meta name="app-rev" content="2.44" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.43</div>
+  <div class="ver">AutoFlag© · v2.44</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.43</span>
+    <span>v2.44</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1282,10 +1282,12 @@
         Changes take effect immediately for all installers.
       </div>
 
-      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
         <button class="chip" id="proc-tab-external" onclick="switchProcTab('external')">🪢 External</button>
         <button class="chip" id="proc-tab-internal" onclick="switchProcTab('internal')">🧵 Internal</button>
         <button class="chip" id="proc-tab-cylinder" onclick="switchProcTab('cylinder')">🛢 Cylinder</button>
+        <!-- Rev 2.44: Quick access to the per-procedure measurement editor -->
+        <button class="btn-secondary btn" onclick="openMeasurementsModal()" style="margin-left:auto;font-size:11px;padding:5px 10px" title="Manage measurements for this procedure">📐 Measurements</button>
       </div>
 
       <div id="procStepsList" style="margin-bottom:14px"></div>
@@ -1294,12 +1296,12 @@
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">+ Add new step</div>
         <div class="form-row" id="proc-new-section-row" style="display:none"><label>Section</label><select id="proc-new-section"></select></div>
         <div class="form-row"><label>Step title *</label><input id="proc-new-title" placeholder="e.g., Mount control box to flagpole" /></div>
-        <div class="form-row"><label>Instructions <span style="color:var(--text-muted);font-weight:normal">— use {A} or {B} to insert measurements</span></label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line. {A} and {B} get replaced with the captured measurement at render time." rows="3"></textarea></div>
+        <div class="form-row"><label>Instructions <span style="color:var(--text-muted);font-weight:normal">— use <code style="font-size:11px;background:var(--surface3);padding:1px 4px;border-radius:3px">{Name}</code> to insert a measurement</span></label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line. {Name} gets replaced with the captured measurement at render time." rows="3"></textarea></div>
         <div class="form-row"><label>Reference photo URL (optional)</label><input id="proc-new-photo" placeholder="https://... (paste URL or leave blank)" /></div>
+        <!-- Rev 2.44: Capture measurement dropdown dynamically populated by
+             renderProcSteps() / switchProcTab() from getProcedureMeasurements. -->
         <div class="form-row"><label>Capture measurement (optional)</label><select id="proc-new-input">
           <option value="">— None —</option>
-          <option value="A">A — Halyard travel (ft)</option>
-          <option value="B">B — Flag height (in)</option>
         </select></div>
         <div style="display:flex;align-items:center;gap:8px">
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -1513,6 +1515,41 @@
   </div>
 </div>
 
+<!-- ==== Modal: Manage Measurements (Rev 2.44) ====
+     Per-procedure list of named measurements that step instructions can
+     reference via {Name} substitution. Admin adds/edits/removes; each
+     measurement has a name (string), unit (optional, free text like "in"
+     or "ft"), and placeholder (optional). Stored at
+     `autoflag/procedures/{type}/measurements: []`. External/Internal seed
+     implicitly with the legacy A=Halyard travel, B=Flag height pair via
+     getProcedureMeasurements (no DB write until admin edits + saves). -->
+<div class="modal-overlay" id="modalMeasurements">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <h2>Measurements · <span id="mm-proc-name" style="color:var(--text-muted);font-weight:normal;text-transform:capitalize"></span></h2>
+      <button class="modal-close" onclick="closeModal('modalMeasurements')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5">
+        Define measurements installers capture during this procedure. Reference them in step instructions with curly braces — e.g. <code style="background:var(--surface2);padding:2px 5px;border-radius:3px">Drill at ½ × {Circumference} from front</code>.
+      </div>
+      <div id="mm-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+      <div class="form-row">
+        <label>Add measurement</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input id="mm-new-name"        placeholder="Name (e.g. Circumference)" style="flex:2 1 180px;min-width:0" />
+          <input id="mm-new-unit"        placeholder="Unit (in)" style="flex:0 1 80px;min-width:0" />
+          <input id="mm-new-placeholder" placeholder="Placeholder (e.g. 24)" style="flex:1 1 120px;min-width:0" />
+          <button class="btn" onclick="addMeasurement()">+ Add</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary btn" onclick="closeModal('modalMeasurements')">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ==== Modal: Edit Procedure Step (Rev 2.43) ====
      Replaces the chain-of-prompts flow that broke when Chrome's "prevent
      additional dialogs" was triggered AND was unusable on mobile. Single
@@ -1544,11 +1581,13 @@
         </div>
         <div class="form-row">
           <label>Capture measurement?</label>
+          <!-- Rev 2.44: dynamic options populated from getProcedureMeasurements(activeProcTab) -->
           <select id="eps-input-field">
             <option value="">— None —</option>
-            <option value="A">A — Halyard travel (ft)</option>
-            <option value="B">B — Flag height (in)</option>
           </select>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+            <a onclick="event.preventDefault();closeModal('modalEditProcStep');openMeasurementsModal()" style="color:var(--amber);cursor:pointer;text-decoration:underline">Manage measurements →</a>
+          </div>
         </div>
       </div>
       <div style="font-size:11px;color:var(--text-muted);font-style:italic;background:var(--surface2);padding:8px 10px;border-radius:var(--radius-sm);border-left:3px solid var(--amber-dim);margin-top:8px">
@@ -3034,14 +3073,27 @@ function getTemplateSections(tpl){
   return [];
 }
 
-// Reads A or B value for a pole by scanning its checklist for the step
-// whose template-defined inputField.name matches. Returns "" if not captured.
-function getPoleMeasurement(p, name){
+// Rev 2.44: Read a captured measurement off a pole. Walks the procedure's
+// checklist looking for any step whose inputField.name (or legacyKey) matches
+// what was asked for. Returns "" if not yet captured.
+//
+// Pole values still live in `checklist[stepId].inputValue` — Phil's call to
+// avoid a data migration. We just look them up by name now instead of by the
+// hardcoded A/B letters.
+function getPoleMeasurement(p, nameOrLegacy){
   if(!p || !p.checklist) return "";
   const tpl = state.procedures[p.installType];
   const steps = getTemplateSteps(tpl);
+  const wanted = String(nameOrLegacy).trim();
+  const wantedLower = wanted.toLowerCase();
   for(const st of steps){
-    if(st.inputField && st.inputField.name === name){
+    const f = st.inputField;
+    if(!f) continue;
+    // Match on name (case-insensitive), or on legacyKey (A/B for old data)
+    if(
+      (f.name && f.name.toLowerCase() === wantedLower) ||
+      (f.legacyKey && f.legacyKey === wanted)
+    ){
       const v = p.checklist[st.id]?.inputValue;
       if(v) return String(v);
     }
@@ -3049,17 +3101,41 @@ function getPoleMeasurement(p, name){
   return "";
 }
 
-// Substitutes {A} and {B} placeholders in instruction text with captured values.
-// If a value is not yet captured, leaves the placeholder intact so installers
-// know what's missing. HTML-escapes the substituted value to be safe.
+// Rev 2.44: Substitutes {Anything} placeholders in instruction text with
+// captured values. Supports the new named form ({Circumference},
+// {Door Opening Width}) AND the legacy single-letter form ({A}, {B}) for
+// backward compatibility with existing External/Internal procedures.
+//
+// If a value is not yet captured, leaves the placeholder intact so the
+// installer can see what's missing. HTML-escapes substituted values.
 function substituteMeasurements(text, p){
   if(!text || !p) return text || "";
-  return text.replace(/\{(A|B)\}/g, (m, name) => {
+  return text.replace(/\{([^{}]+)\}/g, (m, name) => {
     const v = getPoleMeasurement(p, name);
     if(!v) return m;
     const escaped = v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return `<strong>${escaped}</strong>`;
   });
+}
+
+// Rev 2.44: Get the editable measurement definitions for a procedure type.
+// Seeds External/Internal with the legacy A=Halyard travel, B=Flag height
+// pair if no measurements array exists yet — preserves existing data without
+// requiring a write migration.
+function getProcedureMeasurements(installType){
+  const tpl = state.procedures[installType];
+  if(!tpl) return [];
+  if(Array.isArray(tpl.measurements) && tpl.measurements.length){
+    return tpl.measurements;
+  }
+  // Implicit defaults (not written until admin edits/saves)
+  if(installType === "external" || installType === "internal"){
+    return [
+      { name: "Halyard travel", unit: "ft", placeholder: "e.g. 20", legacyKey: "A" },
+      { name: "Flag height",    unit: "in", placeholder: "e.g. 36", legacyKey: "B" }
+    ];
+  }
+  return [];  // Cylinder starts empty — admin defines what they need
 }
 
 window.openProceduresModal = () => {
@@ -3074,8 +3150,23 @@ window.switchProcTab = (type) => {
   ["external","internal","cylinder"].forEach(t => {
     document.getElementById(`proc-tab-${t}`).classList.toggle("active", t === type);
   });
+  // Rev 2.44: refresh the Add-step "Capture measurement" dropdown to match
+  // the new active procedure's measurement list. Hardcoded A/B options were
+  // removed in the markup; this is the dynamic populator.
+  refreshAddStepMeasurementDropdown();
   renderProcSteps();
 };
+
+function refreshAddStepMeasurementDropdown(){
+  const sel = document.getElementById("proc-new-input");
+  if(!sel) return;
+  const measurements = getProcedureMeasurements(activeProcTab);
+  sel.innerHTML = `<option value="">— None —</option>` +
+    measurements.map(m => {
+      const lbl = m.unit ? `${m.name} (${m.unit})` : m.name;
+      return `<option value="${escapeHtml(m.name)}">${escapeHtml(lbl)}</option>`;
+    }).join("");
+}
 
 // Toggles a section's expanded state in the admin view. Click-through-safe:
 // clicks on action buttons (data-no-drag) and post-drag clicks are ignored.
@@ -3784,9 +3875,30 @@ window.addProcedureStep = async () => {
   const instructions = document.getElementById("proc-new-instructions").value.trim();
   const photoUrl = document.getElementById("proc-new-photo").value.trim();
   const requirePhoto = document.getElementById("proc-new-required").checked;
-  const inputName = document.getElementById("proc-new-input").value;
+  const selectedName = document.getElementById("proc-new-input").value.trim();
   const sectionId = document.getElementById("proc-new-section").value || "onsiteInstall";
   const stepId = `step_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+
+  // Rev 2.44: Build inputField from the procedure's measurement list (no
+  // more hardcoded A/B). Same logic as saveEditedProcStep — look up by name
+  // from getProcedureMeasurements, copy unit/placeholder/legacyKey through.
+  let inputField = null;
+  if(selectedName){
+    const measurements = getProcedureMeasurements(activeProcTab);
+    const def = measurements.find(m => m.name === selectedName);
+    if(def){
+      inputField = {
+        name: def.name,
+        label: def.name,
+        unit: def.unit || "",
+        placeholder: def.placeholder || "",
+        ...(def.legacyKey ? { legacyKey: def.legacyKey } : {})
+      };
+    } else {
+      inputField = { name: selectedName, label: selectedName };
+    }
+  }
+
   const newStep = {
     id: stepId,
     title,
@@ -3794,7 +3906,7 @@ window.addProcedureStep = async () => {
     photoUrl,
     requirePhoto,
     referencePhotos: [],
-    inputField: inputName ? { name: inputName, label: inputName === "A" ? "Halyard travel (A)" : "Flag height (B)", unit: inputName === "A" ? "ft" : "in", placeholder: inputName === "A" ? "e.g., 20" : "e.g., 36" } : null
+    inputField
   };
   const tpl = state.procedures[activeProcTab] || {};
 
@@ -3836,6 +3948,104 @@ window.addProcedureStep = async () => {
 // Stashed targeting context so saveEditedProcStep can find the step:
 let _editingProcStep = null; // { sectionId, stepId }
 
+// Rev 2.44: Manage Measurements modal for editing the per-procedure
+// measurement list. Reads/writes `autoflag/procedures/{type}/measurements`
+// via patchNode (REST-fallback safe). Implicit defaults (External/Internal
+// A/B) get written to DB on the first add/edit so admin sees what's there.
+window.openMeasurementsModal = () => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  const procName = activeProcTab.charAt(0).toUpperCase() + activeProcTab.slice(1);
+  document.getElementById("mm-proc-name").textContent = procName;
+  document.getElementById("mm-new-name").value = "";
+  document.getElementById("mm-new-unit").value = "";
+  document.getElementById("mm-new-placeholder").value = "";
+  renderMeasurementsList();
+  openModal("modalMeasurements");
+};
+
+function renderMeasurementsList(){
+  const wrap = document.getElementById("mm-list");
+  if(!wrap) return;
+  const list = getProcedureMeasurements(activeProcTab);
+  if(!list.length){
+    wrap.innerHTML = `<div style="padding:14px;font-size:12px;color:var(--text-muted);font-style:italic;background:var(--surface2);border-radius:var(--radius-sm);text-align:center">
+      No measurements defined yet. Add one below.
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = list.map((m, idx) => {
+    const legacyBadge = m.legacyKey
+      ? `<span style="font-size:9px;color:var(--amber);padding:1px 5px;background:rgba(212,134,10,.10);border-radius:3px;text-transform:uppercase">legacy {${escapeHtml(m.legacyKey)}}</span>`
+      : "";
+    return `<div style="display:flex;gap:6px;align-items:center;background:var(--surface2);padding:8px 10px;border-radius:var(--radius-sm)">
+      <input value="${escapeHtml(m.name||'')}" onchange="updateMeasurement(${idx},'name',this.value)" style="flex:2 1 0;min-width:0" />
+      <input value="${escapeHtml(m.unit||'')}" onchange="updateMeasurement(${idx},'unit',this.value)" placeholder="unit" style="flex:0 1 70px;min-width:0" />
+      <input value="${escapeHtml(m.placeholder||'')}" onchange="updateMeasurement(${idx},'placeholder',this.value)" placeholder="placeholder" style="flex:1 1 0;min-width:0" />
+      ${legacyBadge}
+      <button class="btn-secondary btn" onclick="removeMeasurement(${idx})" style="color:var(--red);font-size:11px;padding:4px 8px" title="Remove">✕</button>
+    </div>`;
+  }).join("");
+}
+
+window.addMeasurement = async () => {
+  if(!state.isAdmin) return;
+  const name = document.getElementById("mm-new-name").value.trim();
+  if(!name) return toast("Name is required", true);
+  const unit = document.getElementById("mm-new-unit").value.trim();
+  const placeholder = document.getElementById("mm-new-placeholder").value.trim();
+  const list = [...getProcedureMeasurements(activeProcTab)];
+  if(list.find(m => m.name.toLowerCase() === name.toLowerCase())){
+    return toast("That name is already used", true);
+  }
+  list.push({ name, ...(unit ? {unit} : {}), ...(placeholder ? {placeholder} : {}) });
+  await persistMeasurements(list);
+  document.getElementById("mm-new-name").value = "";
+  document.getElementById("mm-new-unit").value = "";
+  document.getElementById("mm-new-placeholder").value = "";
+};
+
+window.updateMeasurement = async (idx, field, value) => {
+  if(!state.isAdmin) return;
+  const list = [...getProcedureMeasurements(activeProcTab)];
+  if(!list[idx]) return;
+  list[idx] = { ...list[idx], [field]: value.trim() };
+  // Drop empty unit/placeholder rather than store empty strings
+  if(list[idx][field] === "") delete list[idx][field];
+  await persistMeasurements(list);
+};
+
+window.removeMeasurement = async (idx) => {
+  if(!state.isAdmin) return;
+  const list = [...getProcedureMeasurements(activeProcTab)];
+  const m = list[idx];
+  if(!m) return;
+  if(!confirm(`Remove "${m.name}"? Steps referencing {${m.name}} in their instructions will show the placeholder instead.`)) return;
+  list.splice(idx, 1);
+  await persistMeasurements(list);
+};
+
+async function persistMeasurements(list){
+  try {
+    await patchNode(`autoflag/procedures/${activeProcTab}`, {
+      measurements: list,
+      updatedAt: Date.now(),
+      updatedBy: state.user.uid
+    });
+    // Keep local state in sync so the modal re-renders correctly without
+    // waiting for the subscription tick.
+    state.procedures[activeProcTab] = {
+      ...(state.procedures[activeProcTab] || {}),
+      measurements: list
+    };
+    renderMeasurementsList();
+    // Rev 2.44: also refresh the Add Step dropdown so the new measurement
+    // is immediately selectable without retabbing.
+    refreshAddStepMeasurementDropdown();
+  } catch(e){
+    toast("Save failed: " + e.message, true);
+  }
+}
+
 window.editProcStep = (sectionIdOrStepId, stepIdMaybe) => {
   if(!state.isAdmin) return toast("Admin only", true);
   // Back-compat: legacy single-arg form (stepId only, no section)
@@ -3857,7 +4067,32 @@ window.editProcStep = (sectionIdOrStepId, stepIdMaybe) => {
   document.getElementById("eps-title").value = step.title || "";
   document.getElementById("eps-instructions").value = step.instructions || "";
   document.getElementById("eps-require-photo").checked = !!step.requirePhoto;
-  document.getElementById("eps-input-field").value = step.inputField?.name || "";
+
+  // Rev 2.44: Populate measurement dropdown from this procedure's measurements list.
+  // Falls back to implicit External/Internal defaults via getProcedureMeasurements.
+  const sel = document.getElementById("eps-input-field");
+  const measurements = getProcedureMeasurements(activeProcTab);
+  sel.innerHTML = `<option value="">— None —</option>` +
+    measurements.map(m => {
+      const lbl = m.unit ? `${m.name} (${m.unit})` : m.name;
+      return `<option value="${escapeHtml(m.name)}">${escapeHtml(lbl)}</option>`;
+    }).join("");
+  // Preserve current selection — match by name, fall back to legacyKey for old
+  // External/Internal steps where inputField.name was just "A" or "B".
+  const currentName = step.inputField?.name || "";
+  if(currentName){
+    if(measurements.find(m => m.name === currentName)){
+      sel.value = currentName;
+    } else {
+      // Look up by legacyKey (current name "A" → measurement with legacyKey "A")
+      const match = measurements.find(m => m.legacyKey === currentName);
+      sel.value = match ? match.name : "";
+      // Preserve unmatched legacy value as a stale option so it's visible
+      if(!match){
+        sel.innerHTML += `<option value="${escapeHtml(currentName)}" selected>(legacy: ${escapeHtml(currentName)})</option>`;
+      }
+    }
+  }
   openModal("modalEditProcStep");
 };
 
@@ -3870,13 +4105,25 @@ window.saveEditedProcStep = async () => {
   if(!newTitle){ toast("Title is required", true); return; }
   const newInstructions = document.getElementById("eps-instructions").value.trim();
   const newRequired = document.getElementById("eps-require-photo").checked;
-  const cleanInput = document.getElementById("eps-input-field").value.trim().toUpperCase();
-  const inputField = (cleanInput === "A" || cleanInput === "B")
-    ? { name: cleanInput,
-        label: cleanInput === "A" ? "Halyard travel (A)" : "Flag height (B)",
-        unit:  cleanInput === "A" ? "ft" : "in",
-        placeholder: cleanInput === "A" ? "e.g., 20" : "e.g., 36" }
-    : null;
+  const selectedName = document.getElementById("eps-input-field").value.trim();
+  // Rev 2.44: look up the measurement definition by name, build inputField from it
+  let inputField = null;
+  if(selectedName){
+    const measurements = getProcedureMeasurements(activeProcTab);
+    const def = measurements.find(m => m.name === selectedName);
+    if(def){
+      inputField = {
+        name: def.name,
+        label: def.name,            // label = name; we no longer have separate labels
+        unit: def.unit || "",
+        placeholder: def.placeholder || "",
+        ...(def.legacyKey ? { legacyKey: def.legacyKey } : {})
+      };
+    } else {
+      // Stale value — preserve as-is so admin can see something's off
+      inputField = { name: selectedName, label: selectedName };
+    }
+  }
 
   // Find the existing step so we preserve photoUrl, referencePhotos, and any
   // other fields not exposed in the modal. Only title/instructions/requirePhoto/
