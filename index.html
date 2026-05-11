@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.34" />
+<meta name="app-rev" content="2.35" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -691,13 +691,22 @@
 
   /* ==== Mobile breakpoint (Rev 1.39, Eats v11.12 patterns) ==== */
   @media (max-width:768px){
-    /* On mobile the header has too much stuff (AI input + buttons) for a 380px
-       phone screen. Hide AI input + label + AI buttons in header. Users can still
-       use search. AI chat surface remains accessible via the chat thread below.
-       Also: hide expand toggle on mobile (use customer rows directly). */
-    header .ai-bar-label,
-    header #aiInput,
-    header .ai-icon-btn,
+    /* Rev 2.35: Phil wants Ask AI on mobile (was hidden in earlier revs because
+       header is cramped). Solution: let header wrap to TWO rows.
+       Row 1: logo + search (search fills remaining width).
+       Row 2: AI label + AI input + 3 AI buttons.
+       To force the wrap deterministically, we put a full-width spacer between
+       search and the AI elements. expandToggleBtn still hidden. */
+    header{flex-wrap:wrap;gap:8px;padding:8px 12px}
+    header .logo{flex:0 0 auto}
+    header .header-search{flex:1 1 0;min-width:0;font-size:16px}
+    /* Spacer element doesn't exist in markup — emulate with the ::after on the
+       search input would be fragile. Instead use a sibling break via the AI
+       label getting flex-basis:100% so it begins a new row, then everything
+       after it (input + buttons) shrinks to fit alongside. */
+    header .ai-bar-label{flex-basis:100%;display:flex !important;font-size:11px;margin:0}
+    header #aiInput{flex:1 1 auto;min-width:0;width:auto !important;font-size:16px}
+    header .ai-icon-btn{flex:0 0 auto}
     #expandToggleBtn{display:none}
     /* Make the top-row (filters + view tabs) scroll horizontally inside itself
        so it never blows past viewport width. */
@@ -966,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.34</div>
+  <div class="ver">AutoFlag© · v2.35</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1043,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.34</span>
+    <span>v2.35</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
