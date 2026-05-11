@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.42" />
+<meta name="app-rev" content="2.43" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.42</div>
+  <div class="ver">AutoFlag© · v2.43</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.42</span>
+    <span>v2.43</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1508,6 +1508,55 @@
       <div id="sugListPanel" style="display:none">
         <div id="sugListItems" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto"></div>
         <div id="sugListEmpty" style="display:none;padding:20px;text-align:center;color:var(--text-muted);font-size:13px;font-style:italic">No suggestions yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==== Modal: Edit Procedure Step (Rev 2.43) ====
+     Replaces the chain-of-prompts flow that broke when Chrome's "prevent
+     additional dialogs" was triggered AND was unusable on mobile. Single
+     modal with all fields visible. Reference photos are still managed via
+     the inline 4-source uploader on each step row (Rev 2.41); URL paste
+     prompts were dropped per Phil — they didn't work reliably anyway. -->
+<div class="modal-overlay" id="modalEditProcStep">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <h2>Edit Step</h2>
+      <button class="modal-close" onclick="closeModal('modalEditProcStep')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Title <span style="color:var(--red)">*</span></label>
+        <input id="eps-title" maxlength="200" placeholder="e.g. Cylinder pole compatibility check" />
+      </div>
+      <div class="form-row">
+        <label>Instructions <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— use {A} and {B} for measurements; multi-line OK</span></label>
+        <textarea id="eps-instructions" rows="6" placeholder="What the installer should do..."></textarea>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label>Require photo to check off?</label>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer">
+            <input type="checkbox" id="eps-require-photo" />
+            <span>Yes — photo required</span>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Capture measurement?</label>
+          <select id="eps-input-field">
+            <option value="">— None —</option>
+            <option value="A">A — Halyard travel (ft)</option>
+            <option value="B">B — Flag height (in)</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);font-style:italic;background:var(--surface2);padding:8px 10px;border-radius:var(--radius-sm);border-left:3px solid var(--amber-dim);margin-top:8px">
+        💡 To add reference photos for this step, close this modal and use the 📷 🖼 🖱 buttons on the step row in the procedure list.
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary btn" onclick="closeModal('modalEditProcStep')">Cancel</button>
+        <button class="btn" onclick="saveEditedProcStep()">Save</button>
       </div>
     </div>
   </div>
@@ -3775,12 +3824,25 @@ window.addProcedureStep = async () => {
   toast("Step added");
 };
 
-window.editProcStep = async (sectionIdOrStepId, stepIdMaybe) => {
-  // Back-compat: if called with one arg, it's the legacy stepId-only form.
+// Rev 2.43: Real modal replaces the chain-of-prompts flow. Phil's symptom:
+// "Edit only changes the title." Cause: chain of 5 `prompt()` calls — Chrome's
+// "prevent this page from creating additional dialogs" was triggered on a
+// prior session, suppressing every prompt after the first. Subsequent prompts
+// returned null which our code treated as Cancel and exited silently. The
+// title was saved (it was prompt #1 which had already fired); everything
+// else was silently lost. Modal flow has all fields visible at once, no
+// browser-level dialog suppression risk, and works on mobile.
+//
+// Stashed targeting context so saveEditedProcStep can find the step:
+let _editingProcStep = null; // { sectionId, stepId }
+
+window.editProcStep = (sectionIdOrStepId, stepIdMaybe) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  // Back-compat: legacy single-arg form (stepId only, no section)
   const tpl = state.procedures[activeProcTab];
   if(!tpl) return;
   const sectionId = (stepIdMaybe !== undefined) ? sectionIdOrStepId : null;
-  const stepId = (stepIdMaybe !== undefined) ? stepIdMaybe : sectionIdOrStepId;
+  const stepId    = (stepIdMaybe !== undefined) ? stepIdMaybe : sectionIdOrStepId;
 
   let step = null;
   if(sectionId && Array.isArray(tpl.sections)){
@@ -3789,52 +3851,74 @@ window.editProcStep = async (sectionIdOrStepId, stepIdMaybe) => {
   } else {
     step = (tpl.steps || []).find(s => s.id === stepId);
   }
-  if(!step) return;
+  if(!step){ toast("Step not found", true); return; }
 
-  const newTitle = prompt("Step title:", step.title);
-  if(newTitle === null) return;
-  const newInstructions = prompt("Instructions (use {A} and {B} for measurements):", step.instructions || "");
-  if(newInstructions === null) return;
-  const newPhoto = prompt("Reference photo URL (blank to remove):", step.photoUrl || "");
-  if(newPhoto === null) return;
-  const refPhotosText = (Array.isArray(step.referencePhotos) ? step.referencePhotos : []).join("\n");
-  const newRefPhotosText = prompt("Additional reference photo URLs (one per line):", refPhotosText);
-  if(newRefPhotosText === null) return;
-  const newRefPhotos = newRefPhotosText.split("\n").map(s => s.trim()).filter(Boolean);
-  const newRequired = confirm("Require a photo before this step can be checked off?\n\nOK = Required, Cancel = Not required");
-  const currentInput = step.inputField?.name || "";
-  const newInputName = prompt("Capture measurement on this step? Enter \"A\", \"B\", or blank for none:", currentInput);
-  if(newInputName === null) return;
-  const cleanInput = newInputName.trim().toUpperCase();
+  _editingProcStep = { sectionId, stepId };
+  document.getElementById("eps-title").value = step.title || "";
+  document.getElementById("eps-instructions").value = step.instructions || "";
+  document.getElementById("eps-require-photo").checked = !!step.requirePhoto;
+  document.getElementById("eps-input-field").value = step.inputField?.name || "";
+  openModal("modalEditProcStep");
+};
+
+window.saveEditedProcStep = async () => {
+  if(!_editingProcStep) return;
+  const tpl = state.procedures[activeProcTab];
+  if(!tpl) return;
+  const { sectionId, stepId } = _editingProcStep;
+  const newTitle = document.getElementById("eps-title").value.trim();
+  if(!newTitle){ toast("Title is required", true); return; }
+  const newInstructions = document.getElementById("eps-instructions").value.trim();
+  const newRequired = document.getElementById("eps-require-photo").checked;
+  const cleanInput = document.getElementById("eps-input-field").value.trim().toUpperCase();
   const inputField = (cleanInput === "A" || cleanInput === "B")
-    ? { name: cleanInput, label: cleanInput === "A" ? "Halyard travel (A)" : "Flag height (B)", unit: cleanInput === "A" ? "ft" : "in", placeholder: cleanInput === "A" ? "e.g., 20" : "e.g., 36" }
+    ? { name: cleanInput,
+        label: cleanInput === "A" ? "Halyard travel (A)" : "Flag height (B)",
+        unit:  cleanInput === "A" ? "ft" : "in",
+        placeholder: cleanInput === "A" ? "e.g., 20" : "e.g., 36" }
     : null;
 
+  // Find the existing step so we preserve photoUrl, referencePhotos, and any
+  // other fields not exposed in the modal. Only title/instructions/requirePhoto/
+  // inputField come from the form; everything else flows through unchanged.
+  let existing = null;
+  if(sectionId && Array.isArray(tpl.sections)){
+    const sec = tpl.sections.find(s => s.id === sectionId);
+    existing = sec?.steps?.find(s => s.id === stepId);
+  } else {
+    existing = (tpl.steps || []).find(s => s.id === stepId);
+  }
+  if(!existing){ toast("Step disappeared — refresh", true); return; }
+
   const updated = {
-    ...step,
-    title: newTitle.trim(),
-    instructions: newInstructions.trim(),
-    photoUrl: newPhoto.trim(),
-    referencePhotos: newRefPhotos,
+    ...existing,
+    title: newTitle,
+    instructions: newInstructions,
     requirePhoto: newRequired,
     inputField
   };
 
-  if(sectionId && Array.isArray(tpl.sections)){
-    const sections = tpl.sections.map(s => s.id === sectionId
-      ? { ...s, steps: (s.steps || []).map(st => st.id === stepId ? updated : st) }
-      : s
-    );
-    await patchNode(`autoflag/procedures/${activeProcTab}`, {
-      sections, updatedAt: Date.now(), updatedBy: state.user.uid
-    });
-  } else {
-    const newSteps = (tpl.steps || []).map(s => s.id === stepId ? updated : s);
-    await patchNode(`autoflag/procedures/${activeProcTab}`, {
-      steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
-    });
+  try {
+    if(sectionId && Array.isArray(tpl.sections)){
+      const sections = tpl.sections.map(s => s.id === sectionId
+        ? { ...s, steps: (s.steps || []).map(st => st.id === stepId ? updated : st) }
+        : s
+      );
+      await patchNode(`autoflag/procedures/${activeProcTab}`, {
+        sections, updatedAt: Date.now(), updatedBy: state.user.uid
+      });
+    } else {
+      const newSteps = (tpl.steps || []).map(s => s.id === stepId ? updated : s);
+      await patchNode(`autoflag/procedures/${activeProcTab}`, {
+        steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
+      });
+    }
+    toast("✓ Step saved");
+    closeModal("modalEditProcStep");
+    _editingProcStep = null;
+  } catch(e){
+    toast("Save failed: " + e.message, true);
   }
-  toast("Step updated");
 };
 
 window.deleteProcStep = async (sectionIdOrStepId, stepIdMaybe) => {
