@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.35" />
+<meta name="app-rev" content="2.36" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.35</div>
+  <div class="ver">AutoFlag© · v2.36</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.35</span>
+    <span>v2.36</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2529,11 +2529,45 @@ window.addEventListener("resize", () => {
   }
 });
 
+// Rev 2.36: Generic write helper with REST fallback. SDK writes can hang on
+// mobile when the WebSocket is wedged (known Rev 1.46 Android Chrome issue).
+// Race the SDK call against a timeout; on timeout, retry via REST. Both
+// transports write to the same Firebase path; whichever resolves first wins.
+// Used by writeNode (PUT/set semantics) and patchNode (PATCH/update semantics).
+const SDK_WRITE_TIMEOUT_MS = 3000;
+async function _writeWithFallback(method, path, body){
+  const sdkCall = method === "PUT"
+    ? set(ref(db, path), body)
+    : update(ref(db, path), body);
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("SDK_TIMEOUT")), SDK_WRITE_TIMEOUT_MS));
+  try {
+    await Promise.race([sdkCall, timeout]);
+    return;
+  } catch(e){
+    if(e?.message !== "SDK_TIMEOUT") throw e;
+    console.warn(`SDK ${method} timeout for ${path}, falling back to REST`);
+  }
+  // REST fallback
+  if(!auth?.currentUser) throw new Error("No auth token for REST write");
+  const idToken = await auth.currentUser.getIdToken(false);
+  const url = `https://philinity-893d2-default-rtdb.firebaseio.com/${path}.json?auth=${encodeURIComponent(idToken)}`;
+  const r = await fetch(url, {
+    method,                                  // PUT (set) or PATCH (update)
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+    credentials: "omit"
+  });
+  if(!r.ok){
+    throw new Error(`REST ${method} failed: HTTP ${r.status}`);
+  }
+}
+
 async function writeNode(path, value){
-  await set(ref(db, path), value);
+  await _writeWithFallback("PUT", path, value);
 }
 async function patchNode(path, patch){  // update() preserves siblings, per 6.3.7
-  await update(ref(db, path), patch);
+  await _writeWithFallback("PATCH", path, patch);
 }
 
 // ==== Audit log helpers ====
