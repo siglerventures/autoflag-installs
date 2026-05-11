@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.41" />
+<meta name="app-rev" content="2.42" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.41</div>
+  <div class="ver">AutoFlag© · v2.42</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.41</span>
+    <span>v2.42</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -8077,7 +8077,9 @@ function renderPoleChecklist(p){
       const globalIdx = runningStepIdx + sIdx;
       const c = checklist[st.id] || {};
       const isChecked = !!c.checked;
-      const stepPhotoUrl = c.photoUrl || "";
+      // Rev 2.42: read-either-shape photo accessor — handles legacy single
+      // photoUrl and new photoUrls array transparently.
+      const stepPhotoUrls = getStepPhotos(c);
       const inputField = st.inputField || null;
       const inputValue = c.inputValue || "";
       const unlocked = stepUnlocked(globalIdx);
@@ -8098,7 +8100,8 @@ function renderPoleChecklist(p){
       const blockReasons = [];
       if(!state.editing.poleId) blockReasons.push("Save the pole first");
       if(!unlocked) blockReasons.push("Previous steps not yet checked");
-      if(!isChecked && st.requirePhoto && !c.photoUrl) blockReasons.push("Photo required first");
+      // Rev 2.42: requirePhoto now satisfied by ANY photo (single legacy or array)
+      if(!isChecked && st.requirePhoto && stepPhotoUrls.length === 0) blockReasons.push("Photo required first");
       if(!isChecked && inputField && !inputValue) blockReasons.push(`Capture ${inputField.name} first`);
       const checkboxBlocked = !isChecked && blockReasons.length > 0;
       const checkboxAttrs = checkboxBlocked
@@ -8134,15 +8137,33 @@ function renderPoleChecklist(p){
               <span class="checklist-input-saved" id="input-saved-${st.id}" style="display:${inputValue ? '' : 'none'}">✓ saved</span>
             </div>
           ` : ''}
-          <div class="checklist-step-actions">
-            ${stepPhotoUrl
-              ? `<div class="checklist-step-photo" onclick="window.open('${stepPhotoUrl}','_blank')"><img src="${stepPhotoUrl}" /><span class="checklist-photo-label">Your photo</span></div>
-                 <button class="btn-secondary btn" style="font-size:11px;padding:5px 10px" onclick="removeStepPhoto('${st.id}')" ${unlocked ? '' : 'disabled'}>✕ Remove photo</button>`
-              : `<label class="btn-secondary btn" style="cursor:${unlocked ? 'pointer' : 'not-allowed'};font-size:11px;padding:5px 10px;${unlocked ? '' : 'opacity:.5'}">
-                   📷 Add photo
-                   <input type="file" accept="image/*" capture="environment" style="display:none" onchange="uploadStepPhoto(event,'${st.id}')" ${unlocked ? '' : 'disabled'}>
-                 </label>`
-            }
+          <!-- Rev 2.42: Multi-photo step UI with full 4-source uploader.
+               Existing photos shown as thumbs with ✕ remove. Below thumbs:
+               📷 take photo (mobile camera), 🖼 library, 🖱 drop zone (also paste target).
+               Multiple files supported in any source. Clicking any control sets
+               this step as the paste target so global Ctrl+V routes here. -->
+          <div class="checklist-step-actions" style="flex-wrap:wrap;gap:6px">
+            ${stepPhotoUrls.map((u, i) => `<div class="checklist-step-photo" style="position:relative">
+                <img src="${u}" onclick="window.open('${u}','_blank')" />
+                <span class="checklist-photo-label">${i+1}/${stepPhotoUrls.length}</span>
+                <button onclick="event.stopPropagation();removeStepPhotoAt('${st.id}','${u.replace(/'/g,"\\'")}')" ${unlocked ? '' : 'disabled'} style="position:absolute;top:2px;right:2px;background:rgba(178,40,40,0.85);color:#fff;border:none;font-size:10px;width:18px;height:18px;border-radius:50%;cursor:pointer;line-height:1;padding:0" title="Remove">✕</button>
+              </div>`).join('')}
+            ${unlocked ? `<div class="step-photo-add-strip" onclick="setPasteTargetStepPhoto('${st.id}')" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+              <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetStepPhoto('${st.id}')" title="Take photo">
+                📷
+                <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="uploadStepPhoto(event,'${st.id}')">
+              </label>
+              <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetStepPhoto('${st.id}')" title="Choose from library">
+                🖼
+                <input type="file" accept="image/*" multiple style="display:none" onchange="uploadStepPhoto(event,'${st.id}')">
+              </label>
+              <div class="ai-drop-zone" style="font-size:11px;padding:5px 10px"
+                ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="event.stopPropagation();handleStepPhotoDrop(event,'${st.id}')"
+                onclick="event.stopPropagation();setPasteTargetStepPhoto('${st.id}');toast('Now Ctrl+V to paste for this step')"
+                title="Drag & drop or click then Ctrl+V">🖱 / Ctrl+V</div>
+            </div>` : `<span style="font-size:11px;color:var(--text-muted);font-style:italic">Previous steps must be checked before adding photos</span>`}
           </div>
         </div>
       </div>`;
@@ -8243,7 +8264,8 @@ window.toggleChecklistStep = async (stepId) => {
   }
 
   // Block check if photo required but not yet attached
-  if(newlyChecked && step.requirePhoto && !current.photoUrl){
+  // Rev 2.42: satisfied by ANY photo (legacy single or new array shape)
+  if(newlyChecked && step.requirePhoto && getStepPhotos(current).length === 0){
     toast("This step requires a photo first 📷", true);
     return;
   }
@@ -8351,29 +8373,105 @@ window.saveStepInput = async (stepId, immediate) => {
   }
 };
 
-window.uploadStepPhoto = async (ev, stepId) => {
-  const f = ev.target.files?.[0];
-  ev.target.value = "";
-  if(!f) return;
+// Rev 2.42: Read step photos as an array regardless of schema shape.
+// Old data: { photoUrl: "https://..." }   (single)
+// New data: { photoUrls: ["https://...", "https://..."] }  (multiple)
+// Returns a unified array; empty if neither populated. Writes always go to
+// photoUrls (array) — old photoUrl stays in the record harmlessly until next write.
+function getStepPhotos(checklistEntry){
+  if(!checklistEntry) return [];
+  if(Array.isArray(checklistEntry.photoUrls) && checklistEntry.photoUrls.length){
+    return checklistEntry.photoUrls;
+  }
+  if(typeof checklistEntry.photoUrl === "string" && checklistEntry.photoUrl){
+    return [checklistEntry.photoUrl];
+  }
+  return [];
+}
+
+// Core uploader — takes a File, uploads to Storage, appends URL to step.photoUrls.
+// Used by both the file-input onchange handler and the drop/paste paths.
+async function _uploadStepPhotoFile(file, stepId){
   const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
-  if(!cid || !sid || !pid) return toast("Save the pole first", true);
-  toast("Uploading photo...");
-  try{
-    const path = `autoflag/installs/${cid}/${sid}/${pid}/step_${stepId}_${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  if(!cid || !sid || !pid){ toast("Save the pole first", true); return; }
+  try {
+    const safeName = (file.name || "step").replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `autoflag/installs/${cid}/${sid}/${pid}/step_${stepId}_${Date.now()}_${safeName}`;
     const sr = sref(storage, path);
-    await uploadBytes(sr, f);
+    await uploadBytes(sr, file);
     const url = await getDownloadURL(sr);
     const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
     const current = (p.checklist || {})[stepId] || {};
-    const newChecklist = { ...(p.checklist || {}), [stepId]: { ...current, photoUrl: url } };
+    // Merge: combine any existing legacy photoUrl into the new array, then append.
+    const existing = getStepPhotos(current);
+    const newChecklist = {
+      ...(p.checklist || {}),
+      [stepId]: {
+        ...current,
+        photoUrls: [...existing, url],
+        photoUrl: null  // null out legacy field on first write — keeps the record clean
+      }
+    };
     await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
       checklist: newChecklist,
       updatedAt: Date.now(),
       updatedBy: state.user.uid
     });
     renderPoleChecklist({ ...p, checklist: newChecklist });
-    toast("✓ Photo attached");
-  }catch(e){ toast("Upload failed: "+e.message, true); }
+  } catch(e){
+    toast("Upload failed: " + e.message, true);
+  }
+}
+
+window.uploadStepPhoto = async (ev, stepId) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";
+  if(!files.length) return;
+  const imgs = files.filter(f => f.type.startsWith("image/"));
+  if(!imgs.length){ toast("No image files selected", true); return; }
+  toast(`Uploading ${imgs.length} photo${imgs.length===1?'':'s'}...`);
+  for(const f of imgs) await _uploadStepPhotoFile(f, stepId);
+  toast(`✓ ${imgs.length} photo${imgs.length===1?'':'s'} attached`);
+};
+
+// Drop handler for the per-step drop zone in the Pole modal checklist.
+window.handleStepPhotoDrop = async (ev, stepId) => {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("drag-over");
+  const files = Array.from(ev.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
+  if(!files.length) return;
+  toast(`Uploading ${files.length} photo${files.length===1?'':'s'}...`);
+  for(const f of files) await _uploadStepPhotoFile(f, stepId);
+  toast(`✓ ${files.length} photo${files.length===1?'':'s'} attached`);
+};
+
+// Rev 2.42: Tracks which checklist step is the paste target. Same pattern as
+// _pasteTargetStepRef (procedures admin) — clicking step photo controls sets
+// this, global paste handler routes to _uploadStepPhotoFile.
+let _pasteTargetStepPhoto = null;
+window.setPasteTargetStepPhoto = (stepId) => {
+  _pasteTargetStepPhoto = { stepId };
+};
+
+window.removeStepPhotoAt = async (stepId, url) => {
+  if(!confirm("Remove this photo?")) return;
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const current = (p.checklist || {})[stepId] || {};
+  const existing = getStepPhotos(current);
+  const next = existing.filter(u => u !== url);
+  const newChecklist = {
+    ...(p.checklist || {}),
+    [stepId]: { ...current, photoUrls: next, photoUrl: null }
+  };
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+    checklist: newChecklist, updatedAt: Date.now(), updatedBy: state.user.uid
+  });
+  // Best-effort delete from Storage (no-op if URL isn't a Firebase Storage URL)
+  if(url){ try{ const path = decodeURIComponent(url.split("/o/")[1].split("?")[0]); deleteObject(sref(storage, path)).catch(()=>{}); }catch(_){} }
+  renderPoleChecklist({ ...p, checklist: newChecklist });
+  toast("✓ Photo removed");
 };
 
 window.removeStepPhoto = async (stepId) => {
@@ -8383,7 +8481,7 @@ window.removeStepPhoto = async (stepId) => {
   if(!p) return;
   const current = (p.checklist || {})[stepId] || {};
   const url = current.photoUrl;
-  const newChecklist = { ...(p.checklist || {}), [stepId]: { ...current, photoUrl: null } };
+  const newChecklist = { ...(p.checklist || {}), [stepId]: { ...current, photoUrl: null, photoUrls: [] } };
   await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
     checklist: newChecklist, updatedAt: Date.now(), updatedBy: state.user.uid
   });
@@ -8852,6 +8950,10 @@ document.addEventListener("paste", ev => {
   let target = null;
   if(aiPanel && aiPanel.style.display !== "none") target = "ai";
   else if(siteModal && siteModal.classList.contains("open")) target = "site";
+  // Rev 2.42: Pole modal has two paste targets — pole-level photos OR a
+  // specific checklist step's photos. If user clicked into a step's photo
+  // controls, prefer that. Otherwise fall through to pole-level.
+  else if(poleModal && poleModal.classList.contains("open") && _pasteTargetStepPhoto) target = "stepPhoto";
   else if(poleModal && poleModal.classList.contains("open")) target = "pole";
   // Rev 2.41: Procedures view + a step photo strip was the most recent target.
   // setPasteTargetStepRef() is called when admin clicks any step's photo controls.
@@ -8870,6 +8972,7 @@ document.addEventListener("paste", ev => {
     if(target === "ai")    addAIPhoto(f);
     else if(target === "site")  addSitePhotoFromFile(f);
     else if(target === "pole")  addPolePhotoFromFile(f);
+    else if(target === "stepPhoto") _uploadStepPhotoFile(f, _pasteTargetStepPhoto.stepId);
     else if(target === "stepRef") _uploadStepRefFile(f, _pasteTargetStepRef.sectionId, _pasteTargetStepRef.stepId);
     else if(target === "siteDetail") files.push(f);
     else if(target === "tbCard") files.push(f);
