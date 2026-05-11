@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.39" />
+<meta name="app-rev" content="2.40" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.39</div>
+  <div class="ver">AutoFlag© · v2.40</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.39</span>
+    <span>v2.40</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1118,7 +1118,17 @@
 <!-- ==== Modal: Pole ==== -->
 <div class="modal-overlay" id="modalPole">
   <div class="modal">
-    <div class="modal-header"><h2 id="mp-title">Pole</h2><button class="modal-close" onclick="closeModal('modalPole')">×</button></div>
+    <div class="modal-header">
+      <h2 id="mp-title">Pole</h2>
+      <!-- Rev 2.40: 🗺️ Directions button next to title. Phil's installer feedback —
+           people open the pole modal first and want one-tap directions from there
+           too, not just from the Browse tree row. Uses the same openMapToSite
+           helper (Rev 2.39) which falls back to address when lat/lng absent.
+           Reads cid/sid from state.editing at click time so we don't need to
+           pre-bind values during render. -->
+      <button class="ai-icon-btn" id="mp-directions-btn" onclick="openMapForCurrentPole()" title="Get directions to this site" style="margin-left:auto;margin-right:8px;border-color:var(--blue);color:var(--blue);display:none">🗺️</button>
+      <button class="modal-close" onclick="closeModal('modalPole')">×</button>
+    </div>
     <div class="modal-body">
       <div class="form-grid-2">
         <div class="form-row"><label>Pole label *</label><input id="mp-label" placeholder="Pole 1, Lobby, Flagpole A..." /></div>
@@ -7607,6 +7617,17 @@ window.openMapToSite = (cid, sid) => {
   window.open(url, "_blank", "noopener");
 };
 
+// Rev 2.40: Wrapper for the Pole modal's 🗺️ button. Reads cid/sid from
+// state.editing at click time so we don't need to pre-bind values when
+// rendering the static modal markup.
+window.openMapForCurrentPole = () => {
+  const { customerId, siteId } = state.editing || {};
+  if(!customerId || !siteId){
+    return toast("No site context — open a pole first", true);
+  }
+  openMapToSite(customerId, siteId);
+};
+
 window.openSiteModal = (sid, cid) => {
   // Rev 2.11: cid argument allows opening from Add menu without setting drill state.
   // Falls back to state.drillCustomer for legacy call sites (Edit Site button on a
@@ -7781,6 +7802,13 @@ window.openPoleModal = (pid, cid, sid) => {
   state.poleTempPhotos = [];
   const p = pid ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
   document.getElementById("mp-title").textContent = p ? `Edit Pole · ${p.label||''}` : "New Pole";
+  // Rev 2.40: Show the 🗺️ directions button if the parent site has either an
+  // address string or both lat/lng. Hidden otherwise — clicking with no destination
+  // would just toast an error.
+  const parentSite = state.data.customers?.[cid]?.sites?.[sid];
+  const siteHasLocation = !!(parentSite && (parentSite.address?.trim() || (typeof parentSite.lat === "number" && typeof parentSite.lng === "number")));
+  const dirBtn = document.getElementById("mp-directions-btn");
+  if(dirBtn) dirBtn.style.display = siteHasLocation ? "" : "none";
   document.getElementById("mp-label").value = p?.label || "";
   document.getElementById("mp-status").value = p?.status || "in_review";
   // Verified option is admin-only — hide it for installers
