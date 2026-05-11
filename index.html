@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.38" />
+<meta name="app-rev" content="2.39" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.38</div>
+  <div class="ver">AutoFlag© · v2.39</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.38</span>
+    <span>v2.39</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -4884,7 +4884,10 @@ function renderBrowse(){
               <div style="flex-basis:100%;display:flex;gap:6px;padding-left:24px;align-items:center;font-size:11px;color:var(--text-muted)">
                 <span>${poles.length} pole${poles.length===1?'':'s'}</span>
                 ${(s.photos && s.photos.length)?`<span>· 📷 ${s.photos.length}</span>`:''}
-                <span style="margin-left:auto"><button class="tree-details-btn" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="View site details">Details</button></span>
+                <span style="margin-left:auto;display:flex;gap:6px">
+                  <button class="tree-details-btn" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="View site details">Details</button>
+                  ${(s.address || (typeof s.lat === "number" && typeof s.lng === "number")) ? `<button class="tree-details-btn" style="font-size:10px;padding:3px 8px;border-color:var(--blue);color:var(--blue)" onclick="event.stopPropagation();openMapToSite('${c.id}','${s.id}')" title="Directions to this site">🗺️</button>` : ''}
+                </span>
               </div>
             </div>`;
         } else {
@@ -4895,6 +4898,7 @@ function renderBrowse(){
               <div class="tree-name">${s.name||'(unnamed site)'}</div>
               <div class="tree-site-status">${statusPillsHtml}</div>
               <button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}','${s.id}')" title="View site details">Details</button>
+              ${(s.address || (typeof s.lat === "number" && typeof s.lng === "number")) ? `<button class="tree-details-btn" onclick="event.stopPropagation();openMapToSite('${c.id}','${s.id}')" title="Get directions to this site" style="border-color:var(--blue);color:var(--blue)">🗺️</button>` : ''}
               <div class="tree-stats">
                 <span class="tree-stat">${poles.length} pole${poles.length===1?'':'s'}</span>
                 ${(s.photos && s.photos.length)?`<span class="tree-stat">📷 ${s.photos.length}</span>`:''}
@@ -7579,6 +7583,30 @@ window.deleteCustomer = async () => {
 };
 
 // ==== Site CRUD ====
+
+// Rev 2.39: Open the device's default maps app with directions to a site.
+// Prefers lat/lng (precise pin) when BOTH are set; falls back to the site's
+// address string. Uses Google Maps universal URL which is honored on Android
+// (Google Maps), iOS (Apple Maps via OS handler), and desktop (browser → GMaps).
+// Phil's ask: installers were complaining they couldn't quickly get directions
+// once scheduled; this puts a 🗺️ right next to the Details button on each
+// site row in the Browse tree.
+window.openMapToSite = (cid, sid) => {
+  const c = state.data.customers?.[cid];
+  const s = c?.sites?.[sid];
+  if(!s){ toast("Site not found", true); return; }
+  let url;
+  if(typeof s.lat === "number" && !isNaN(s.lat) && typeof s.lng === "number" && !isNaN(s.lng)){
+    // Precise pin via lat,lng
+    url = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+  } else if(s.address && s.address.trim()){
+    url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.address.trim())}`;
+  } else {
+    return toast("No address or coordinates on this site", true);
+  }
+  window.open(url, "_blank", "noopener");
+};
+
 window.openSiteModal = (sid, cid) => {
   // Rev 2.11: cid argument allows opening from Add menu without setting drill state.
   // Falls back to state.drillCustomer for legacy call sites (Edit Site button on a
