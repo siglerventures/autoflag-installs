@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.46" />
+<meta name="app-rev" content="2.47" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.46</div>
+  <div class="ver">AutoFlag© · v2.47</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.46</span>
+    <span>v2.47</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1294,13 +1294,31 @@
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">+ Add new step</div>
         <div class="form-row" id="proc-new-section-row" style="display:none"><label>Section</label><select id="proc-new-section"></select></div>
         <div class="form-row"><label>Step title *</label><input id="proc-new-title" placeholder="e.g., Mount control box to flagpole" /></div>
-        <div class="form-row"><label>Instructions <span style="color:var(--text-muted);font-weight:normal">— use {A} or {B} to insert measurements</span></label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line. {A} and {B} get replaced with the captured measurement at render time." rows="3"></textarea></div>
-        <div class="form-row"><label>Reference photo URL (optional)</label><input id="proc-new-photo" placeholder="https://... (paste URL or leave blank)" /></div>
-        <div class="form-row"><label>Capture measurement (optional)</label><select id="proc-new-input">
-          <option value="">— None —</option>
-          <option value="A">A — Halyard travel (ft)</option>
-          <option value="B">B — Flag height (in)</option>
-        </select></div>
+        <div class="form-row"><label>Instructions</label><textarea id="proc-new-instructions" placeholder="Detailed how-to. Supports multi-line." rows="3"></textarea></div>
+        <!-- Rev 2.47: Reference photo uploader replaces the old URL text field.
+             Photos selected here queue in state._addStepTempPhotos and upload
+             after the step is saved via addProcedureStep(). Same 4-source UI
+             as the inline uploader on existing step rows. -->
+        <div class="form-row">
+          <label>Reference photos (optional)</label>
+          <div id="proc-new-photo-strip" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:6px"></div>
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation();setPasteTargetAddStep()">
+            <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetAddStep()" title="Take photo">
+              📷 Camera
+              <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="addStepPhotoFromInput(event)">
+            </label>
+            <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetAddStep()" title="Choose from library">
+              🖼 Library
+              <input type="file" accept="image/*" multiple style="display:none" onchange="addStepPhotoFromInput(event)">
+            </label>
+            <div class="ai-drop-zone" style="font-size:11px;padding:5px 10px"
+              ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="event.stopPropagation();handleAddStepPhotoDrop(event)"
+              onclick="event.stopPropagation();setPasteTargetAddStep();toast('Now Ctrl+V to paste a screenshot')"
+              title="Drag & drop or click then Ctrl+V">🖱 Drop / Ctrl+V</div>
+          </div>
+        </div>
         <div style="display:flex;align-items:center;gap:8px">
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
             <input type="checkbox" id="proc-new-required" />
@@ -3790,23 +3808,87 @@ window.addStepInSection = (sectionId) => {
   }
 };
 
+// Rev 2.47: Photo queue for the Add Step form. Photos picked here are held
+// in-memory until + Add Step fires; then they upload to Storage and get attached
+// to the new step's referencePhotos array. Mirrors the inline 4-source uploader
+// pattern from Rev 2.41 but staged-write since we don't have a step ID until save.
+let _addStepTempPhotos = [];  // array of File objects
+
+window.setPasteTargetAddStep = () => {
+  // Mark this form as the paste target — clears any per-step paste target
+  // so global Ctrl+V handler routes pasted images here instead of to a step row.
+  _pasteTargetStepRef = null;
+  _pasteTargetStepPhoto = null;
+  window._pasteTargetAddStep = true;
+};
+
+window.addStepPhotoFromInput = (ev) => {
+  const files = Array.from(ev.target.files || []).filter(f => f.type.startsWith("image/"));
+  ev.target.value = "";
+  for(const f of files) _addStepTempPhotos.push(f);
+  renderAddStepPhotoStrip();
+};
+
+window.handleAddStepPhotoDrop = (ev) => {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("drag-over");
+  const files = Array.from(ev.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
+  for(const f of files) _addStepTempPhotos.push(f);
+  renderAddStepPhotoStrip();
+};
+
+function renderAddStepPhotoStrip(){
+  const strip = document.getElementById("proc-new-photo-strip");
+  if(!strip) return;
+  if(!_addStepTempPhotos.length){ strip.innerHTML = ""; return; }
+  strip.innerHTML = _addStepTempPhotos.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div style="position:relative;display:inline-block">
+      <img src="${url}" style="width:60px;height:45px;object-fit:cover;border-radius:3px;border:1px solid var(--border);display:block" />
+      <button onclick="event.stopPropagation();removeAddStepPhoto(${i})" style="position:absolute;top:-4px;right:-4px;background:rgba(178,40,40,0.9);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:11px;cursor:pointer;line-height:1;padding:0" title="Remove">✕</button>
+    </div>`;
+  }).join("");
+}
+
+window.removeAddStepPhoto = (idx) => {
+  _addStepTempPhotos.splice(idx, 1);
+  renderAddStepPhotoStrip();
+};
+
 window.addProcedureStep = async () => {
   const title = document.getElementById("proc-new-title").value.trim();
   if(!title) return toast("Step title required", true);
   const instructions = document.getElementById("proc-new-instructions").value.trim();
-  const photoUrl = document.getElementById("proc-new-photo").value.trim();
   const requirePhoto = document.getElementById("proc-new-required").checked;
-  const inputName = document.getElementById("proc-new-input").value;
   const sectionId = document.getElementById("proc-new-section").value || "onsiteInstall";
   const stepId = `step_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+
+  // Rev 2.47: Upload any queued reference photos to Storage first, collect their URLs.
+  // If upload fails partway, we still create the step with the URLs we got — better
+  // than losing the step entirely.
+  let referencePhotos = [];
+  if(_addStepTempPhotos.length){
+    toast(`Uploading ${_addStepTempPhotos.length} photo${_addStepTempPhotos.length===1?'':'s'}...`);
+    for(const file of _addStepTempPhotos){
+      try {
+        const safeName = (file.name || "ref").replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `autoflag/procedures/${activeProcTab}/refs/${stepId}_${Date.now()}_${safeName}`;
+        const sr = sref(storage, path);
+        await uploadBytes(sr, file);
+        const url = await getDownloadURL(sr);
+        referencePhotos.push(url);
+      } catch(e){
+        console.warn("ref photo upload failed:", e);
+      }
+    }
+  }
+
   const newStep = {
     id: stepId,
     title,
     instructions,
-    photoUrl,
     requirePhoto,
-    referencePhotos: [],
-    inputField: inputName ? { name: inputName, label: inputName === "A" ? "Halyard travel (A)" : "Flag height (B)", unit: inputName === "A" ? "ft" : "in", placeholder: inputName === "A" ? "e.g., 20" : "e.g., 36" } : null
+    referencePhotos
   };
   const tpl = state.procedures[activeProcTab] || {};
 
@@ -3821,19 +3903,19 @@ window.addProcedureStep = async () => {
       sections, updatedAt: Date.now(), updatedBy: state.user.uid
     });
   } else {
-    // Legacy flat list — only when template hasn't been migrated
     const newSteps = [...(tpl.steps || []), newStep];
     await patchNode(`autoflag/procedures/${activeProcTab}`, {
       steps: newSteps, updatedAt: Date.now(), updatedBy: state.user.uid
     });
   }
 
+  // Reset form
   document.getElementById("proc-new-title").value = "";
   document.getElementById("proc-new-instructions").value = "";
-  document.getElementById("proc-new-photo").value = "";
   document.getElementById("proc-new-required").checked = false;
-  document.getElementById("proc-new-input").value = "";
-  toast("Step added");
+  _addStepTempPhotos = [];
+  renderAddStepPhotoStrip();
+  toast(`✓ Step added${referencePhotos.length ? ` with ${referencePhotos.length} photo${referencePhotos.length===1?'':'s'}` : ''}`);
 };
 
 // Rev 2.43: Real modal replaces the chain-of-prompts flow. Phil's symptom:
@@ -8144,6 +8226,10 @@ window.openPoleModal = (pid, cid, sid) => {
   if(!cid || !sid){ toast("Open a site first"); return; }
   state.editing = { type:"pole", customerId:cid, siteId:sid, poleId:pid||null };
   state.poleTempPhotos = [];
+  // Rev 2.47: Reset section expansion tracker each time a pole modal opens
+  // so the next pole starts with all sections collapsed (as before). The set
+  // persists during the work session on THIS pole — see toggleSectionGroup.
+  window._expandedPoleSections = new Set();
   const p = pid ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
   document.getElementById("mp-title").textContent = p ? `Edit Pole · ${p.label||''}` : "New Pole";
   // Rev 2.40: Show the 🗺️ directions button if the parent site has either an
@@ -8354,12 +8440,12 @@ function renderPoleChecklist(p){
 
     const secCheckedCount = secSteps.filter(st => checklist[st.id]?.checked).length;
     const secComplete = (secCheckedCount === secSteps.length);
-    // Rev 2.22: All sections collapsed by default. Phil asked for this — too
-    // much info expanded by default makes the Pole modal overwhelming. Installer
-    // can tap a section header to expand it when they're ready to work that section.
-    // Previous behavior auto-expanded sections containing the next active step;
-    // that's now off — installer chooses when to expand.
-    const collapsed = true;
+    // Rev 2.47: Sections start collapsed on first open of the pole modal, but
+    // once installer expands a section, it stays open across re-renders (which
+    // happen on every checkbox toggle, photo upload, and input save). The
+    // expanded set is cleared when the pole modal closes (see closePoleModal).
+    if(!window._expandedPoleSections) window._expandedPoleSections = new Set();
+    const collapsed = !window._expandedPoleSections.has(sec.id);
 
     html += `<div class="checklist-section${collapsed ? ' collapsed' : ''}" data-section-id="${sec.id}">
       <div class="checklist-section-header" onclick="toggleSectionGroup('${sec.id}')">
@@ -8540,7 +8626,19 @@ window.toggleSectionGroup = (sectionId) => {
   if(!wrap) return;
   wrap.classList.toggle("collapsed");
   const caret = wrap.querySelector(".checklist-section-caret");
-  if(caret) caret.textContent = wrap.classList.contains("collapsed") ? "▶" : "▼";
+  const isCollapsed = wrap.classList.contains("collapsed");
+  if(caret) caret.textContent = isCollapsed ? "▶" : "▼";
+  // Rev 2.47: Persist expansion state across re-renders. Without this, the
+  // section snapped collapsed every time the installer checked a step or
+  // uploaded a photo (because renderPoleChecklist rebuilds the DOM with
+  // hardcoded collapsed=true). Now the user's choice sticks until they
+  // close the pole modal.
+  if(!window._expandedPoleSections) window._expandedPoleSections = new Set();
+  if(isCollapsed){
+    window._expandedPoleSections.delete(sectionId);
+  } else {
+    window._expandedPoleSections.add(sectionId);
+  }
 };
 
 window.toggleStepDetails = (stepId) => {
@@ -9276,6 +9374,9 @@ document.addEventListener("paste", ev => {
   // Rev 2.41: Procedures view + a step photo strip was the most recent target.
   // setPasteTargetStepRef() is called when admin clicks any step's photo controls.
   else if(state.view === "installs" && state.installsTab === "procedures" && _pasteTargetStepRef) target = "stepRef";
+  // Rev 2.47: New-step form paste target. Set when admin clicks any of the
+  // Add Step photo controls (📷/🖼/drop zone).
+  else if(state.view === "installs" && state.installsTab === "procedures" && window._pasteTargetAddStep) target = "addStep";
   // Site detail page: drilled into a site, no modal open
   else if(state.view === "browse" && state.drillCustomer && state.drillSite) target = "siteDetail";
   else if(tbCard) target = "tbCard";
@@ -9292,6 +9393,7 @@ document.addEventListener("paste", ev => {
     else if(target === "pole")  addPolePhotoFromFile(f);
     else if(target === "stepPhoto") _uploadStepPhotoFile(f, _pasteTargetStepPhoto.stepId);
     else if(target === "stepRef") _uploadStepRefFile(f, _pasteTargetStepRef.sectionId, _pasteTargetStepRef.stepId);
+    else if(target === "addStep"){ _addStepTempPhotos.push(f); renderAddStepPhotoStrip(); }
     else if(target === "siteDetail") files.push(f);
     else if(target === "tbCard") files.push(f);
   });
