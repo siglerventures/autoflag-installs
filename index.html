@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.45" />
+<meta name="app-rev" content="2.46" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.45</div>
+  <div class="ver">AutoFlag© · v2.46</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.45</span>
+    <span>v2.46</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -3277,6 +3277,21 @@ function renderProcSteps(){
                       title="Drag & drop or click then Ctrl+V">🖱 / Ctrl+V</div>
                   </div>
                 </div>
+                <!-- Rev 2.46: Inputs editor (numeric values installer captures on pole) -->
+                <div style="margin-top:6px;font-size:11px">
+                  <div style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;font-size:10px;margin-bottom:3px">Inputs <span style="text-transform:none;font-style:italic;color:var(--text-dim);letter-spacing:0">— numeric values the installer captures on the pole</span></div>
+                  <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+                    ${(Array.isArray(st.inputs) ? st.inputs : []).map((inp, inpIdx) => `
+                      <div data-no-drag style="display:inline-flex;align-items:center;gap:3px;background:var(--surface3);border:1px solid var(--border);border-radius:3px;padding:2px 4px 2px 6px">
+                        <span data-no-drag style="cursor:text" ondblclick="event.stopPropagation();editStepInputField(this,'${sec.id}','${st.id}',${inpIdx},'name')" title="Double-click to rename"><span data-field="input-name">${escapeHtml(inp.name || '(name)')}</span></span>
+                        <span data-no-drag style="color:var(--text-muted)">·</span>
+                        <span data-no-drag style="cursor:text" ondblclick="event.stopPropagation();editStepInputField(this,'${sec.id}','${st.id}',${inpIdx},'unit')" title="Double-click to change unit"><span data-field="input-unit">${escapeHtml(inp.unit || '?')}</span></span>
+                        <button data-no-drag onclick="event.stopPropagation();removeStepInput('${sec.id}','${st.id}',${inpIdx})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:11px;padding:0 2px;line-height:1" title="Remove">✕</button>
+                      </div>
+                    `).join('')}
+                    <button data-no-drag onclick="event.stopPropagation();addStepInput('${sec.id}','${st.id}')" style="background:var(--surface2);border:1px dashed var(--border);color:var(--amber);border-radius:3px;font-size:11px;padding:3px 8px;cursor:pointer" title="Add an input">+ input</button>
+                  </div>
+                </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end">
                 <!-- Rev 2.45: Edit opens the modal for fields not editable inline
@@ -3840,6 +3855,91 @@ let _editingProcStep = null; // { sectionId, stepId }
 // Stores via patchNode using the standard sections-or-flat path. Local state
 // updates immediately so the row repaints without waiting for the Firebase
 // subscription tick. No modal, no chain of prompts.
+// Rev 2.46: Procedure-template inputs CRUD (admin).
+window.addStepInput = async (sectionId, stepId) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  const existing = _findStep(state.procedures[activeProcTab], sectionId, stepId);
+  if(!existing) return;
+  const inputs = Array.isArray(existing.inputs) ? [...existing.inputs] : [];
+  inputs.push({ name: "New input", unit: "in" });
+  await _patchStepField(sectionId, stepId, "inputs", inputs);
+};
+window.removeStepInput = async (sectionId, stepId, idx) => {
+  if(!state.isAdmin) return;
+  const existing = _findStep(state.procedures[activeProcTab], sectionId, stepId);
+  if(!existing) return;
+  const inputs = Array.isArray(existing.inputs) ? [...existing.inputs] : [];
+  if(idx < 0 || idx >= inputs.length) return;
+  const name = inputs[idx].name || "(unnamed)";
+  if(!confirm(`Remove input "${name}"? Any pole values captured for this input will remain in the data.`)) return;
+  inputs.splice(idx, 1);
+  await _patchStepField(sectionId, stepId, "inputs", inputs);
+};
+
+// Rev 2.46: Pole-side save for one input on one step.
+window.saveStepInputValue = async (stepId, inputName, rawValue) => {
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid) return;
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const trimmed = (rawValue || "").trim();
+  const current = (p.checklist || {})[stepId] || {};
+  const currentInputs = (current.inputs && typeof current.inputs === "object") ? { ...current.inputs } : {};
+  if(trimmed === ""){
+    delete currentInputs[inputName];
+  } else {
+    currentInputs[inputName] = trimmed;
+  }
+  const newEntry = { ...current, inputs: currentInputs };
+  const newChecklist = { ...(p.checklist || {}), [stepId]: newEntry };
+  try {
+    await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+      checklist: newChecklist, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+    const refreshed = state.data.customers[cid]?.sites[sid]?.poles[pid];
+    renderPoleChecklist({ ...refreshed, checklist: newChecklist });
+  } catch(e){ toast("Save failed: " + e.message, true); }
+};
+
+window.editStepInputField = (containerEl, sectionId, stepId, idx, field) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  const span = containerEl.querySelector(`span[data-field="input-${field}"]`);
+  if(!span) return;
+  if(span.dataset.editing === "1") return;
+  span.dataset.editing = "1";
+  const step = _findStep(state.procedures[activeProcTab], sectionId, stepId);
+  const inputs = Array.isArray(step?.inputs) ? step.inputs : [];
+  const currentValue = inputs[idx]?.[field] || "";
+  const editor = document.createElement("input");
+  editor.value = currentValue;
+  editor.style.cssText = "background:var(--surface3);color:var(--text);border:1px solid var(--amber);border-radius:3px;padding:1px 4px;font-size:11px;font-family:inherit;width:" + (field === "unit" ? "50px" : "120px");
+  span.style.display = "none";
+  span.parentNode.insertBefore(editor, span);
+  editor.focus();
+  editor.select();
+  let finished = false;
+  const cleanup = () => { finished = true; editor.remove(); span.style.display = ""; span.dataset.editing = ""; };
+  const save = async () => {
+    if(finished) return;
+    const newValue = editor.value.trim();
+    if(newValue === currentValue.trim()){ cleanup(); return; }
+    if(!newValue && field === "name"){ toast("Name can't be empty", true); cleanup(); return; }
+    try {
+      const stepFresh = _findStep(state.procedures[activeProcTab], sectionId, stepId);
+      const inputsFresh = Array.isArray(stepFresh?.inputs) ? [...stepFresh.inputs] : [];
+      if(idx < 0 || idx >= inputsFresh.length){ cleanup(); return; }
+      inputsFresh[idx] = { ...inputsFresh[idx], [field]: newValue };
+      await _patchStepField(sectionId, stepId, "inputs", inputsFresh);
+      cleanup();
+    } catch(e){ toast("Save failed: " + e.message, true); cleanup(); }
+  };
+  editor.addEventListener("keydown", (ev) => {
+    if(ev.key === "Escape"){ ev.preventDefault(); cleanup(); }
+    else if(ev.key === "Enter"){ ev.preventDefault(); save(); }
+  });
+  editor.addEventListener("blur", () => setTimeout(save, 100));
+};
+
 window.editStepFieldInline = (containerEl, sectionId, stepId, field) => {
   if(!state.isAdmin) return toast("Admin only", true);
   // Find the inner <span data-field="..."> that holds the value we render
@@ -3915,6 +4015,23 @@ function _findStep(tpl, sectionId, stepId){
     return sec?.steps?.find(s => s.id === stepId) || null;
   }
   return (tpl.steps || []).find(s => s.id === stepId) || null;
+}
+
+// Rev 2.46: input-step helpers. Each step can have inputs:[{name,unit}].
+// Pole's captured values stored at pole.checklist[stepId].inputs = {name:value}.
+function getStepInputValue(pole, stepId, inputName){
+  if(!pole?.checklist) return "";
+  const entry = pole.checklist[stepId];
+  return entry?.inputs?.[inputName] ?? "";
+}
+function stepInputsComplete(pole, step){
+  const inputs = Array.isArray(step?.inputs) ? step.inputs : [];
+  if(!inputs.length) return true;
+  for(const inp of inputs){
+    const v = getStepInputValue(pole, step.id, inp.name);
+    if(v === "" || v == null) return false;
+  }
+  return true;
 }
 
 // Helper: write a single field change to a step, preserving everything else
@@ -8282,6 +8399,11 @@ function renderPoleChecklist(p){
       // Rev 2.42: requirePhoto now satisfied by ANY photo (single legacy or array)
       if(!isChecked && st.requirePhoto && stepPhotoUrls.length === 0) blockReasons.push("Photo required first");
       if(!isChecked && inputField && !inputValue) blockReasons.push(`Capture ${inputField.name} first`);
+      // Rev 2.46: New inputs array gate — block check-off until all numeric inputs are filled
+      if(!isChecked && Array.isArray(st.inputs) && st.inputs.length){
+        const missing = st.inputs.filter(inp => !getStepInputValue(p, st.id, inp.name));
+        if(missing.length) blockReasons.push(`Capture ${missing.map(i=>i.name).join(', ')} first`);
+      }
       const checkboxBlocked = !isChecked && blockReasons.length > 0;
       const checkboxAttrs = checkboxBlocked
         ? `disabled title="${blockReasons.join(' · ')}"`
@@ -8294,6 +8416,7 @@ function renderPoleChecklist(p){
           <span class="checklist-step-title">${escapeHtml(st.title || '(untitled step)')}</span>
           ${st.requirePhoto ? '<span class="checklist-required" title="Photo required">📷*</span>' : ''}
           ${inputField ? `<span class="checklist-required" style="color:var(--blue)" title="Captures ${inputField.name}">📝${inputField.name}</span>` : ''}
+          ${(Array.isArray(st.inputs) && st.inputs.length) ? `<span class="checklist-required" style="color:var(--blue)" title="Captures ${st.inputs.map(i=>i.name).join(', ')}">📝 ${st.inputs.length} input${st.inputs.length===1?'':'s'}</span>` : ''}
           ${isChecked && c.checkedByName ? `<span class="checklist-meta">${escapeHtml(c.checkedByName)} · ${new Date(c.checkedAt || 0).toLocaleDateString()}</span>` : ''}
           <span class="checklist-caret" id="caret-${st.id}">▶</span>
         </div>
@@ -8314,6 +8437,22 @@ function renderPoleChecklist(p){
                 onblur="saveStepInput('${st.id}', true)" />
               ${inputField.unit ? `<span class="checklist-input-unit">${escapeHtml(inputField.unit)}</span>` : ''}
               <span class="checklist-input-saved" id="input-saved-${st.id}" style="display:${inputValue ? '' : 'none'}">✓ saved</span>
+            </div>
+          ` : ''}
+          ${(Array.isArray(st.inputs) && st.inputs.length) ? `
+            <div class="checklist-input-row" style="flex-wrap:wrap">
+              ${st.inputs.map(inp => {
+                const v = getStepInputValue(p, st.id, inp.name);
+                return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px">
+                  <span class="checklist-input-label">${escapeHtml(inp.name)}</span>
+                  <input type="number" inputmode="decimal" step="any" class="checklist-input-field" style="width:90px"
+                    data-step-id="${st.id}" data-input-name="${escapeHtml(inp.name)}"
+                    value="${escapeHtml(String(v))}"
+                    ${(!state.editing.poleId || !unlocked) ? 'disabled' : ''}
+                    onblur="saveStepInputValue('${st.id}', '${inp.name.replace(/'/g,"\\'")}', this.value)" />
+                  ${inp.unit ? `<span class="checklist-input-unit">${escapeHtml(inp.unit)}</span>` : ''}
+                </span>`;
+              }).join('')}
             </div>
           ` : ''}
           <!-- Rev 2.42: Multi-photo step UI with full 4-source uploader.
