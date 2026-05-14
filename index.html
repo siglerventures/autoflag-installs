@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.53" />
+<meta name="app-rev" content="2.54" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.53</div>
+  <div class="ver">AutoFlag© · v2.54</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.53</span>
+    <span>v2.54</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1571,6 +1571,15 @@
       <div class="form-row">
         <label>Instructions <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— use {A} and {B} for measurements; multi-line OK</span></label>
         <textarea id="eps-instructions" rows="6" placeholder="What the installer should do..."></textarea>
+      </div>
+      <!-- Rev 2.54: Per-step input placeholder hint. Used when Require Input is on.
+           Shows up as the placeholder in the installer's Notes textarea on the pole.
+           Specific per step so step 2 can prompt "Flagpole length in feet" while
+           step 5 prompts "Distance from base to first guy". Falls back to a generic
+           prompt when empty. -->
+      <div class="form-row">
+        <label>Input prompt <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— hint text shown when Require Input is on (e.g. "Flagpole length in feet")</span></label>
+        <input id="eps-input-hint" maxlength="200" placeholder="What should the installer enter on the pole? Leave blank for generic." />
       </div>
       <div class="form-grid-2">
         <div class="form-row">
@@ -2677,7 +2686,17 @@ window.addEventListener("resize", () => {
 // transports write to the same Firebase path; whichever resolves first wins.
 // Used by writeNode (PUT/set semantics) and patchNode (PATCH/update semantics).
 const SDK_WRITE_TIMEOUT_MS = 3000;
+// Rev 2.54: Adaptive WebSocket-wedged detection. Once we see ANY SDK timeout
+// in a session, flip this flag and route all subsequent writes/reads/deletes
+// REST-first. Avoids 3-second penalty per save on mobile with wedged sockets.
+// Resets to false on page reload (next session gets a fresh chance).
+let _sdkWedged = false;
 async function _writeWithFallback(method, path, body){
+  // Rev 2.54: If we've already seen a wedged socket this session, skip SDK
+  // and go straight to REST. Saves the 3s timeout penalty on every write.
+  if(_sdkWedged){
+    return _restWrite(method, path, body);
+  }
   const sdkCall = method === "PUT"
     ? set(ref(db, path), body)
     : update(ref(db, path), body);
@@ -2688,8 +2707,14 @@ async function _writeWithFallback(method, path, body){
   } catch(e){
     if(e?.message !== "SDK_TIMEOUT") throw e;
     console.warn(`SDK ${method} timeout for ${path}, falling back to REST`);
+    _sdkWedged = true;  // Rev 2.54: Mark wedged so future writes skip SDK
   }
-  // REST fallback
+  return _restWrite(method, path, body);
+}
+
+// Rev 2.54: REST write extracted into helper so it can be called direct-first
+// when _sdkWedged is true.
+async function _restWrite(method, path, body){
   if(!auth?.currentUser) throw new Error("No auth token for REST write");
   const idToken = await auth.currentUser.getIdToken(false);
   const url = `https://philinity-893d2-default-rtdb.firebaseio.com/${path}.json?auth=${encodeURIComponent(idToken)}`;
@@ -2716,6 +2741,10 @@ async function patchNode(path, patch){  // update() preserves siblings, per 6.3.
 // helpers from 2.36/2.37. Firebase REST API treats DELETE as removing the
 // node. SDK remove() can hang on wedged WebSocket the same way set/update do.
 async function removeNode(path){
+  // Rev 2.54: REST-first when socket is wedged
+  if(_sdkWedged){
+    return _restDelete(path);
+  }
   const SDK_DELETE_TIMEOUT_MS = 3000;
   const sdkCall = remove(ref(db, path));
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("SDK_TIMEOUT")), SDK_DELETE_TIMEOUT_MS));
@@ -2725,7 +2754,12 @@ async function removeNode(path){
   } catch(e){
     if(e?.message !== "SDK_TIMEOUT") throw e;
     console.warn(`removeNode SDK timeout for ${path}, falling back to REST`);
+    _sdkWedged = true;
   }
+  return _restDelete(path);
+}
+
+async function _restDelete(path){
   if(!auth?.currentUser) throw new Error("No auth token for REST delete");
   const idToken = await auth.currentUser.getIdToken(false);
   const url = `https://philinity-893d2-default-rtdb.firebaseio.com/${path}.json?auth=${encodeURIComponent(idToken)}`;
@@ -2742,10 +2776,11 @@ async function removeNode(path){
 // Rev 2.37: One-shot read helper with REST fallback. Same pattern as
 // _writeWithFallback. SDK get() can hang on a wedged WebSocket; race against
 // timeout and fall through to REST GET. Returns the raw value (or null).
-// Used by AI history loader and any other one-shot reads. Real-time
-// subscriptions (onValue) don't need this — they have their own retry behavior
-// AND the global REST poll already covers the major paths.
 async function readNode(path){
+  // Rev 2.54: REST-first when socket is wedged
+  if(_sdkWedged){
+    return _restRead(path);
+  }
   const SDK_READ_TIMEOUT_MS = 2500;
   const sdkCall = get(ref(db, path)).then(snap => snap.val());
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("SDK_TIMEOUT")), SDK_READ_TIMEOUT_MS));
@@ -2754,8 +2789,12 @@ async function readNode(path){
   } catch(e){
     if(e?.message !== "SDK_TIMEOUT") throw e;
     console.warn(`readNode SDK timeout for ${path}, falling back to REST`);
+    _sdkWedged = true;
   }
-  // REST fallback
+  return _restRead(path);
+}
+
+async function _restRead(path){
   if(!auth?.currentUser) throw new Error("No auth token for REST read");
   const idToken = await auth.currentUser.getIdToken(false);
   const url = `https://philinity-893d2-default-rtdb.firebaseio.com/${path}.json?auth=${encodeURIComponent(idToken)}`;
@@ -4305,6 +4344,7 @@ window.editProcStep = (sectionIdOrStepId, stepIdMaybe) => {
   _editingProcStep = { sectionId, stepId };
   document.getElementById("eps-title").value = step.title || "";
   document.getElementById("eps-instructions").value = step.instructions || "";
+  document.getElementById("eps-input-hint").value = step.inputHint || "";
   document.getElementById("eps-require-photo").checked = !!step.requirePhoto;
   document.getElementById("eps-require-input").checked = !!step.requireInput;
   document.getElementById("eps-require-gps").checked = !!step.requireGps;
@@ -4319,6 +4359,7 @@ window.saveEditedProcStep = async () => {
   const newTitle = document.getElementById("eps-title").value.trim();
   if(!newTitle){ toast("Title is required", true); return; }
   const newInstructions = document.getElementById("eps-instructions").value.trim();
+  const newInputHint = document.getElementById("eps-input-hint").value.trim();
   const newRequired = document.getElementById("eps-require-photo").checked;
   const newRequireInput = document.getElementById("eps-require-input").checked;
   const newRequireGps = document.getElementById("eps-require-gps").checked;
@@ -4339,6 +4380,7 @@ window.saveEditedProcStep = async () => {
     ...existing,
     title: newTitle,
     instructions: newInstructions,
+    inputHint: newInputHint,
     requirePhoto: newRequired,
     requireInput: newRequireInput,
     requireGps: newRequireGps
@@ -8709,9 +8751,9 @@ function renderPoleChecklist(p){
             <!-- Rev 2.50: Freeform notes field. Shown only when step.requireInput
                  is true. Saves on blur to pole.checklist[stepId].note. -->
             <div class="checklist-input-row" style="flex-direction:column;align-items:stretch">
-              <span class="checklist-input-label" style="margin-bottom:4px">Notes for this step ${stepNote ? '<span style="color:var(--green);font-size:11px;font-weight:normal;margin-left:6px">✓ saved</span>' : '<span style="color:var(--red);font-size:11px;font-weight:normal;margin-left:6px">required</span>'}</span>
+              <span class="checklist-input-label" style="margin-bottom:4px">${escapeHtml(st.inputHint || 'Notes for this step')} ${stepNote ? '<span style="color:var(--green);font-size:11px;font-weight:normal;margin-left:6px">✓ saved</span>' : '<span style="color:var(--red);font-size:11px;font-weight:normal;margin-left:6px">required</span>'}</span>
               <textarea class="checklist-input-field" id="note-${st.id}" rows="2"
-                placeholder="What did you find / do / measure? Anything goes."
+                placeholder="${escapeHtml(st.inputHint || 'Enter what was found, done, or measured')}"
                 ${(!state.editing.poleId || !unlocked) ? 'disabled' : ''}
                 onblur="saveStepNote('${st.id}', this.value)"
                 style="width:100%;font-family:inherit;resize:vertical">${escapeHtml(stepNote)}</textarea>
