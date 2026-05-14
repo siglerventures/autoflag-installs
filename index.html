@@ -1561,6 +1561,18 @@
             <span>Yes — photo required</span>
           </label>
         </div>
+        <!-- Rev 2.50: Require input toggle. When checked, the pole's checklist
+             for this step shows a freeform notes textarea and the step can't be
+             checked off until at least 1 character has been entered. Loose
+             validation — installer types anything ("repaired and verified",
+             "Diameter 6.5", "no issues") — saved at pole.checklist[stepId].note. -->
+        <div class="form-row">
+          <label>Require input to check off?</label>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer">
+            <input type="checkbox" id="eps-require-input" />
+            <span>Yes — note required</span>
+          </label>
+        </div>
       </div>
       <div style="font-size:11px;color:var(--text-muted);font-style:italic;background:var(--surface2);padding:8px 10px;border-radius:var(--radius-sm);border-left:3px solid var(--amber-dim);margin-top:8px">
         💡 To add reference photos for this step, close this modal and use the 📷 🖼 🖱 buttons on the step row in the procedure list.
@@ -3326,21 +3338,6 @@ function renderProcSteps(){
                       title="Drag & drop or click then Ctrl+V">🖱 / Ctrl+V</div>
                   </div>
                 </div>
-                <!-- Rev 2.46: Inputs editor (numeric values installer captures on pole) -->
-                <div style="margin-top:6px;font-size:11px">
-                  <div style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;font-size:10px;margin-bottom:3px">Inputs <span style="text-transform:none;font-style:italic;color:var(--text-dim);letter-spacing:0">— numeric values the installer captures on the pole</span></div>
-                  <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-                    ${(Array.isArray(st.inputs) ? st.inputs : []).map((inp, inpIdx) => `
-                      <div data-no-drag style="display:inline-flex;align-items:center;gap:3px;background:var(--surface3);border:1px solid var(--border);border-radius:3px;padding:2px 4px 2px 6px">
-                        <span data-no-drag style="cursor:text" ondblclick="event.stopPropagation();editStepInputField(this,'${sec.id}','${st.id}',${inpIdx},'name')" title="Double-click to rename"><span data-field="input-name">${escapeHtml(inp.name || '(name)')}</span></span>
-                        <span data-no-drag style="color:var(--text-muted)">·</span>
-                        <span data-no-drag style="cursor:text" ondblclick="event.stopPropagation();editStepInputField(this,'${sec.id}','${st.id}',${inpIdx},'unit')" title="Double-click to change unit"><span data-field="input-unit">${escapeHtml(inp.unit || '?')}</span></span>
-                        <button data-no-drag onclick="event.stopPropagation();removeStepInput('${sec.id}','${st.id}',${inpIdx})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:11px;padding:0 2px;line-height:1" title="Remove">✕</button>
-                      </div>
-                    `).join('')}
-                    <button data-no-drag onclick="event.stopPropagation();addStepInput('${sec.id}','${st.id}')" style="background:var(--surface2);border:1px dashed var(--border);color:var(--amber);border-radius:3px;font-size:11px;padding:3px 8px;cursor:pointer" title="Add an input">+ input</button>
-                  </div>
-                </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end">
                 <!-- Rev 2.45: Edit opens the modal for fields not editable inline
@@ -3990,6 +3987,30 @@ window.removeStepInput = async (sectionId, stepId, idx) => {
 };
 
 // Rev 2.46: Pole-side save for one input on one step.
+// Rev 2.50: Pole-side save for a step's freeform note. Used when step.requireInput
+// is true — installer types anything, saves on blur, gates the check-off until
+// at least one non-whitespace character is present.
+window.saveStepNote = async (stepId, rawValue) => {
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid) return;
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const trimmed = (rawValue || "").trim();
+  const current = (p.checklist || {})[stepId] || {};
+  if((current.note || "") === trimmed) return; // no change
+  const newEntry = trimmed
+    ? { ...current, note: trimmed }
+    : (() => { const cp = { ...current }; delete cp.note; return cp; })();
+  const newChecklist = { ...(p.checklist || {}), [stepId]: newEntry };
+  try {
+    await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+      checklist: newChecklist, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+    const refreshed = state.data.customers[cid]?.sites[sid]?.poles[pid];
+    renderPoleChecklist({ ...refreshed, checklist: newChecklist });
+  } catch(e){ toast("Save failed: " + e.message, true); }
+};
+
 window.saveStepInputValue = async (stepId, inputName, rawValue) => {
   const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
   if(!cid || !sid || !pid) return;
@@ -4191,6 +4212,7 @@ window.editProcStep = (sectionIdOrStepId, stepIdMaybe) => {
   document.getElementById("eps-title").value = step.title || "";
   document.getElementById("eps-instructions").value = step.instructions || "";
   document.getElementById("eps-require-photo").checked = !!step.requirePhoto;
+  document.getElementById("eps-require-input").checked = !!step.requireInput;
   openModal("modalEditProcStep");
 };
 
@@ -4203,10 +4225,11 @@ window.saveEditedProcStep = async () => {
   if(!newTitle){ toast("Title is required", true); return; }
   const newInstructions = document.getElementById("eps-instructions").value.trim();
   const newRequired = document.getElementById("eps-require-photo").checked;
+  const newRequireInput = document.getElementById("eps-require-input").checked;
 
   // Find the existing step so we preserve photoUrl, referencePhotos, inputField,
   // and any other fields not exposed in the modal. Only title/instructions/
-  // requirePhoto come from the form; everything else flows through unchanged.
+  // requirePhoto/requireInput come from the form; everything else flows through unchanged.
   let existing = null;
   if(sectionId && Array.isArray(tpl.sections)){
     const sec = tpl.sections.find(s => s.id === sectionId);
@@ -4220,7 +4243,8 @@ window.saveEditedProcStep = async () => {
     ...existing,
     title: newTitle,
     instructions: newInstructions,
-    requirePhoto: newRequired
+    requirePhoto: newRequired,
+    requireInput: newRequireInput
   };
 
   try {
@@ -8516,10 +8540,13 @@ function renderPoleChecklist(p){
       // Rev 2.42: requirePhoto now satisfied by ANY photo (single legacy or array)
       if(!isChecked && st.requirePhoto && stepPhotoUrls.length === 0) blockReasons.push("Photo required first");
       if(!isChecked && inputField && !inputValue) blockReasons.push(`Capture ${inputField.name} first`);
-      // Rev 2.46: New inputs array gate — block check-off until all numeric inputs are filled
-      if(!isChecked && Array.isArray(st.inputs) && st.inputs.length){
-        const missing = st.inputs.filter(inp => !getStepInputValue(p, st.id, inp.name));
-        if(missing.length) blockReasons.push(`Capture ${missing.map(i=>i.name).join(', ')} first`);
+      // Rev 2.50: Require Input gate. When step.requireInput is true, the pole
+      // checklist entry must have a non-empty note string before check-off.
+      // Loose validation — installer types anything ("verified", "Diameter 6.5 in",
+      // "no damage seen") — saved at pole.checklist[stepId].note.
+      const stepNote = (c?.note ?? "").toString();
+      if(!isChecked && st.requireInput && !stepNote.trim()){
+        blockReasons.push("Add a note first");
       }
       const checkboxBlocked = !isChecked && blockReasons.length > 0;
       const checkboxAttrs = checkboxBlocked
@@ -8532,8 +8559,8 @@ function renderPoleChecklist(p){
           <span class="checklist-step-num">${globalIdx + 1}.</span>
           <span class="checklist-step-title">${escapeHtml(st.title || '(untitled step)')}</span>
           ${st.requirePhoto ? '<span class="checklist-required" title="Photo required">📷*</span>' : ''}
+          ${st.requireInput ? '<span class="checklist-required" style="color:var(--blue)" title="Note required">📝*</span>' : ''}
           ${inputField ? `<span class="checklist-required" style="color:var(--blue)" title="Captures ${inputField.name}">📝${inputField.name}</span>` : ''}
-          ${(Array.isArray(st.inputs) && st.inputs.length) ? `<span class="checklist-required" style="color:var(--blue)" title="Captures ${st.inputs.map(i=>i.name).join(', ')}">📝 ${st.inputs.length} input${st.inputs.length===1?'':'s'}</span>` : ''}
           ${isChecked && c.checkedByName ? `<span class="checklist-meta">${escapeHtml(c.checkedByName)} · ${new Date(c.checkedAt || 0).toLocaleDateString()}</span>` : ''}
           <span class="checklist-caret" id="caret-${st.id}">▶</span>
         </div>
@@ -8556,20 +8583,16 @@ function renderPoleChecklist(p){
               <span class="checklist-input-saved" id="input-saved-${st.id}" style="display:${inputValue ? '' : 'none'}">✓ saved</span>
             </div>
           ` : ''}
-          ${(Array.isArray(st.inputs) && st.inputs.length) ? `
-            <div class="checklist-input-row" style="flex-wrap:wrap">
-              ${st.inputs.map(inp => {
-                const v = getStepInputValue(p, st.id, inp.name);
-                return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px">
-                  <span class="checklist-input-label">${escapeHtml(inp.name)}</span>
-                  <input type="number" inputmode="decimal" step="any" class="checklist-input-field" style="width:90px"
-                    data-step-id="${st.id}" data-input-name="${escapeHtml(inp.name)}"
-                    value="${escapeHtml(String(v))}"
-                    ${(!state.editing.poleId || !unlocked) ? 'disabled' : ''}
-                    onblur="saveStepInputValue('${st.id}', '${inp.name.replace(/'/g,"\\'")}', this.value)" />
-                  ${inp.unit ? `<span class="checklist-input-unit">${escapeHtml(inp.unit)}</span>` : ''}
-                </span>`;
-              }).join('')}
+          ${st.requireInput ? `
+            <!-- Rev 2.50: Freeform notes field. Shown only when step.requireInput
+                 is true. Saves on blur to pole.checklist[stepId].note. -->
+            <div class="checklist-input-row" style="flex-direction:column;align-items:stretch">
+              <span class="checklist-input-label" style="margin-bottom:4px">Notes for this step ${stepNote ? '<span style="color:var(--green);font-size:11px;font-weight:normal;margin-left:6px">✓ saved</span>' : '<span style="color:var(--red);font-size:11px;font-weight:normal;margin-left:6px">required</span>'}</span>
+              <textarea class="checklist-input-field" id="note-${st.id}" rows="2"
+                placeholder="What did you find / do / measure? Anything goes."
+                ${(!state.editing.poleId || !unlocked) ? 'disabled' : ''}
+                onblur="saveStepNote('${st.id}', this.value)"
+                style="width:100%;font-family:inherit;resize:vertical">${escapeHtml(stepNote)}</textarea>
             </div>
           ` : ''}
           <!-- Rev 2.42: Multi-photo step UI with full 4-source uploader.
