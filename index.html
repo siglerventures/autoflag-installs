@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.50" />
+<meta name="app-rev" content="2.51" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.50</div>
+  <div class="ver">AutoFlag© · v2.51</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.50</span>
+    <span>v2.51</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1571,6 +1571,17 @@
           <label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer">
             <input type="checkbox" id="eps-require-input" />
             <span>Yes — note required</span>
+          </label>
+        </div>
+        <!-- Rev 2.51: Require GPS toggle. When checked, step body shows a
+             "📡 Capture GPS" button; check-off is gated until the pole has
+             lat/lng set. Updates pole.lat / pole.lng (same fields shown on
+             the Pole modal's Phone GPS button). -->
+        <div class="form-row">
+          <label>Require GPS to check off?</label>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer">
+            <input type="checkbox" id="eps-require-gps" />
+            <span>Yes — GPS required</span>
           </label>
         </div>
       </div>
@@ -3995,6 +4006,62 @@ window.removeStepInput = async (sectionId, stepId, idx) => {
 };
 
 // Rev 2.46: Pole-side save for one input on one step.
+// Rev 2.51: Capture GPS to the open pole's lat/lng during a procedure step.
+// Same geolocation API as the Pole modal's "Use Phone GPS" button, but
+// instead of writing to a form input, writes directly to the pole record
+// and patches Firebase. Used when a step has requireGps:true.
+window.captureStepGps = (stepId) => {
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid){ toast("Open a pole first", true); return; }
+  if(!navigator.geolocation){ toast("Geolocation not supported on this device", true); return; }
+
+  const btn = document.getElementById(`gps-btn-${stepId}`);
+  const status = document.getElementById(`gps-status-${stepId}`);
+  if(btn){ btn.disabled = true; btn.textContent = "📡 Acquiring..."; }
+  if(status){ status.textContent = "Acquiring GPS fix..."; status.style.color = "var(--text-muted)"; }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = parseFloat(pos.coords.latitude.toFixed(6));
+      const lng = parseFloat(pos.coords.longitude.toFixed(6));
+      const acc = Math.round(pos.coords.accuracy);
+      try {
+        // Write to pole.lat / pole.lng (the existing fields) AND stamp a small
+        // audit record so we know GPS was captured at install time.
+        await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+          lat, lng,
+          gpsCapturedAt: Date.now(),
+          gpsCapturedBy: state.user.uid,
+          gpsAccuracy: acc,
+          updatedAt: Date.now(),
+          updatedBy: state.user.uid
+        });
+        toast(`✓ GPS captured · ±${acc}m`);
+        // Re-render the checklist so the badge / button updates immediately
+        const refreshed = state.data.customers[cid]?.sites[sid]?.poles[pid];
+        if(refreshed){
+          refreshed.lat = lat;
+          refreshed.lng = lng;
+          renderPoleChecklist(refreshed);
+        }
+      } catch(e){
+        toast("Save failed: " + e.message, true);
+        if(btn){ btn.disabled = false; btn.textContent = "📡 Capture GPS"; }
+      }
+    },
+    (err) => {
+      const msg = err.code === 1 ? "Permission denied — enable location in browser settings"
+                : err.code === 2 ? "Position unavailable — try outside or near a window"
+                : err.code === 3 ? "Timed out — try again"
+                : "GPS error";
+      toast(msg, true);
+      if(btn){ btn.disabled = false; btn.textContent = "📡 Capture GPS"; }
+      if(status){ status.textContent = "✗ " + msg; status.style.color = "var(--red)"; }
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+};
+
 // Rev 2.50: Pole-side save for a step's freeform note. Used when step.requireInput
 // is true — installer types anything, saves on blur, gates the check-off until
 // at least one non-whitespace character is present.
@@ -4221,6 +4288,7 @@ window.editProcStep = (sectionIdOrStepId, stepIdMaybe) => {
   document.getElementById("eps-instructions").value = step.instructions || "";
   document.getElementById("eps-require-photo").checked = !!step.requirePhoto;
   document.getElementById("eps-require-input").checked = !!step.requireInput;
+  document.getElementById("eps-require-gps").checked = !!step.requireGps;
   openModal("modalEditProcStep");
 };
 
@@ -4234,10 +4302,11 @@ window.saveEditedProcStep = async () => {
   const newInstructions = document.getElementById("eps-instructions").value.trim();
   const newRequired = document.getElementById("eps-require-photo").checked;
   const newRequireInput = document.getElementById("eps-require-input").checked;
+  const newRequireGps = document.getElementById("eps-require-gps").checked;
 
   // Find the existing step so we preserve photoUrl, referencePhotos, inputField,
   // and any other fields not exposed in the modal. Only title/instructions/
-  // requirePhoto/requireInput come from the form; everything else flows through unchanged.
+  // requirePhoto/requireInput/requireGps come from the form; everything else flows through unchanged.
   let existing = null;
   if(sectionId && Array.isArray(tpl.sections)){
     const sec = tpl.sections.find(s => s.id === sectionId);
@@ -4252,7 +4321,8 @@ window.saveEditedProcStep = async () => {
     title: newTitle,
     instructions: newInstructions,
     requirePhoto: newRequired,
-    requireInput: newRequireInput
+    requireInput: newRequireInput,
+    requireGps: newRequireGps
   };
 
   try {
@@ -8548,13 +8618,18 @@ function renderPoleChecklist(p){
       // Rev 2.42: requirePhoto now satisfied by ANY photo (single legacy or array)
       if(!isChecked && st.requirePhoto && stepPhotoUrls.length === 0) blockReasons.push("Photo required first");
       if(!isChecked && inputField && !inputValue) blockReasons.push(`Capture ${inputField.name} first`);
-      // Rev 2.50: Require Input gate. When step.requireInput is true, the pole
-      // checklist entry must have a non-empty note string before check-off.
-      // Loose validation — installer types anything ("verified", "Diameter 6.5 in",
-      // "no damage seen") — saved at pole.checklist[stepId].note.
+      // Rev 2.50: Require Input gate.
       const stepNote = (c?.note ?? "").toString();
       if(!isChecked && st.requireInput && !stepNote.trim()){
         blockReasons.push("Add a note first");
+      }
+      // Rev 2.51: Require GPS gate. When step.requireGps is true, the pole
+      // must have lat AND lng set before check-off. Capture handled inline via
+      // captureStepGps() which writes to pole.lat / pole.lng (same fields used
+      // by the Pole modal's existing Phone GPS button).
+      if(!isChecked && st.requireGps){
+        const hasGps = p?.lat != null && p?.lng != null;
+        if(!hasGps) blockReasons.push("Capture GPS first");
       }
       const checkboxBlocked = !isChecked && blockReasons.length > 0;
       const checkboxAttrs = checkboxBlocked
@@ -8568,6 +8643,7 @@ function renderPoleChecklist(p){
           <span class="checklist-step-title">${escapeHtml(st.title || '(untitled step)')}</span>
           ${st.requirePhoto ? '<span class="checklist-required" title="Photo required">📷*</span>' : ''}
           ${st.requireInput ? '<span class="checklist-required" style="color:var(--blue)" title="Note required">📝*</span>' : ''}
+          ${st.requireGps ? '<span class="checklist-required" style="color:var(--green)" title="GPS required">📍*</span>' : ''}
           ${inputField ? `<span class="checklist-required" style="color:var(--blue)" title="Captures ${inputField.name}">📝${inputField.name}</span>` : ''}
           ${isChecked && c.checkedByName ? `<span class="checklist-meta">${escapeHtml(c.checkedByName)} · ${new Date(c.checkedAt || 0).toLocaleDateString()}</span>` : ''}
           <span class="checklist-caret" id="caret-${st.id}">▶</span>
@@ -8603,6 +8679,27 @@ function renderPoleChecklist(p){
                 style="width:100%;font-family:inherit;resize:vertical">${escapeHtml(stepNote)}</textarea>
             </div>
           ` : ''}
+          ${st.requireGps ? (() => {
+            // Rev 2.51: GPS capture button. Renders pole's current lat/lng if set;
+            // tapping the button calls geolocation API and updates pole.lat/lng.
+            const hasGps = p?.lat != null && p?.lng != null;
+            const acc = p?.gpsAccuracy != null ? `±${p.gpsAccuracy}m` : '';
+            const capturedAt = p?.gpsCapturedAt ? new Date(p.gpsCapturedAt).toLocaleString() : '';
+            return `<div class="checklist-input-row" style="flex-direction:column;align-items:stretch;border-color:var(--green)">
+              <span class="checklist-input-label" style="margin-bottom:6px">
+                GPS Location
+                ${hasGps ? `<span style="color:var(--green);font-size:11px;font-weight:normal;margin-left:6px">✓ ${p.lat}, ${p.lng}${acc ? ' · ' + acc : ''}</span>` : '<span style="color:var(--red);font-size:11px;font-weight:normal;margin-left:6px">required</span>'}
+              </span>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button id="gps-btn-${st.id}" class="btn-secondary btn"
+                  ${(!state.editing.poleId || !unlocked) ? 'disabled' : ''}
+                  onclick="event.stopPropagation();captureStepGps('${st.id}')"
+                  style="font-size:12px">📡 ${hasGps ? 'Re-capture GPS' : 'Capture GPS'}</button>
+                ${capturedAt ? `<span style="font-size:11px;color:var(--text-muted)">Captured ${capturedAt}</span>` : ''}
+                <span id="gps-status-${st.id}" style="font-size:11px"></span>
+              </div>
+            </div>`;
+          })() : ''}
           <!-- Rev 2.42: Multi-photo step UI with full 4-source uploader.
                Existing photos shown as thumbs with ✕ remove. Below thumbs:
                📷 take photo (mobile camera), 🖼 library, 🖱 drop zone (also paste target).
