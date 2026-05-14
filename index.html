@@ -3779,6 +3779,11 @@ window.handleStepRefDrop = async (ev, sectionId, stepId) => {
 let _pasteTargetStepRef = null;
 window.setPasteTargetStepRef = (sectionId, stepId) => {
   _pasteTargetStepRef = { sectionId, stepId };
+  // Rev 2.50: Clear other paste targets so switching focus doesn't leak stale state
+  window._pasteTargetAddStep = false;
+  window._pasteTargetIssue = false;
+  window._pasteTargetIssueDetail = false;
+  _pasteTargetStepPhoto = null;
 };
 
 window.removeStepReferencePhoto = async (sectionId, stepId, url) => {
@@ -3848,6 +3853,9 @@ window.setPasteTargetAddStep = () => {
   _pasteTargetStepRef = null;
   _pasteTargetStepPhoto = null;
   window._pasteTargetAddStep = true;
+  // Rev 2.50: Also clear issue-side targets
+  window._pasteTargetIssue = false;
+  window._pasteTargetIssueDetail = false;
 };
 
 window.addStepPhotoFromInput = (ev) => {
@@ -9390,6 +9398,10 @@ document.addEventListener("paste", ev => {
   const poleModal = document.getElementById("modalPole");
   const issueModal = document.getElementById("modalIssueFiler");
   const issueDetailModal = document.getElementById("modalIssueDetail");
+  // Rev 2.50: Fix — Install Procedures is a modal (modalProcedures), NOT a tab
+  // within the installs view. The previous check `state.installsTab === "procedures"`
+  // was always false, so paste in the Procedures modal silently failed.
+  const proceduresModal = document.getElementById("modalProcedures");
 
   // Tools/BOM: paste images to either (a) the focused detail panel, or (b) if no
   // input is focused but exactly one row is expanded, target that row's image.
@@ -9433,10 +9445,12 @@ document.addEventListener("paste", ev => {
   else if(poleModal && poleModal.classList.contains("open")) target = "pole";
   // Rev 2.41: Procedures view + a step photo strip was the most recent target.
   // setPasteTargetStepRef() is called when admin clicks any step's photo controls.
-  else if(state.view === "installs" && state.installsTab === "procedures" && _pasteTargetStepRef) target = "stepRef";
+  // Rev 2.50 FIX: Was checking state.installsTab === "procedures" which never matched
+  // (Install Procedures is a modal, not a tab). Now checks if the modal is open.
+  else if(proceduresModal && proceduresModal.classList.contains("open") && _pasteTargetStepRef) target = "stepRef";
   // Rev 2.47: New-step form paste target. Set when admin clicks any of the
   // Add Step photo controls (📷/🖼/drop zone).
-  else if(state.view === "installs" && state.installsTab === "procedures" && window._pasteTargetAddStep) target = "addStep";
+  else if(proceduresModal && proceduresModal.classList.contains("open") && window._pasteTargetAddStep) target = "addStep";
   // Site detail page: drilled into a site, no modal open
   else if(state.view === "browse" && state.drillCustomer && state.drillSite) target = "siteDetail";
   else if(tbCard) target = "tbCard";
