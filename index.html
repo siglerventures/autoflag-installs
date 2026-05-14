@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.48" />
+<meta name="app-rev" content="2.49" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.48</div>
+  <div class="ver">AutoFlag© · v2.49</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.48</span>
+    <span>v2.49</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1602,9 +1602,27 @@
       </div>
       <div class="form-row">
         <label>Photos <span id="iss-photo-count" style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— up to 4</span></label>
-        <input type="file" id="iss-photo-input" accept="image/*" multiple style="display:none" onchange="handleIssuePhotoSelect(event)" />
-        <button class="btn-secondary btn" type="button" onclick="document.getElementById('iss-photo-input').click()">📷 Add Photos</button>
-        <div id="iss-photo-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+        <!-- Rev 2.49: 4-source uploader (Camera/Library/Drop/Ctrl+V). Replaces
+             the single file-picker button that forced installers to upload from
+             gallery only — no way to take a fresh photo on phone or paste from
+             clipboard. Same pattern as Add Step form (Rev 2.47). -->
+        <div id="iss-photo-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation();setPasteTargetIssue()">
+          <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetIssue()" title="Take photo">
+            📷 Camera
+            <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleIssuePhotoSelect(event)" />
+          </label>
+          <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetIssue()" title="Choose from library">
+            🖼 Library
+            <input type="file" accept="image/*" multiple style="display:none" onchange="handleIssuePhotoSelect(event)" />
+          </label>
+          <div class="ai-drop-zone" style="font-size:11px;padding:5px 10px"
+            ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="event.stopPropagation();handleIssuePhotoDrop(event)"
+            onclick="event.stopPropagation();setPasteTargetIssue();toast('Now Ctrl+V to paste a screenshot')"
+            title="Drag & drop or click then Ctrl+V">🖱 Drop / Ctrl+V</div>
+        </div>
       </div>
       <div class="btn-row">
         <button class="btn-secondary btn" onclick="closeModal('modalIssueFiler')">Cancel</button>
@@ -9332,6 +9350,7 @@ document.addEventListener("paste", ev => {
   const aiPanel = document.getElementById("aiPhotoPanel");
   const siteModal = document.getElementById("modalSite");
   const poleModal = document.getElementById("modalPole");
+  const issueModal = document.getElementById("modalIssueFiler");
 
   // Tools/BOM: paste images to either (a) the focused detail panel, or (b) if no
   // input is focused but exactly one row is expanded, target that row's image.
@@ -9361,6 +9380,9 @@ document.addEventListener("paste", ev => {
 
   let target = null;
   if(aiPanel && aiPanel.style.display !== "none") target = "ai";
+  // Rev 2.49: Issue Filer modal — when open, route paste here unconditionally.
+  // The modal itself indicates clear intent (user is filing an issue with photos).
+  else if(issueModal && issueModal.classList.contains("open")) target = "issue";
   else if(siteModal && siteModal.classList.contains("open")) target = "site";
   // Rev 2.42: Pole modal has two paste targets — pole-level photos OR a
   // specific checklist step's photos. If user clicked into a step's photo
@@ -9385,6 +9407,16 @@ document.addEventListener("paste", ev => {
     const f = item.getAsFile();
     if(!f) return;
     if(target === "ai")    addAIPhoto(f);
+    else if(target === "issue"){
+      // Rev 2.49: Pasted screenshot → Issue Filer pending photos
+      if(issuePendingPhotos.length >= 4){ toast("Max 4 photos", true); return; }
+      const reader = new FileReader();
+      reader.onload = e => {
+        issuePendingPhotos.push({ file: f, dataUrl: e.target.result });
+        renderIssuePhotoThumbs();
+      };
+      reader.readAsDataURL(f);
+    }
     else if(target === "site")  addSitePhotoFromFile(f);
     else if(target === "pole")  addPolePhotoFromFile(f);
     else if(target === "stepPhoto") _uploadStepPhotoFile(f, _pasteTargetStepPhoto.stepId);
@@ -10637,6 +10669,30 @@ window.handleIssuePhotoSelect = (ev) => {
     };
     reader.readAsDataURL(f);
   });
+};
+
+// Rev 2.49: Drag-drop handler for Issue Filer photos
+window.handleIssuePhotoDrop = (ev) => {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("drag-over");
+  const files = Array.from(ev.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
+  files.forEach(f => {
+    if(issuePendingPhotos.length >= 4) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      issuePendingPhotos.push({ file: f, dataUrl: e.target.result });
+      renderIssuePhotoThumbs();
+    };
+    reader.readAsDataURL(f);
+  });
+};
+
+// Rev 2.49: Mark Issue Filer as the paste target so global Ctrl+V routes here
+window.setPasteTargetIssue = () => {
+  window._pasteTargetIssue = true;
+  window._pasteTargetAddStep = false;
+  _pasteTargetStepRef = null;
+  _pasteTargetStepPhoto = null;
 };
 function renderIssuePhotoThumbs(){
   const wrap = document.getElementById("iss-photo-thumbs");
