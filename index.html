@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.49" />
+<meta name="app-rev" content="2.50" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.49</div>
+  <div class="ver">AutoFlag© · v2.50</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.49</span>
+    <span>v2.50</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1261,6 +1261,7 @@
              but `state` is module-scoped — not on window — so the call silently
              failed. Now uses a window-callable wrapper that reads the same
              editing state from inside the module scope. -->
+        <button class="btn-secondary btn" onclick="showPastIssuesForCurrentPole()" style="border-color:#5a7d38;color:#a8d68a" title="See all issues filed on this pole">👷 Past Issues</button>
         <button class="btn-secondary btn" onclick="reportIssueForCurrentPole()" style="border-color:#7d3838;color:#e88a8a">🚨 Report Issue</button>
         <button class="btn-secondary btn" onclick="closeModal('modalPole')">Cancel</button>
         <button class="btn" onclick="savePole()">Save</button>
@@ -1644,6 +1645,20 @@
       <button class="modal-close" onclick="closeModal('modalIssueDetail')">×</button>
     </div>
     <div class="modal-body" id="issd-body"></div>
+  </div>
+</div>
+
+<!-- ==== Modal: Past Issues for a pole (Rev 2.50) ====
+     Shows every issue filed against the currently-open pole, full history each.
+     Visible to anyone with read access to the pole — admins, installers, customers.
+     Click an issue → opens Issue Detail modal for full edit. -->
+<div class="modal-overlay" id="modalPastIssues">
+  <div class="modal" style="max-width:720px;max-height:85vh">
+    <div class="modal-header">
+      <h2 id="past-iss-title">👷 Past Issues</h2>
+      <button class="modal-close" onclick="closeModal('modalPastIssues')">×</button>
+    </div>
+    <div class="modal-body" id="past-iss-body"></div>
   </div>
 </div>
 
@@ -9351,6 +9366,7 @@ document.addEventListener("paste", ev => {
   const siteModal = document.getElementById("modalSite");
   const poleModal = document.getElementById("modalPole");
   const issueModal = document.getElementById("modalIssueFiler");
+  const issueDetailModal = document.getElementById("modalIssueDetail");
 
   // Tools/BOM: paste images to either (a) the focused detail panel, or (b) if no
   // input is focused but exactly one row is expanded, target that row's image.
@@ -9383,6 +9399,9 @@ document.addEventListener("paste", ev => {
   // Rev 2.49: Issue Filer modal — when open, route paste here unconditionally.
   // The modal itself indicates clear intent (user is filing an issue with photos).
   else if(issueModal && issueModal.classList.contains("open")) target = "issue";
+  // Rev 2.50: Issue Detail modal — when open and user can edit (admin or installer),
+  // route paste to the resolution/progress photo bucket.
+  else if(issueDetailModal && issueDetailModal.classList.contains("open") && (state.isAdmin || state.userRole === "installer")) target = "issueDetail";
   else if(siteModal && siteModal.classList.contains("open")) target = "site";
   // Rev 2.42: Pole modal has two paste targets — pole-level photos OR a
   // specific checklist step's photos. If user clicked into a step's photo
@@ -9414,6 +9433,16 @@ document.addEventListener("paste", ev => {
       reader.onload = e => {
         issuePendingPhotos.push({ file: f, dataUrl: e.target.result });
         renderIssuePhotoThumbs();
+      };
+      reader.readAsDataURL(f);
+    }
+    else if(target === "issueDetail"){
+      // Rev 2.50: Pasted screenshot → Issue Detail resolution photos
+      if(resolutionPendingPhotos.length >= 4){ toast("Max 4 photos", true); return; }
+      const reader = new FileReader();
+      reader.onload = e => {
+        resolutionPendingPhotos.push({ file: f, dataUrl: e.target.result });
+        renderResolutionPhotoThumbs();
       };
       reader.readAsDataURL(f);
     }
@@ -10589,6 +10618,63 @@ window.reportIssueForCurrentPole = () => {
   openIssueFilerForPole(customerId, siteId, poleId);
 };
 
+// Rev 2.50: Past Issues panel. Lists every issue ever filed against THIS pole,
+// each with its full history log. Anyone with read access sees it — admins,
+// installers, customers (who only see their own customer's poles per the data
+// model). Click an issue → opens Issue Detail for full edit.
+window.showPastIssuesForCurrentPole = () => {
+  const { customerId, siteId, poleId } = state.editing || {};
+  if(!customerId || !siteId || !poleId){
+    return toast("No pole selected — open a pole first", true);
+  }
+  const p = state.data.customers[customerId]?.sites?.[siteId]?.poles?.[poleId];
+  const c = state.data.customers[customerId];
+  const s = state.data.customers[customerId]?.sites?.[siteId];
+
+  const issuesForPole = Object.values(state.issues || {})
+    .filter(iss => iss.customerId === customerId && iss.siteId === siteId && iss.poleId === poleId)
+    .sort((a, b) => (b.filedAt || 0) - (a.filedAt || 0)); // newest first
+
+  document.getElementById("past-iss-title").innerHTML =
+    `👷 Past Issues <span style="font-size:12px;color:var(--text-muted);font-weight:normal;text-transform:none">— ${escapeHtml(p?.label || poleId)} · ${escapeHtml(s?.name || siteId)}</span>`;
+
+  let html = "";
+  if(!issuesForPole.length){
+    html = `<div style="padding:30px;text-align:center;color:var(--text-muted)">
+      No issues have been filed for this pole.
+    </div>`;
+  } else {
+    html = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">
+      ${issuesForPole.length} issue${issuesForPole.length === 1 ? "" : "s"} on file — newest first
+    </div>`;
+    issuesForPole.forEach(iss => {
+      const status = iss.status || "open";
+      const statusInfo = ISSUE_STATUSES.find(x => x.key === status) || ISSUE_STATUSES[0];
+      const histCount = Array.isArray(iss.history) ? iss.history.length : 0;
+      const photoCount = (iss.photos || []).length + (Array.isArray(iss.history) ? iss.history.reduce((n, h) => n + (h.photos||[]).length, 0) : 0) + (iss.resolutionPhotos || []).length;
+
+      html += `<div onclick="openIssueDetail('${iss.id}')" style="border-left:4px solid ${statusInfo.color};padding:10px 12px;margin-bottom:8px;background:var(--surface2);border-radius:0 6px 6px 0;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-weight:600">${escapeHtml(iss.title || "(no title)")}</span>
+          <span class="status-badge ${statusInfo.badgeClass}" style="font-size:10px">${escapeHtml(statusInfo.label.toUpperCase())}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+          Filed by <strong>${escapeHtml(iss.filedByName || "unknown")}</strong> · ${new Date(iss.filedAt || 0).toLocaleString()}
+          ${iss.dispatchedToName ? ` · Dispatched to <strong>${escapeHtml(iss.dispatchedToName)}</strong>` : ""}
+        </div>
+        <div style="font-size:13px;white-space:pre-wrap;max-height:60px;overflow:hidden;text-overflow:ellipsis;color:var(--text)">${escapeHtml((iss.description || "").slice(0, 200))}${(iss.description || "").length > 200 ? "…" : ""}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+          ${histCount} history entr${histCount === 1 ? "y" : "ies"} · ${photoCount} photo${photoCount === 1 ? "" : "s"}
+          <span style="float:right;color:var(--amber)">View details →</span>
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById("past-iss-body").innerHTML = html;
+  openModal("modalPastIssues");
+};
+
 window.openIssueFilerForPole = (cid, sid, pid) => {
   // Reset modal state
   issuePendingPhotos = [];
@@ -10799,6 +10885,21 @@ async function appendPoleHistoryEntry(cid, sid, pid, entry){
 }
 
 // ===== Issue detail modal =====
+// Rev 2.50: Status options. Single source of truth — used in dropdown,
+// badge styling, and history log labels. Order matches workflow progression.
+const ISSUE_STATUSES = [
+  { key: "open",                label: "Open",                  badgeClass: "status-in_review",  color: "#ff6b6b" },
+  { key: "dispatched",          label: "Dispatched",            badgeClass: "status-in_review",  color: "#f59e0b" },
+  { key: "in_progress",         label: "In Progress",           badgeClass: "status-in_review",  color: "#3b82f6" },
+  { key: "waiting_parts",       label: "Waiting on Parts",      badgeClass: "status-in_review",  color: "#a855f7" },
+  { key: "waiting_customer",    label: "Waiting on Customer",   badgeClass: "status-in_review",  color: "#a855f7" },
+  { key: "re_dispatched",       label: "Re-Dispatched",         badgeClass: "status-in_review",  color: "#f59e0b" },
+  { key: "resolved",            label: "Resolved",              badgeClass: "status-completed",  color: "#10b981" },
+  { key: "cancelled",           label: "Cancelled",             badgeClass: "status-completed",  color: "#6b7280" },
+];
+function statusLabel(key){ return (ISSUE_STATUSES.find(s => s.key === key) || ISSUE_STATUSES[0]).label; }
+function statusBadgeClass(key){ return (ISSUE_STATUSES.find(s => s.key === key) || ISSUE_STATUSES[0]).badgeClass; }
+
 window.openIssueDetail = (issueId) => {
   const iss = state.issues[issueId];
   if(!iss) return toast("Issue not found", true);
@@ -10806,12 +10907,15 @@ window.openIssueDetail = (issueId) => {
   const c = state.data.customers[iss.customerId];
   const s = c?.sites?.[iss.siteId];
   const p = s?.poles?.[iss.poleId];
-  const statusBadge = iss.status === "resolved"
-    ? `<span class="status-badge status-completed">RESOLVED</span>`
-    : `<span class="status-badge status-in_review">OPEN</span>`;
+
+  // Rev 2.50: Status badge from new ISSUE_STATUSES table. Legacy issues with
+  // status:"resolved" still render correctly; legacy "open" → "open".
+  const curStatus = iss.status || "open";
+  const isTerminal = curStatus === "resolved" || curStatus === "cancelled";
+  const statusBadge = `<span class="status-badge ${statusBadgeClass(curStatus)}">${statusLabel(curStatus).toUpperCase()}</span>`;
   document.getElementById("issd-title").innerHTML = `🚨 ${escapeHtml(iss.title)} ${statusBadge}`;
-  const isOpen = iss.status === "open";
-  // Build the dispatch options (admins + installers from peopleRoster + Phil)
+
+  // Dispatch options (admins + installers from peopleRoster + Phil)
   const dispatchOptions = [];
   dispatchOptions.push({ key: PHIL_UID, name: "Phil Sigler" });
   if(typeof peopleRoster === "object" && peopleRoster){
@@ -10826,9 +10930,22 @@ window.openIssueDetail = (issueId) => {
   const photosHtml = (iss.photos || []).map(url =>
     `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)" /></a>`
   ).join("");
-  const resolutionPhotosHtml = (iss.resolutionPhotos || []).map(url =>
-    `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)" /></a>`
-  ).join("");
+
+  // Rev 2.50: History log. Every status change/note appends an entry to iss.history.
+  // Legacy issues had a single resolution field; render that as a synthetic history
+  // entry if present so old data doesn't disappear.
+  const history = Array.isArray(iss.history) ? [...iss.history] : [];
+  if(iss.resolution && !history.find(h => h.note === iss.resolution)){
+    history.push({
+      at: iss.resolvedAt || iss.updatedAt || iss.filedAt,
+      byName: iss.resolvedByName || "unknown",
+      status: "resolved",
+      note: iss.resolution,
+      photos: iss.resolutionPhotos || []
+    });
+  }
+  // Newest entries first
+  history.sort((a, b) => (b.at || 0) - (a.at || 0));
 
   let html = `
     <div style="background:var(--surface2);padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:14px;font-size:12px">
@@ -10840,11 +10957,13 @@ window.openIssueDetail = (issueId) => {
     </div>
     ${photosHtml ? `<div class="form-row"><label>Photos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${photosHtml}</div></div>` : ""}
     <div class="form-row" style="font-size:12px;color:var(--text-dim)">
-      Filed by <strong>${escapeHtml(iss.filedByName||iss.filedBy||"unknown")}</strong> (${iss.filedByRole}) · ${new Date(iss.filedAt).toLocaleString()}
+      Filed by <strong>${escapeHtml(iss.filedByName||iss.filedBy||"unknown")}</strong> (${iss.filedByRole||"-"}) · ${new Date(iss.filedAt).toLocaleString()}
     </div>
   `;
 
-  if(state.isAdmin && isOpen){
+  // Dispatch row — admins only, always visible (even after resolution, in case admin
+  // needs to re-assign for follow-up)
+  if(state.isAdmin){
     html += `<hr style="border-color:var(--border);margin:14px 0" />
       <div class="form-row">
         <label>Dispatch to</label>
@@ -10863,43 +10982,80 @@ window.openIssueDetail = (issueId) => {
     </div>`;
   }
 
-  if(isOpen){
+  // Status update row — admins + installers (anyone who can write to the issue).
+  // Customers see history but can't change status.
+  if(state.isAdmin || state.userRole === "installer"){
     html += `<hr style="border-color:var(--border);margin:14px 0" />
       <div class="form-row">
-        <label>Resolution notes <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— what did we do to fix it</span></label>
-        <textarea id="issd-resolution" rows="3" placeholder="Replaced gearbox, retensioned halyard..."></textarea>
+        <label>Add status note <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— what you did, what's next, what's blocked</span></label>
+        <textarea id="issd-note" rows="3" placeholder="Replaced gearbox, retensioned halyard... OR ... Onsite, but flag is broken at the top — waiting on Kealyb's housing"></textarea>
       </div>
       <div class="form-row">
         <label>After photos <span id="issd-photo-count" style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— up to 4</span></label>
-        <input type="file" id="issd-photo-input" accept="image/*" multiple style="display:none" onchange="handleResolutionPhotoSelect(event)" />
-        <button class="btn-secondary btn" type="button" onclick="document.getElementById('issd-photo-input').click()">📷 Add Photos</button>
-        <div id="issd-photo-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
-      </div>
-      <div class="btn-row">
-        ${state.isAdmin ? `<button class="btn-secondary btn" onclick="deleteIssue('${issueId}')" style="color:var(--red)">🗑 Delete</button>` : ""}
-        <button class="btn-secondary btn" onclick="closeModal('modalIssueDetail')">Cancel</button>
-        <button class="btn" onclick="resolveIssue('${issueId}')">✓ Mark Resolved</button>
-      </div>`;
-  } else {
-    // Resolved — show resolution + reopen option for admins
-    html += `<hr style="border-color:var(--border);margin:14px 0" />
-      <div class="form-row">
-        <label>Resolution</label>
-        <div style="background:var(--surface2);padding:10px 12px;border-radius:var(--radius-sm);min-height:40px;white-space:pre-wrap;font-size:13px">${escapeHtml(iss.resolution||"(no resolution notes)")}</div>
-      </div>
-      ${resolutionPhotosHtml ? `<div class="form-row"><label>After photos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${resolutionPhotosHtml}</div></div>` : ""}
-      <div class="form-row" style="font-size:12px;color:var(--text-dim)">
-        Resolved by <strong>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"unknown")}</strong> · ${new Date(iss.resolvedAt).toLocaleString()}
-      </div>
-      <div class="btn-row">
-        ${state.isAdmin ? `<button class="btn-secondary btn" onclick="reopenIssue('${issueId}')">↩ Reopen</button>` : ""}
-        ${state.isAdmin ? `<button class="btn-secondary btn" onclick="deleteIssue('${issueId}')" style="color:var(--red)">🗑 Delete</button>` : ""}
-        <button class="btn" onclick="closeModal('modalIssueDetail')">Close</button>
+        <!-- Rev 2.50: 4-source uploader (Camera/Library/Drop/Ctrl+V). Same pattern as Issue Filer (Rev 2.49). -->
+        <div id="issd-photo-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation();setPasteTargetIssueDetail()">
+          <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetIssueDetail()" title="Take photo">
+            📷 Camera
+            <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleResolutionPhotoSelect(event)" />
+          </label>
+          <label class="btn-secondary btn" style="font-size:11px;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();setPasteTargetIssueDetail()" title="Choose from library">
+            🖼 Library
+            <input type="file" accept="image/*" multiple style="display:none" onchange="handleResolutionPhotoSelect(event)" />
+          </label>
+          <div class="ai-drop-zone" style="font-size:11px;padding:5px 10px"
+            ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="event.stopPropagation();handleResolutionPhotoDrop(event)"
+            onclick="event.stopPropagation();setPasteTargetIssueDetail();toast('Now Ctrl+V to paste a screenshot')"
+            title="Drag & drop or click then Ctrl+V">🖱 Drop / Ctrl+V</div>
+        </div>
       </div>`;
   }
 
+  // History log — visible to everyone (including customers)
+  if(history.length){
+    const historyHtml = history.map(h => {
+      const status = h.status || "—";
+      const statusInfo = ISSUE_STATUSES.find(s => s.key === status);
+      const statusLabel = statusInfo ? statusInfo.label : status;
+      const statusColor = statusInfo ? statusInfo.color : "#888";
+      const photos = (h.photos||[]).map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener"><img src="${escapeHtml(u)}" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid var(--border);margin-top:4px;margin-right:4px" /></a>`).join("");
+      return `<div style="border-left:3px solid ${statusColor};padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:0 4px 4px 0">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">
+          <span style="color:${statusColor};font-weight:600">${escapeHtml(statusLabel)}</span> · ${escapeHtml(h.byName || "unknown")} · ${new Date(h.at || 0).toLocaleString()}
+        </div>
+        <div style="font-size:13px;white-space:pre-wrap">${escapeHtml(h.note || "")}</div>
+        ${photos ? `<div style="margin-top:4px">${photos}</div>` : ""}
+      </div>`;
+    }).join("");
+    html += `<hr style="border-color:var(--border);margin:14px 0" />
+      <div class="form-row">
+        <label>👷 History <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— newest first</span></label>
+        ${historyHtml}
+      </div>`;
+  }
+
+  // Footer buttons
+  // Layout: [admin Delete] ............ Cancel  [Status ▼]  Save
+  // Customer sees: ............ Close
+  if(state.isAdmin || state.userRole === "installer"){
+    html += `<div class="btn-row" style="display:flex;align-items:center;gap:8px">
+      ${state.isAdmin ? `<button class="btn-secondary btn" onclick="confirmDeleteIssue('${issueId}')" style="color:var(--red);font-size:11px;padding:5px 10px" title="Delete this issue (admin only — destructive)">🗑 Delete</button>` : ""}
+      <div style="flex:1"></div>
+      <button class="btn-secondary btn" onclick="closeModal('modalIssueDetail')">Cancel</button>
+      <select id="issd-status" style="padding:6px 8px">
+        ${ISSUE_STATUSES.map(s => `<option value="${s.key}" ${s.key === curStatus ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join("")}
+      </select>
+      <button class="btn" onclick="saveIssueProgress('${issueId}')">Save</button>
+    </div>`;
+  } else {
+    html += `<div class="btn-row">
+      <button class="btn" onclick="closeModal('modalIssueDetail')">Close</button>
+    </div>`;
+  }
+
   document.getElementById("issd-body").innerHTML = html;
-  // Reset resolution-photos pending bucket
   resolutionPendingPhotos = [];
   openModal("modalIssueDetail");
 };
@@ -11022,6 +11178,139 @@ window.resolveIssue = async (issueId) => {
     toast("✓ Resolved");
     closeModal("modalIssueDetail");
   } catch(e){ toast("Resolve failed: " + e.message, true); }
+};
+
+// Rev 2.50: New primary save handler for Issue Detail. Saves a status note + photos
+// + the chosen status. Appends an entry to issue.history. Replaces "Mark Resolved"
+// as the only path forward — now any status transition is a save.
+window.saveIssueProgress = async (issueId) => {
+  const iss = state.issues[issueId];
+  if(!iss) return;
+  const note = document.getElementById("issd-note")?.value.trim() || "";
+  const newStatus = document.getElementById("issd-status")?.value || iss.status || "open";
+  if(!ISSUE_STATUSES.find(s => s.key === newStatus)){
+    toast("Invalid status", true); return;
+  }
+
+  // If choosing a terminal status with no note, confirm — but for "in_progress"
+  // / "waiting_*" mid-state updates, a note is required since the whole point
+  // is to log what happened.
+  const isTerminal = newStatus === "resolved" || newStatus === "cancelled";
+  if(!note && !isTerminal){
+    toast("Add a note describing what happened", true); return;
+  }
+  if(!note && isTerminal){
+    if(!confirm(`Mark as ${statusLabel(newStatus)} with no note?`)) return;
+  }
+
+  toast("Saving...");
+
+  // Upload after-photos to Storage
+  const photoUrls = [];
+  for(const p of resolutionPendingPhotos){
+    try {
+      const safeName = (p.file?.name || "photo").replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `autoflag/issues/${iss.poleId}/progress_${Date.now()}_${safeName}`;
+      const sr = sref(storage, path);
+      await uploadBytes(sr, p.file);
+      const url = await getDownloadURL(sr);
+      photoUrls.push(url);
+    } catch(e){
+      toast("Photo upload failed: " + e.message, true); return;
+    }
+  }
+
+  const now = Date.now();
+  const byKey = peopleEmailKeyForCurrentUser();
+  const byName = state.user?.displayName || state.user?.email || "(unknown)";
+
+  const historyEntry = {
+    at: now,
+    by: byKey,
+    byName,
+    status: newStatus,
+    statusFrom: iss.status || "open",
+    note,
+    photos: photoUrls
+  };
+  const newHistory = Array.isArray(iss.history) ? [...iss.history, historyEntry] : [historyEntry];
+
+  // Build the patch. Always update status + history + updatedAt. If terminal, also
+  // stamp the resolution-specific fields so the existing list view / legacy code
+  // that reads iss.resolution still works.
+  const patch = {
+    status: newStatus,
+    history: newHistory,
+    updatedAt: now
+  };
+  if(newStatus === "resolved"){
+    patch.resolution = note;
+    patch.resolutionPhotos = photoUrls;
+    patch.resolvedBy = byKey;
+    patch.resolvedByName = byName;
+    patch.resolvedAt = now;
+  }
+
+  try {
+    await patchNode(`autoflag/issues/${issueId}`, patch);
+    // Also append to pole history so it shows up on the pole's timeline
+    await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
+      kind: "issue_status",
+      issueId, title: iss.title,
+      at: now, by: byKey, byName,
+      status: newStatus, note
+    });
+    toast(`✓ Saved · ${statusLabel(newStatus)}`);
+    // Re-render the detail modal so the new history entry is visible immediately
+    // without forcing a close+reopen
+    openIssueDetail(issueId);
+  } catch(e){
+    toast("Save failed: " + e.message, true);
+  }
+};
+
+// Rev 2.50: Drop handler for Issue Detail (resolution / progress photos)
+window.handleResolutionPhotoDrop = (ev) => {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("drag-over");
+  const files = Array.from(ev.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
+  files.forEach(f => {
+    if(resolutionPendingPhotos.length >= 4) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      resolutionPendingPhotos.push({ file: f, dataUrl: e.target.result });
+      renderResolutionPhotoThumbs();
+    };
+    reader.readAsDataURL(f);
+  });
+};
+
+// Rev 2.50: Mark Issue Detail as paste target
+window.setPasteTargetIssueDetail = () => {
+  window._pasteTargetIssueDetail = true;
+  window._pasteTargetIssue = false;
+  window._pasteTargetAddStep = false;
+  _pasteTargetStepRef = null;
+  _pasteTargetStepPhoto = null;
+};
+
+// Rev 2.50: Confirm delete with extra friction (typed issue title to confirm)
+window.confirmDeleteIssue = async (issueId) => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  const iss = state.issues[issueId];
+  if(!iss) return;
+  const expectedTitle = (iss.title || "issue").slice(0, 30);
+  const typed = prompt(`Type the issue title to confirm deletion:\n\n"${expectedTitle}"\n\nThis permanently deletes the issue and its history. Pole history entries remain.`);
+  if(typed === null) return; // user cancelled
+  if(typed.trim() !== expectedTitle){
+    toast("Title didn't match — delete cancelled", true);
+    return;
+  }
+  try {
+    await removeNode(`autoflag/issues/${issueId}`);
+    toast("Deleted");
+    closeModal("modalIssueDetail");
+  } catch(e){ toast("Delete failed: " + e.message, true); }
 };
 
 window.reopenIssue = async (issueId) => {
