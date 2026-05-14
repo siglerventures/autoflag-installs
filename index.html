@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.47" />
+<meta name="app-rev" content="2.48" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.47</div>
+  <div class="ver">AutoFlag© · v2.48</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.47</span>
+    <span>v2.48</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2153,8 +2153,7 @@ onAuthStateChanged(auth, async user => {
       await signOut(auth); showLogin(); return;
     }
         try{
-      const snap = await get(ref(db, `autoflag/people/${key}`));
-      const v = snap.val();
+      const v = await readNode(`autoflag/people/${key}`);
             if(v && typeof v === "object" && ["admin","installer","customer"].includes(v.role)){
         role = v.role;
         personRecord = v;
@@ -2166,8 +2165,7 @@ onAuthStateChanged(auth, async user => {
     // Backward compat: legacy /autoflag/installers/{uid} entries still grant installer role
     if(!role){
       try{
-        const legacySnap = await get(ref(db, `autoflag/installers/${user.uid}`));
-        const lv = legacySnap.val();
+        const lv = await readNode(`autoflag/installers/${user.uid}`);
                 if(lv === true || (lv && typeof lv === "object")){
           role = "installer";
           personRecord = { ...(lv || {}), email: user.email, role: "installer", legacy: true };
@@ -6883,7 +6881,7 @@ window.addMechPartItem = async () => {
     updatedBy: state.user.uid,
     history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new mech part)" }])]
   };
-  await set(ref(db, `autoflag/mechanical-parts/${id}`), item);
+  await writeNode(`autoflag/mechanical-parts/${id}`, item);
   // Auto-expand the new row so admin can edit
   state.expandedTbRows.add(`mechpart:${id}`);
   setTimeout(() => {
@@ -7263,7 +7261,7 @@ window.saveTbItem = async (kind, id) => {
   patch.updatedAt = Date.now();
   patch.updatedBy = state.user.uid;
 
-  await set(ref(db, path), patch);
+  await writeNode(path, patch);
   delete __tbPendingChanges[key];
 };
 
@@ -7322,7 +7320,7 @@ window.addToolItem = async () => {
     updatedBy: state.user.uid,
     history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new tool)" }])]
   };
-  await set(ref(db, `autoflag/tools/${id}`), item);
+  await writeNode(`autoflag/tools/${id}`, item);
   // Auto-expand so the admin can edit immediately
   state.expandedTbRows.add(`tool:${id}`);
   setTimeout(() => {
@@ -7353,7 +7351,7 @@ window.addPartItem = async () => {
     updatedBy: state.user.uid,
     history: [buildHistoryEntry([{ field: "_created", from: null, to: "(new part)" }])]
   };
-  await set(ref(db, `autoflag/parts/${installType}/${id}`), item);
+  await writeNode(`autoflag/parts/${installType}/${id}`, item);
   // Auto-expand so the admin can edit immediately
   state.expandedTbRows.add(`part:${id}`);
   setTimeout(() => {
@@ -7371,7 +7369,7 @@ window.deleteTbItem = async (kind, id) => {
   if(!confirm(`Delete "${label}"? This soft-deletes — historical install records still reference it.`)) return;
   const path = tbItemPath(kind, id);
   const entry = buildHistoryEntry([{ field: "deletedAt", from: null, to: Date.now() }]);
-  await set(ref(db, path), {
+  await writeNode(path, {
     ...item,
     deletedAt: Date.now(),
     updatedAt: Date.now(),
@@ -7400,7 +7398,7 @@ async function uploadTbImageFile(file, kind, id){
     const oldUrl = item.imageUrl || "";
     const dbPath = tbItemPath(kind, id);
     const entry = buildHistoryEntry([{ field: "imageUrl", from: oldUrl ? "(image)" : null, to: "(image)" }]);
-    await set(ref(db, dbPath), {
+    await writeNode(dbPath, {
       ...item,
       imageUrl: url,
       updatedAt: Date.now(),
@@ -7442,7 +7440,7 @@ window.removeTbImage = async (kind, id) => {
   const oldUrl = item.imageUrl || "";
   const dbPath = tbItemPath(kind, id);
   const entry = buildHistoryEntry([{ field: "imageUrl", from: "(image)", to: null }]);
-  await set(ref(db, dbPath), {
+  await writeNode(dbPath, {
     ...item,
     imageUrl: null,
     updatedAt: Date.now(),
@@ -7465,7 +7463,7 @@ window.addTbLink = async (kind, id) => {
   const item = tbGetCurrentItem(kind, id);
   if(!item) return;
   const newLinks = [...(item.links || []), { label: "", url: "" }];
-  await set(ref(db, tbItemPath(kind, id)), {
+  await writeNode(tbItemPath(kind, id), {
     ...item,
     links: newLinks,
     updatedAt: Date.now(),
@@ -7481,7 +7479,7 @@ window.removeTbLink = async (kind, id, linkIdx) => {
   const oldLinks = item.links || [];
   if(linkIdx < 0 || linkIdx >= oldLinks.length) return;
   const newLinks = oldLinks.filter((_, i) => i !== linkIdx);
-  await set(ref(db, tbItemPath(kind, id)), {
+  await writeNode(tbItemPath(kind, id), {
     ...item,
     links: newLinks,
     updatedAt: Date.now(),
@@ -7494,7 +7492,7 @@ window.verifyTbLink = async (kind, id) => {
   const item = tbGetCurrentItem(kind, id);
   if(!item) return;
   const entry = buildHistoryEntry([{ field: "lastVerifiedAt", from: item.lastVerifiedAt || null, to: Date.now() }]);
-  await set(ref(db, tbItemPath(kind, id)), {
+  await writeNode(tbItemPath(kind, id), {
     ...item,
     lastVerifiedAt: Date.now(),
     updatedAt: Date.now(),
@@ -7616,7 +7614,7 @@ async function applyTbReorder(kind, draggedId, dropOnId, before){
   const item = itemsObj[draggedId];
   const path = tbItemPath(kind, draggedId);
   const entry = buildHistoryEntry([{ field: "displayOrder", from: item.displayOrder, to: newOrder }]);
-  await set(ref(db, path), {
+  await writeNode(path, {
     ...item,
     displayOrder: newOrder,
     updatedAt: Date.now(),
@@ -8013,7 +8011,7 @@ window.deleteCustomer = async () => {
   const id = state.editing.customerId; if(!id) return;
   const c = state.data.customers[id];
   if(!confirm(`Delete customer "${c.name}" and all its sites/poles? This cannot be undone.`)) return;
-  await remove(ref(db, `autoflag/installs/customers/${id}`));
+  await removeNode(`autoflag/installs/customers/${id}`);
   state.drillCustomer=null; state.drillSite=null;
   toast("Deleted"); closeModal("modalCustomer");
 };
@@ -8203,7 +8201,7 @@ window.deleteSite = async () => {
   const cid = state.editing.customerId, sid = state.editing.siteId; if(!sid) return;
   const s = state.data.customers[cid]?.sites[sid];
   if(!confirm(`Delete site "${s.name}" and all its poles?`)) return;
-  await remove(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}`));
+  await removeNode(`autoflag/installs/customers/${cid}/sites/${sid}`);
   state.drillSite=null; toast("Deleted"); closeModal("modalSite");
 };
 window.geocodeSite = async () => {
@@ -9253,7 +9251,7 @@ window.savePole = async () => {
 window.deletePole = async () => {
   const {customerId:cid, siteId:sid, poleId:pid} = state.editing; if(!pid) return;
   if(!confirm("Delete this pole?")) return;
-  await remove(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`));
+  await removeNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`);
   toast("Deleted"); closeModal("modalPole");
 };
 
@@ -9294,11 +9292,9 @@ async function persistAIMessage(role, content, photoUrls){
       });
     } else {
       // Append to existing conversation. Read-modify-write to keep the array in order.
-      // Rev 2.37: the read step (get) is still SDK and could theoretically hang too,
-      // but that's a different problem to solve. For now, focus on the write step.
+      // Rev 2.48: read now uses readNode (REST fallback) — completes the AI history hang-protection.
       const path = `autoflag/ai-conversations/${state.user.uid}/${aiCurrentConvId}`;
-      const snap = await get(ref(db, path));
-      const conv = snap.val() || {};
+      const conv = (await readNode(path)) || {};
       const existing = Array.isArray(conv.messages) ? conv.messages : [];
       // Cap at 200 messages per conversation to keep doc size sane (~50KB each)
       const next = [...existing, msg].slice(-200);
@@ -10002,7 +9998,7 @@ async function applyTbProposalUpdate(p){
     ])].slice(-100);
     patch.updatedAt = Date.now();
     patch.updatedBy = state.user.uid;
-    await set(ref(db, tbItemPath(p.kind, p.id)), patch);
+    await writeNode(tbItemPath(p.kind, p.id), patch);
     toast(`✓ Updated ${item.name || p.id}`);
   });
 }
@@ -10015,7 +10011,7 @@ async function applyTbProposalDelete(p){
       { field: "deletedAt", from: null, to: Date.now() },
       { field: "_aiInitiated", from: null, to: state.user.uid }
     ]);
-    await set(ref(db, tbItemPath(p.kind, p.id)), {
+    await writeNode(tbItemPath(p.kind, p.id), {
       ...item, deletedAt: Date.now(),
       updatedAt: Date.now(), updatedBy: state.user.uid,
       history: [...(item.history || []), entry].slice(-100)
@@ -10065,7 +10061,7 @@ async function applyTbProposalAdd(p){
         { field: "_aiInitiated", from: null, to: state.user.uid }
       ])]
     };
-    await set(ref(db, path), item);
+    await writeNode(path, item);
     toast(`Added ${item.name || "(new item)"}`);
   });
 }
@@ -10084,7 +10080,7 @@ async function applyTbProposalAttachImage(p){
       { field: "imageUrl", from: oldUrl ? "(image)" : null, to: "(image)" },
       { field: "_aiInitiated", from: null, to: state.user.uid }
     ]);
-    await set(ref(db, tbItemPath(p.kind, p.id)), {
+    await writeNode(tbItemPath(p.kind, p.id), {
       ...item,
       imageUrl: url,
       updatedAt: Date.now(),
@@ -10275,7 +10271,7 @@ window.submitSuggestion = async () => {
   if(!text){ toast("Type something first", true); return; }
   const id = `sug_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
   try {
-    await set(ref(db, `autoflag/suggestions/${id}`), {
+    await writeNode(`autoflag/suggestions/${id}`, {
       text,
       submittedBy: state.user.uid,
       submittedByName: state.user.displayName || state.user.email,
@@ -10295,8 +10291,7 @@ async function loadSuggestionsList(){
   const empty = document.getElementById("sugListEmpty");
   wrap.innerHTML = '<div style="padding:10px;color:var(--text-muted);font-size:12px;font-style:italic">Loading...</div>';
   try {
-    const snap = await get(ref(db, "autoflag/suggestions"));
-    const all = snap.val() || {};
+    const all = (await readNode("autoflag/suggestions")) || {};
     const list = Object.entries(all).map(([id, s]) => ({ id, ...s }))
       .sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
     if(list.length === 0){
@@ -10332,10 +10327,9 @@ async function loadSuggestionsList(){
 window.setSuggestionStatus = async (id, status) => {
   if(!state.isAdmin) return;
   try {
-    const snap = await get(ref(db, `autoflag/suggestions/${id}`));
-    const s = snap.val();
+    const s = await readNode(`autoflag/suggestions/${id}`);
     if(!s) return;
-    await set(ref(db, `autoflag/suggestions/${id}`), {
+    await writeNode(`autoflag/suggestions/${id}`, {
       ...s, status, statusBy: state.user.uid, statusAt: Date.now()
     });
     loadSuggestionsList();
@@ -10346,7 +10340,7 @@ window.deleteSuggestion = async (id) => {
   if(!state.isAdmin) return;
   if(!confirm("Delete this suggestion?")) return;
   try {
-    await remove(ref(db, `autoflag/suggestions/${id}`));
+    await removeNode(`autoflag/suggestions/${id}`);
     loadSuggestionsList();
   } catch(e){ toast(e.message, true); }
 };
@@ -10523,7 +10517,7 @@ window.continueAIConversation = (uid, convId) => {
 window.deleteAIConversation = async (uid, convId) => {
   if(!confirm("Delete this conversation? This can't be undone.")) return;
   try {
-    await remove(ref(db, `autoflag/ai-conversations/${uid}/${convId}`));
+    await removeNode(`autoflag/ai-conversations/${uid}/${convId}`);
     // If we were currently in this conversation, drop the pointer too
     if(aiCurrentConvId === convId) aiCurrentConvId = null;
     // Refresh
@@ -10708,7 +10702,7 @@ window.submitNewIssue = async () => {
     updatedAt: now
   };
   try {
-    await set(ref(db, `autoflag/issues/${issueId}`), issue);
+    await writeNode(`autoflag/issues/${issueId}`, issue);
     // Also append a history entry on the pole — pole history references the issue.
     await appendPoleHistoryEntry(cid, sid, pid, {
       kind: "issue_filed",
@@ -10739,10 +10733,10 @@ function peopleEmailKeyForCurrentUser(){
 async function appendPoleHistoryEntry(cid, sid, pid, entry){
   const path = `autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}/history`;
   try {
-    const snap = await get(ref(db, path));
-    const arr = Array.isArray(snap.val()) ? snap.val() : [];
+    const v = await readNode(path);
+    const arr = Array.isArray(v) ? v : [];
     arr.push(entry);
-    await set(ref(db, path), arr);
+    await writeNode(path, arr);
   } catch(e){
     console.warn("Pole history append failed:", e);
   }
@@ -10895,7 +10889,7 @@ window.dispatchIssue = async (issueId) => {
   if(!iss) return;
   const now = Date.now();
   try {
-    await update(ref(db, `autoflag/issues/${issueId}`), {
+    await patchNode(`autoflag/issues/${issueId}`, {
       dispatchedTo: key, dispatchedToName: name,
       dispatchedAt: now, dispatchedBy: peopleEmailKeyForCurrentUser(),
       updatedAt: now
@@ -10924,10 +10918,10 @@ async function ensureInstallerAssignedToPole(cid, sid, pid, installerKey){
   if(!cid || !sid || !pid || !installerKey) return;
   const path = `autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}/assignedInstallers`;
   try {
-    const snap = await get(ref(db, path));
-    const existing = Array.isArray(snap.val()) ? snap.val() : [];
+    const v = await readNode(path);
+    const existing = Array.isArray(v) ? v : [];
     if(existing.includes(installerKey)) return; // already there
-    await set(ref(db, path), [...existing, installerKey]);
+    await writeNode(path, [...existing, installerKey]);
   } catch(e){
     console.warn("ensureInstallerAssignedToPole failed:", e);
   }
@@ -10959,7 +10953,7 @@ window.resolveIssue = async (issueId) => {
   const resolverKey = peopleEmailKeyForCurrentUser();
   const resolverName = state.user?.displayName || state.user?.email || "(unknown)";
   try {
-    await update(ref(db, `autoflag/issues/${issueId}`), {
+    await patchNode(`autoflag/issues/${issueId}`, {
       status: "resolved",
       resolution, resolutionPhotos: photoUrls,
       resolvedBy: resolverKey, resolvedByName: resolverName, resolvedAt: now,
@@ -10978,7 +10972,7 @@ window.reopenIssue = async (issueId) => {
   if(!state.isAdmin) return toast("Admin only", true);
   if(!confirm("Reopen this issue?")) return;
   try {
-    await update(ref(db, `autoflag/issues/${issueId}`), {
+    await patchNode(`autoflag/issues/${issueId}`, {
       status: "open",
       updatedAt: Date.now()
     });
@@ -10991,7 +10985,7 @@ window.deleteIssue = async (issueId) => {
   if(!state.isAdmin) return toast("Admin only", true);
   if(!confirm("Delete this issue permanently? Pole history entries will remain.")) return;
   try {
-    await remove(ref(db, `autoflag/issues/${issueId}`));
+    await removeNode(`autoflag/issues/${issueId}`);
     toast("Deleted");
     closeModal("modalIssueDetail");
   } catch(e){ toast("Delete failed: " + e.message, true); }
@@ -11264,7 +11258,7 @@ window.startBulkImageImport = async () => {
         { field: "imageUrl", from: oldUrl ? "(image)" : null, to: "(image)" },
         { field: "_bulkImported", from: null, to: m.filename }
       ]);
-      await set(ref(db, tbItemPath(kind, m.itemId)), {
+      await writeNode(tbItemPath(kind, m.itemId), {
         ...item,
         imageUrl: url,
         updatedAt: Date.now(),
@@ -11389,6 +11383,11 @@ window.mergeJSON = (ev) => {
         return;
       }
 
+      // Rev 2.48: Intentionally raw — this is multi-path update at root (updates is
+      // path-keyed: { "autoflag/installs/.../poles/X": data, ... }). Atomic write
+      // to many paths at once. writeNode/patchNode operate on a single path so they
+      // don't fit this shape. Workflow is admin-only JSON import via the Data modal,
+      // which is desktop-only in practice — mobile SDK hang risk is acceptable here.
       await update(ref(db), updates);
       setStatus(`✓ Merge complete — ${summary.join(", ")}`);
       toast("Merge complete");
@@ -11454,7 +11453,7 @@ window.restoreJSON = (ev) => {
     try{
       const parsed = JSON.parse(reader.result);
       if(!parsed.customers) throw new Error("Invalid backup format");
-      await set(ref(db, "autoflag/installs/customers"), parsed.customers);
+      await writeNode("autoflag/installs/customers", parsed.customers);
       setStatus("✓ Restore complete");
       toast("Data restored");
     }catch(e){ setStatus("✗ Restore failed: " + e.message); toast("Restore failed: " + e.message, true); }
