@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.54" />
+<meta name="app-rev" content="2.55" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.54</div>
+  <div class="ver">AutoFlag© · v2.55</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.54</span>
+    <span>v2.55</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -11327,34 +11327,72 @@ window.dispatchIssue = async (issueId) => {
   const iss = state.issues[issueId];
   if(!iss) return;
   const now = Date.now();
+
+  // Rev 2.55: Verify-after-write. The previous version showed "✓ Dispatched"
+  // toast even when the write silently failed on mobile, leaving users to
+  // discover later that the dispatch wasn't saved. Now we:
+  //   1. Do the dispatch patch ONLY
+  //   2. Read back from Firebase to verify it actually landed
+  //   3. Only THEN show success and do the secondary operations
+  // If the verify read shows the dispatch didn't take, show a real error.
+
+  toast("Dispatching...");
+  const patch = {
+    dispatchedTo: key, dispatchedToName: name,
+    dispatchedAt: now, dispatchedBy: peopleEmailKeyForCurrentUser(),
+    updatedAt: now
+  };
+
   try {
-    const patch = {
-      dispatchedTo: key, dispatchedToName: name,
-      dispatchedAt: now, dispatchedBy: peopleEmailKeyForCurrentUser(),
-      updatedAt: now
-    };
     await patchNode(`autoflag/issues/${issueId}`, patch);
-    // Rev 2.53: Optimistic local update so mobile UI reflects the dispatch
-    state.issues = {
-      ...state.issues,
-      [issueId]: { ...iss, ...patch, id: issueId }
-    };
-    if(typeof renderActive === "function") renderActive();
-    // Rev 2.25: Auto-add the dispatched installer to the pole's assignedInstallers
-    // so the pole becomes visible to them in their Browse tree (their own
-    // visibility filter is gated by assignedInstallers). No-op if already there.
-    // NOT removed on resolve — admin can manually unassign later via the Pole
-    // modal. Keeps the dispatch flow simple; no edge cases tracking "added by
-    // dispatch vs. originally assigned."
+  } catch(e){
+    toast("Dispatch failed: " + e.message, true);
+    console.error("[dispatch] patchNode threw:", e);
+    return;
+  }
+
+  // Verify the write actually persisted by reading back from Firebase.
+  // readNode goes REST-first when _sdkWedged is true so this is fast.
+  let verified = null;
+  try {
+    verified = await readNode(`autoflag/issues/${issueId}/dispatchedTo`);
+  } catch(e){
+    console.warn("[dispatch] verify read failed:", e);
+    // Verify itself failed — don't lie. Tell user and bail out.
+    toast("Dispatch save couldn't be confirmed — please retry", true);
+    return;
+  }
+
+  if(verified !== key){
+    // Write returned ok but data didn't land. Real problem — probably rules.
+    console.error("[dispatch] write didn't persist. expected:", key, "got:", verified);
+    toast("Dispatch didn't save — check permissions or retry", true);
+    return;
+  }
+
+  // ✓ Verified. NOW it's safe to update local state + do secondary operations.
+  state.issues = {
+    ...state.issues,
+    [issueId]: { ...iss, ...patch, id: issueId }
+  };
+  if(typeof renderActive === "function") renderActive();
+
+  // Secondary operations — these are NICE TO HAVE but the dispatch itself is
+  // already confirmed saved. If these fail, log but don't lose the user's work
+  // or show a confusing error.
+  try {
     await ensureInstallerAssignedToPole(iss.customerId, iss.siteId, iss.poleId, key);
+  } catch(e){ console.warn("[dispatch] ensureInstallerAssigned failed:", e); }
+  try {
     await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
       kind: "issue_dispatched", issueId, title: iss.title,
       to: key, toName: name, at: now,
       by: peopleEmailKeyForCurrentUser(), byName: state.user?.displayName || state.user?.email || ""
     });
-    toast("✓ Dispatched to " + name);
-    openIssueDetail(issueId); // re-render
-  } catch(e){ toast("Dispatch failed: " + e.message, true); }
+  } catch(e){ console.warn("[dispatch] appendPoleHistory failed:", e); }
+
+  toast("✓ Dispatched to " + name);
+  openIssueDetail(issueId); // re-render
 };
 
 // Rev 2.25: Add an installer's email-key to a pole's assignedInstallers array
@@ -11489,29 +11527,53 @@ window.saveIssueProgress = async (issueId) => {
     patch.resolvedAt = now;
   }
 
+  // Rev 2.55: Verify-after-write — same pattern as dispatchIssue.
+  // Don't lie to the user. Write, read back, only show success when verified.
   try {
     await patchNode(`autoflag/issues/${issueId}`, patch);
-    // Rev 2.53: Optimistic local update — merge patch into state.issues so the
-    // UI reflects the change even when the mobile WebSocket can't echo it back.
-    state.issues = {
-      ...state.issues,
-      [issueId]: { ...iss, ...patch, id: issueId }
-    };
-    if(typeof renderActive === "function") renderActive();
-    // Also append to pole history so it shows up on the pole's timeline
+  } catch(e){
+    toast("Save failed: " + e.message, true);
+    console.error("[saveIssueProgress] patchNode threw:", e);
+    return;
+  }
+
+  // Verify by reading back the status field. If it matches, we know the
+  // patch took. If not, something silently dropped the write.
+  let verifiedStatus = null;
+  try {
+    verifiedStatus = await readNode(`autoflag/issues/${issueId}/status`);
+  } catch(e){
+    console.warn("[saveIssueProgress] verify read failed:", e);
+    toast("Save couldn't be confirmed — please retry", true);
+    return;
+  }
+
+  if(verifiedStatus !== newStatus){
+    console.error("[saveIssueProgress] status didn't persist. expected:", newStatus, "got:", verifiedStatus);
+    toast("Save didn't persist — check permissions or retry", true);
+    return;
+  }
+
+  // ✓ Verified. Update local state + secondary operations.
+  state.issues = {
+    ...state.issues,
+    [issueId]: { ...iss, ...patch, id: issueId }
+  };
+  if(typeof renderActive === "function") renderActive();
+
+  try {
     await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
       kind: "issue_status",
       issueId, title: iss.title,
       at: now, by: byKey, byName,
       status: newStatus, note
     });
-    toast(`✓ Saved · ${statusLabel(newStatus)}`);
-    // Re-render the detail modal so the new history entry is visible immediately
-    // without forcing a close+reopen
-    openIssueDetail(issueId);
-  } catch(e){
-    toast("Save failed: " + e.message, true);
-  }
+  } catch(e){ console.warn("[saveIssueProgress] appendPoleHistory failed:", e); }
+
+  toast(`✓ Saved · ${statusLabel(newStatus)}`);
+  // Re-render the detail modal so the new history entry is visible immediately
+  // without forcing a close+reopen
+  openIssueDetail(issueId);
 };
 
 // Rev 2.50: Drop handler for Issue Detail (resolution / progress photos)
