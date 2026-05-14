@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.51" />
+<meta name="app-rev" content="2.52" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.51</div>
+  <div class="ver">AutoFlag© · v2.52</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.51</span>
+    <span>v2.52</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1104,7 +1104,26 @@
 
       <div class="section-h">📷 Site Photos <span style="color:var(--text-muted);font-weight:normal;font-size:10px;margin-left:6px">context shots, sales material, scouting</span></div>
       <div class="photo-grid" id="ms-photos"></div>
-      <input type="file" id="ms-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleSitePhotoUpload(event)" multiple />
+      <!-- Rev 2.52: Site modal photo controls upgraded to 4-source (Camera/Library/Drop/Ctrl+V)
+           matching the Pole modal pattern. Replaces single hidden file input + dynamic
+           "+" tile that confused installers ("how do I take a photo?"). -->
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px" onclick="event.stopPropagation();setPasteTargetSite()">
+        <label class="btn" style="cursor:pointer;font-size:12px;padding:6px 12px" onclick="event.stopPropagation();setPasteTargetSite()" title="Take photo">
+          📷 Take Photo
+          <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleSitePhotoUpload(event)" />
+        </label>
+        <label class="btn-secondary btn" style="cursor:pointer;font-size:12px;padding:6px 12px" onclick="event.stopPropagation();setPasteTargetSite()" title="Choose from library">
+          🖼 Choose from Library
+          <input type="file" accept="image/*" multiple style="display:none" onchange="handleSitePhotoUpload(event)" />
+        </label>
+        <div class="ai-drop-zone" style="font-size:12px;padding:6px 12px"
+          ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="event.stopPropagation();handleSitePhotoDrop(event)"
+          onclick="event.stopPropagation();setPasteTargetSite();toast('Now Ctrl+V to paste a screenshot')"
+          title="Drag & drop or click then Ctrl+V">🖱 Drag &amp; Drop here</div>
+        <span style="font-size:11px;color:var(--text-muted);font-style:italic">💡 Or <strong>Ctrl+V</strong> to paste a screenshot</span>
+      </div>
 
       <div class="btn-row">
         <button class="btn-secondary btn" id="ms-delete" onclick="deleteSite()">Delete</button>
@@ -8217,7 +8236,7 @@ function renderSitePhotos(existing){
   state.siteTempPhotos.forEach((tp,i) => {
     html += `<div class="photo-thumb"><img src="${tp.url}" /><div class="remove" onclick="event.stopPropagation();removeTempSitePhoto(${i})">×</div></div>`;
   });
-  html += `<div class="photo-add" onclick="document.getElementById('ms-photo-input').click()">+</div>`;
+  // Rev 2.52: "+" tile removed — replaced by the 4-source button row below the grid.
   grid.innerHTML = html;
 }
 
@@ -8245,6 +8264,25 @@ window.handleSitePhotoUpload = async (ev) => {
     state.siteTempPhotos.push({ file:f, url });
   }
   renderSitePhotos(currentSitePhotos());
+};
+
+// Rev 2.52: Drag-drop handler for Site modal photos
+window.handleSitePhotoDrop = (ev) => {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("drag-over");
+  const files = Array.from(ev.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
+  files.forEach(f => addSitePhotoFromFile(f));
+};
+
+// Rev 2.52: Mark Site modal as paste target so global Ctrl+V routes here.
+// (Site modal IS detected by the dispatch chain via siteModal.classList,
+// but explicit call clears any stale per-step targets that might still be set.)
+window.setPasteTargetSite = () => {
+  _pasteTargetStepRef = null;
+  _pasteTargetStepPhoto = null;
+  window._pasteTargetAddStep = false;
+  window._pasteTargetIssue = false;
+  window._pasteTargetIssueDetail = false;
 };
 
 // ==== Inline site-detail photo handlers (commit immediately, no save button) ====
