@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.52" />
+<meta name="app-rev" content="2.53" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.52</div>
+  <div class="ver">AutoFlag© · v2.53</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.52</span>
+    <span>v2.53</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -11017,6 +11017,19 @@ window.submitNewIssue = async () => {
   };
   try {
     await writeNode(`autoflag/issues/${issueId}`, issue);
+    // Rev 2.53: Optimistic local update — mobile WebSocket may be wedged, so
+    // the subscription echo from Firebase may never arrive. Update state.issues
+    // immediately so the UI reflects the new issue without waiting for REST
+    // poll (up to 30s) or hard reload. Issue ID gets stamped on issue.id too
+    // since the existing render code reads issue.id from the value (not the key).
+    state.issues = { ...state.issues, [issueId]: { ...issue, id: issueId } };
+    // Re-render any view that shows issue counts/lists
+    if(typeof renderActive === "function") renderActive();
+    // Also refresh pole badges / open pole modal counts
+    if(typeof renderPoleChecklist === "function" && state.editing.poleId){
+      const refreshed = state.data.customers[cid]?.sites?.[sid]?.poles?.[pid];
+      if(refreshed) renderPoleChecklist(refreshed);
+    }
     // Also append a history entry on the pole — pole history references the issue.
     await appendPoleHistoryEntry(cid, sid, pid, {
       kind: "issue_filed",
@@ -11273,11 +11286,18 @@ window.dispatchIssue = async (issueId) => {
   if(!iss) return;
   const now = Date.now();
   try {
-    await patchNode(`autoflag/issues/${issueId}`, {
+    const patch = {
       dispatchedTo: key, dispatchedToName: name,
       dispatchedAt: now, dispatchedBy: peopleEmailKeyForCurrentUser(),
       updatedAt: now
-    });
+    };
+    await patchNode(`autoflag/issues/${issueId}`, patch);
+    // Rev 2.53: Optimistic local update so mobile UI reflects the dispatch
+    state.issues = {
+      ...state.issues,
+      [issueId]: { ...iss, ...patch, id: issueId }
+    };
+    if(typeof renderActive === "function") renderActive();
     // Rev 2.25: Auto-add the dispatched installer to the pole's assignedInstallers
     // so the pole becomes visible to them in their Browse tree (their own
     // visibility filter is gated by assignedInstallers). No-op if already there.
@@ -11337,12 +11357,16 @@ window.resolveIssue = async (issueId) => {
   const resolverKey = peopleEmailKeyForCurrentUser();
   const resolverName = state.user?.displayName || state.user?.email || "(unknown)";
   try {
-    await patchNode(`autoflag/issues/${issueId}`, {
+    const patch = {
       status: "resolved",
       resolution, resolutionPhotos: photoUrls,
       resolvedBy: resolverKey, resolvedByName: resolverName, resolvedAt: now,
       updatedAt: now
-    });
+    };
+    await patchNode(`autoflag/issues/${issueId}`, patch);
+    // Rev 2.53: Optimistic local update
+    state.issues = { ...state.issues, [issueId]: { ...iss, ...patch, id: issueId } };
+    if(typeof renderActive === "function") renderActive();
     await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
       kind: "issue_resolved", issueId, title: iss.title,
       at: now, by: resolverKey, byName: resolverName, resolution
@@ -11425,6 +11449,13 @@ window.saveIssueProgress = async (issueId) => {
 
   try {
     await patchNode(`autoflag/issues/${issueId}`, patch);
+    // Rev 2.53: Optimistic local update — merge patch into state.issues so the
+    // UI reflects the change even when the mobile WebSocket can't echo it back.
+    state.issues = {
+      ...state.issues,
+      [issueId]: { ...iss, ...patch, id: issueId }
+    };
+    if(typeof renderActive === "function") renderActive();
     // Also append to pole history so it shows up on the pole's timeline
     await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
       kind: "issue_status",
@@ -11480,6 +11511,11 @@ window.confirmDeleteIssue = async (issueId) => {
   }
   try {
     await removeNode(`autoflag/issues/${issueId}`);
+    // Rev 2.53: Optimistic local update — strip the issue from state.issues
+    const next = { ...state.issues };
+    delete next[issueId];
+    state.issues = next;
+    if(typeof renderActive === "function") renderActive();
     toast("Deleted");
     closeModal("modalIssueDetail");
   } catch(e){ toast("Delete failed: " + e.message, true); }
@@ -11488,11 +11524,18 @@ window.confirmDeleteIssue = async (issueId) => {
 window.reopenIssue = async (issueId) => {
   if(!state.isAdmin) return toast("Admin only", true);
   if(!confirm("Reopen this issue?")) return;
+  const iss = state.issues[issueId];
   try {
-    await patchNode(`autoflag/issues/${issueId}`, {
+    const patch = {
       status: "open",
       updatedAt: Date.now()
-    });
+    };
+    await patchNode(`autoflag/issues/${issueId}`, patch);
+    // Rev 2.53: Optimistic local update
+    if(iss){
+      state.issues = { ...state.issues, [issueId]: { ...iss, ...patch, id: issueId } };
+      if(typeof renderActive === "function") renderActive();
+    }
     toast("Reopened");
     openIssueDetail(issueId);
   } catch(e){ toast("Reopen failed: " + e.message, true); }
