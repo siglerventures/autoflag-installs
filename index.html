@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.55" />
+<meta name="app-rev" content="2.56" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -975,7 +975,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.55</div>
+  <div class="ver">AutoFlag© · v2.56</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1052,7 +1052,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.55</span>
+    <span>v2.56</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -9972,7 +9972,11 @@ function buildAIContext(){
       ...(item.category ? { category: item.category } : {}),
       ...(item.notes ? { notes: item.notes } : {}),
       ...(item.imageUrl ? { hasImage: true } : {}),
-      sources: (item.links || []).map(l => l.label).filter(Boolean),
+      // Rev 2.56: Show AI the real links field shape ({label, url}). Previously
+      // it saw `sources: ["Amazon"]` (just label strings) and would propose
+      // back `sources: "Amazon"` which (a) wrote to a non-existent field and
+      // (b) had no URL. Now AI sees and can edit the actual schema.
+      links: (item.links || []).map(l => ({ label: l.label || "", url: l.url || "" })),
       ...(item.lastVerifiedAt ? { verified: new Date(item.lastVerifiedAt).toISOString().slice(0,10) } : {})
     };
     if(item.qty != null && item.qtyPerUnit != null){
@@ -10256,17 +10260,66 @@ async function applyTbProposalUpdate(p){
     if(!item) throw new Error("Item not found");
     // Whitelist allowed fields per kind
     const allowedByKind = {
-      tool: ["name","price","category","notes"],
-      part: ["name","qty","packCost","qtyPerUnit","material","notes"],
-      mechpart: ["name","qty","packCost","qtyPerUnit","material","notes"]
+      // Rev 2.56: Added "links" so AI can update Amazon/HomeDepot/etc URL sources.
+      // The "sources" key is also accepted as a legacy alias — old AI prompts
+      // emit "sources" as a string or array of labels; we translate to {label,url}.
+      tool: ["name","price","category","notes","links","sources"],
+      part: ["name","qty","packCost","qtyPerUnit","material","notes","links","sources"],
+      mechpart: ["name","qty","packCost","qtyPerUnit","material","notes","links","sources"]
     };
     const allowed = allowedByKind[p.kind] || [];
     const patch = { ...item };
+    // Rev 2.56: Normalize legacy "sources" proposal to "links". AI proposals
+    // built from older context still emit `sources: "Amazon"` or
+    // `sources: ["Amazon", "HomeDepot"]`. Convert to proper {label, url} objects
+    // merging with any existing links (preserving URLs that the AI didn't touch).
+    const existingLinks = Array.isArray(item.links) ? item.links : [];
     Object.entries(p.patch || {}).forEach(([k, v]) => {
-      if(allowed.includes(k)) patch[k] = v;
+      if(!allowed.includes(k)) return;
+      if(k === "sources"){
+        // Rev 2.56: Translate to links + MERGE with existing. AI sometimes
+        // emits just the new source(s) it's adding (e.g. `sources: "Amazon"`)
+        // expecting append semantics. Other times it emits the full intended
+        // list. Either way, we union with existing: any existing label that's
+        // NOT in the proposal stays; any new label gets added with empty URL
+        // (or preserved URL if we already had it under that label).
+        const arr = Array.isArray(v) ? v : (typeof v === "string" ? [v] : []);
+        const proposedLabels = arr.map(entry => {
+          if(typeof entry === "string") return entry;
+          if(entry && typeof entry === "object") return entry.label || "";
+          return "";
+        }).filter(Boolean);
+        // Start with existing links (preserves URLs)
+        const merged = [...existingLinks];
+        // Add any proposed label that's not already present
+        proposedLabels.forEach(label => {
+          const found = merged.find(l => (l.label || "").toLowerCase() === label.toLowerCase());
+          if(!found) merged.push({ label, url: "" });
+        });
+        patch.links = merged;
+      } else if(k === "links"){
+        // Direct links update. Sanitize each entry to {label, url} shape.
+        const arr = Array.isArray(v) ? v : [];
+        patch.links = arr.map(entry => {
+          if(typeof entry === "string"){
+            return { label: entry, url: "" };
+          }
+          return { label: entry?.label || "", url: entry?.url || "" };
+        }).filter(l => l.label || l.url);
+      } else {
+        patch[k] = v;
+      }
     });
     const changes = diffTbItem(item, patch);
-    if(changes.length === 0) return; // no-op
+    if(changes.length === 0){
+      // Rev 2.56: Surface the no-op instead of silently returning. Before, an
+      // apply that produced no changes (whitelist filtered everything, or AI
+      // proposed values that already match) would silently exit and the bot
+      // would happily report "Applied" — but nothing was saved. Now the user
+      // sees that the apply did nothing and can take action.
+      toast(`No changes to apply for ${item.name || p.id}`, true);
+      return;
+    }
     patch.history = [...(item.history || []), buildHistoryEntry([
       ...changes,
       { field: "_aiInitiated", from: null, to: state.user.uid }
