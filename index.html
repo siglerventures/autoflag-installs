@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.67" />
+<meta name="app-rev" content="2.69" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1007,7 +1007,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.67</div>
+  <div class="ver">AutoFlag© · v2.69</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1087,7 +1087,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.67</span>
+    <span>v2.69</span>
     <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2097,7 +2097,8 @@ window.signIn = async () => {
   } catch(e){
     if(e.code === "auth/popup-blocked" || e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request"){
       try {
-        try { sessionStorage.setItem("autoflag:redirectPending", "1"); } catch(_){}
+        // Rev 2.69: Flag is the timestamp so we can detect stale flags on next load
+        try { sessionStorage.setItem("autoflag:redirectPending", String(Date.now())); } catch(_){}
         await signInWithRedirect(auth, PROVIDER);
       }
       catch(e2){ toast("Sign-in failed: "+e2.message, true); }
@@ -2251,9 +2252,23 @@ let redirectHasUser = false;
 // signInWithRedirect — checking our own flag is reliable across all browsers
 // (sniffing Firebase's internal keys was unreliable: works on iOS Safari, fails
 // on Android Chrome which stores its redirect state in IndexedDB).
+//
+// Rev 2.69: Flag now has a 60-second staleness window. Phil hit a case where
+// the flag was stuck on (probably from a never-completed redirect from an
+// earlier session), causing every page load to wait 9 seconds for a
+// redirect-result that would never arrive. Flag is timestamped (Date.now())
+// when set, ignored if older than 60s.
 function looksLikeRedirectReturn(){
   try{
-    return sessionStorage.getItem("autoflag:redirectPending") === "1";
+    const raw = sessionStorage.getItem("autoflag:redirectPending");
+    if(!raw) return false;
+    const ts = Number(raw);
+    if(!ts || Date.now() - ts > 60000){
+      // Stale — clear it and bail
+      try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
+      return false;
+    }
+    return true;
   }catch(e){ return false; }
 }
 
@@ -2338,24 +2353,14 @@ window.signOutNow = async () => {
   // each listener keeps trying to read against the rules with no auth, generating
   // a flood of permission_denied errors and toast spam.
   teardownAllSubs();
-  // Rev 2.67: Aggressive sign-out. Phil reported "it doesn't let me log out" —
-  // Firebase persistence in IndexedDB can auto-restore the session on reload.
-  // Belt and suspenders: clear local auth keys, then signOut, then force reload
-  // so any reconnecting listener or persisted credential starts from clean state.
-  try { await signOut(auth); } catch(e){ console.warn("signOut threw:", e?.message); }
-  try {
-    // Clear Firebase Auth persistence (IndexedDB)
-    if(window.indexedDB){
-      const dbs = await (indexedDB.databases ? indexedDB.databases() : Promise.resolve([]));
-      dbs.forEach(d => { if(d.name && d.name.includes("firebase")) try { indexedDB.deleteDatabase(d.name); } catch(_){} });
-    }
-    // Clear any local/session keys we own
-    try { localStorage.removeItem("autoflag:emailLinkEmail"); } catch(_){}
-    try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
-  } catch(e){ console.warn("Storage cleanup threw:", e?.message); }
+  // Rev 2.69: Reverted the aggressive IndexedDB nuking from 2.67 — it broke
+  // Firebase's auth state cache and caused "getRedirectResult timed out after
+  // 9s" delays on next page load. The simple signOut() is what we should have
+  // had all along. If "doesn't let me log out" returns, we'll diagnose
+  // properly instead of nuking storage.
+  try { await signOut(auth); }
+  catch(e){ console.warn("signOut threw:", e?.message); }
   signOutInProgress = false;
-  // Force a hard reload to drop any in-memory state + force a clean re-auth
-  location.replace(location.pathname);
 };
 
 // Rev 2.31: Footer 🔄 Refresh action. Bypasses browser + GitHub Pages cache
