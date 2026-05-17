@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.62" />
+<meta name="app-rev" content="2.63" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -985,20 +985,27 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
 
-  <!-- Rev 2.59: Email-link sign-in. Users without a Google account can request
-       a one-time sign-in link, sent to whatever email is on their peopleRoster
-       entry. Same role gating after sign-in — if the email isn't whitelisted,
-       they're still bounced. Just opens up auth to non-Google email providers. -->
+  <!-- Rev 2.63: Email + password sign-in. Replaces magic link (Rev 2.59) per Phil.
+       Customers/installers whose email is in peopleRoster can sign in here.
+       First-time: type email + new password → click Create Account.
+       Return: type email + existing password → click Sign In.
+       Forgot: "Forgot password?" → Firebase emails reset link. -->
   <div style="margin-top:14px;color:var(--text-muted);font-size:12px;text-align:center">or</div>
-  <div id="emailLinkUI" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px">
-    <input type="email" id="emailLinkInput" placeholder="your.email@example.com" autocomplete="email"
+  <div id="emailPwUI" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px">
+    <input type="email" id="emailPwEmail" placeholder="your.email@example.com" autocomplete="email"
       style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
-    <button class="btn-secondary btn" id="emailLinkBtn" onclick="sendEmailLink()" style="width:100%">📧 Email me a sign-in link</button>
-    <div id="emailLinkMsg" style="font-size:11px;color:var(--text-muted);min-height:14px;text-align:center"></div>
+    <input type="password" id="emailPwPassword" placeholder="Password (6+ characters)" autocomplete="current-password"
+      style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
+    <div style="display:flex;gap:6px;width:100%">
+      <button class="btn" id="emailPwSignInBtn" onclick="signInWithEmailPassword()" style="flex:1">Sign In</button>
+      <button class="btn-secondary btn" id="emailPwSignUpBtn" onclick="createAccountWithEmailPassword()" style="flex:1" title="New users — set up your account">Create Account</button>
+    </div>
+    <button onclick="forgotPassword()" style="font-size:11px;padding:4px 8px;background:transparent;border:none;color:var(--text-muted);text-decoration:underline;cursor:pointer">Forgot password?</button>
+    <div id="emailPwMsg" style="font-size:11px;color:var(--text-muted);min-height:14px;text-align:center"></div>
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.62</div>
+  <div class="ver">AutoFlag© · v2.63</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1075,7 +1082,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.62</span>
+    <span>v2.63</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1818,7 +1825,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue, push, child } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getStorage, ref as storageRef, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCrW9Lrf7fWVqRxKqsnuPK0tL6UYbd_qds",
@@ -2097,76 +2104,121 @@ window.signIn = async () => {
   }
 };
 
-// Rev 2.59: Email-link sign-in for users without a Google account.
-// Flow:
-//   1. User types their email, clicks "Email me a sign-in link"
-//   2. Firebase sends a one-time link to that email
-//   3. User clicks the link in their email → browser opens this page with a
-//      magic param in the URL → we detect it and complete sign-in automatically
-//   4. Email is stashed in localStorage during step 1 so step 3 can complete
-//      without re-asking
-//   5. Just like Google sign-in, peopleRoster gates access AFTER auth — random
-//      emails get bounced with "Access denied"
-window.sendEmailLink = async () => {
-  const emailInput = document.getElementById("emailLinkInput");
-  const btn = document.getElementById("emailLinkBtn");
-  const msg = document.getElementById("emailLinkMsg");
-  const email = (emailInput?.value || "").trim().toLowerCase();
-  if(!email){ msg.textContent = "Enter your email first"; msg.style.color = "var(--red)"; return; }
+// Rev 2.63: Email + password sign-in for users without Google. Three handlers:
+//   - signInWithEmailPassword: existing user with existing password
+//   - createAccountWithEmailPassword: new user, first login, sets their password
+//   - forgotPassword: emails them a reset link via Firebase
+// All three feed into onAuthStateChanged which then gates by peopleRoster.
+// Roster gate is unchanged: random email + random password creates a Firebase
+// account but the app immediately bounces them with "Access denied" if their
+// email isn't in roster.
+
+function _emailPwUI(){
+  return {
+    emailEl: document.getElementById("emailPwEmail"),
+    pwEl: document.getElementById("emailPwPassword"),
+    signInBtn: document.getElementById("emailPwSignInBtn"),
+    signUpBtn: document.getElementById("emailPwSignUpBtn"),
+    msg: document.getElementById("emailPwMsg")
+  };
+}
+function _emailPwReadInputs(){
+  const ui = _emailPwUI();
+  const email = (ui.emailEl?.value || "").trim().toLowerCase();
+  const pw = ui.pwEl?.value || "";
+  if(!email){
+    ui.msg.textContent = "Enter your email";
+    ui.msg.style.color = "var(--red)";
+    return null;
+  }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-    msg.textContent = "That email doesn't look valid";
-    msg.style.color = "var(--red)";
+    ui.msg.textContent = "That email doesn't look valid";
+    ui.msg.style.color = "var(--red)";
+    return null;
+  }
+  return { email, pw, ui };
+}
+function _emailPwBusy(busy){
+  const ui = _emailPwUI();
+  if(ui.signInBtn) ui.signInBtn.disabled = busy;
+  if(ui.signUpBtn) ui.signUpBtn.disabled = busy;
+}
+function _emailPwError(e){
+  const ui = _emailPwUI();
+  // Translate the most common Firebase error codes into plain English
+  const code = e?.code || "";
+  let plain = e?.message || "Unknown error";
+  if(code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"){
+    plain = "Wrong email or password. New here? Click 'Create Account'.";
+  } else if(code === "auth/email-already-in-use"){
+    plain = "An account already exists for this email. Use Sign In, or click 'Forgot password?'.";
+  } else if(code === "auth/weak-password"){
+    plain = "Password must be at least 6 characters.";
+  } else if(code === "auth/too-many-requests"){
+    plain = "Too many attempts. Wait a few minutes and try again.";
+  } else if(code === "auth/network-request-failed"){
+    plain = "Network problem. Check your connection and retry.";
+  }
+  ui.msg.textContent = plain;
+  ui.msg.style.color = "var(--red)";
+  _emailPwBusy(false);
+}
+
+window.signInWithEmailPassword = async () => {
+  const r = _emailPwReadInputs();
+  if(!r) return;
+  if(!r.pw){
+    r.ui.msg.textContent = "Enter your password";
+    r.ui.msg.style.color = "var(--red)";
     return;
   }
-  btn.disabled = true;
-  btn.textContent = "Sending...";
-  msg.textContent = "";
+  _emailPwBusy(true);
+  r.ui.msg.textContent = "Signing in...";
+  r.ui.msg.style.color = "var(--text-muted)";
   try {
-    await sendSignInLinkToEmail(auth, email, {
-      url: window.location.href.split("?")[0], // return URL — strip query so we don't loop
-      handleCodeInApp: true
-    });
-    // Stash email so we can complete sign-in when they click the link
-    try { localStorage.setItem("autoflag:emailLinkEmail", email); } catch(_){}
-    msg.innerHTML = `✓ Check <strong>${escapeHtml(email)}</strong> for a sign-in link. Open it on this same device.`;
-    msg.style.color = "var(--green)";
-    btn.textContent = "Link sent — check your email";
-    // Don't re-enable; user should follow the link, not click again
+    await signInWithEmailAndPassword(auth, r.email, r.pw);
+    // onAuthStateChanged takes over from here — gates by peopleRoster
   } catch(e){
-    console.error("Email link send failed:", e);
-    msg.textContent = "Couldn't send: " + (e.message || "unknown error");
-    msg.style.color = "var(--red)";
-    btn.disabled = false;
-    btn.textContent = "📧 Email me a sign-in link";
+    _emailPwError(e);
   }
 };
 
-// Check on page load if we just came back from clicking an email link
-async function maybeCompleteEmailLinkSignIn(){
-  if(!isSignInWithEmailLink(auth, window.location.href)) return;
-  // Pull the email we stashed. If it's not there (e.g., they opened the link
-  // on a different device), prompt for it — same email Firebase sent the link to.
-  let email = null;
-  try { email = localStorage.getItem("autoflag:emailLinkEmail"); } catch(_){}
-  if(!email){
-    email = prompt("Please confirm your email to finish signing in:");
-    if(!email) return;
+window.createAccountWithEmailPassword = async () => {
+  const r = _emailPwReadInputs();
+  if(!r) return;
+  if(!r.pw || r.pw.length < 6){
+    r.ui.msg.textContent = "Pick a password with at least 6 characters";
+    r.ui.msg.style.color = "var(--red)";
+    return;
   }
+  _emailPwBusy(true);
+  r.ui.msg.textContent = "Creating account...";
+  r.ui.msg.style.color = "var(--text-muted)";
   try {
-    await signInWithEmailLink(auth, email, window.location.href);
-    try { localStorage.removeItem("autoflag:emailLinkEmail"); } catch(_){}
-    // Clean the URL so refreshes don't try to re-process the link
-    if(window.history?.replaceState){
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    // onAuthStateChanged fires automatically and gates role from peopleRoster
+    await createUserWithEmailAndPassword(auth, r.email, r.pw);
+    // onAuthStateChanged → roster gate. If their email isn't in roster they
+    // get bounced AND their Firebase account stays orphaned (no app access,
+    // just a stale auth record). Not a security issue but worth noting.
   } catch(e){
-    console.error("Email link sign-in failed:", e);
-    toast("Email link sign-in failed: " + (e.message || "expired or invalid"), true);
+    _emailPwError(e);
   }
-}
-// Run on script load — checks the URL once
-maybeCompleteEmailLinkSignIn();;
+};
+
+window.forgotPassword = async () => {
+  const r = _emailPwReadInputs();
+  if(!r) return;
+  _emailPwBusy(true);
+  r.ui.msg.textContent = "Sending reset email...";
+  r.ui.msg.style.color = "var(--text-muted)";
+  try {
+    await sendPasswordResetEmail(auth, r.email);
+    r.ui.msg.innerHTML = `✓ Check <strong>${escapeHtml(r.email)}</strong> for a password reset link.`;
+    r.ui.msg.style.color = "var(--green)";
+    _emailPwBusy(false);
+  } catch(e){
+    _emailPwError(e);
+  }
+};
 
 // Track redirect-result resolution state. On page load, we don't know yet
 // whether we're coming back from a sign-in redirect. onAuthStateChanged can
