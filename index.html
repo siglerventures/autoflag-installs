@@ -2032,7 +2032,13 @@ function sanitizeCustomer(c, id){
 // a pole via (customerId, siteId, poleId). Status is just open|resolved.
 function sanitizeIssue(iss, id){
   if(!iss || typeof iss !== "object") iss = {};
-  const status = ["open","resolved"].includes(iss.status) ? iss.status : "open";
+  // Rev 2.62: All 8 issue statuses are valid — was previously coercing
+  // intermediate states ("waiting_parts", "in_progress", etc.) back to "open"
+  // because the sanitizer's whitelist only included open/resolved.
+  // Affected both customer view (where subscribe pushed sanitized data straight
+  // to state.issues) AND admin after page refresh.
+  const VALID_STATUSES = ["open","dispatched","in_progress","waiting_parts","waiting_customer","re_dispatched","resolved","cancelled"];
+  const status = VALID_STATUSES.includes(iss.status) ? iss.status : "open";
   return {
     id,
     customerId: stripHTML(iss.customerId||""),
@@ -2055,6 +2061,9 @@ function sanitizeIssue(iss, id){
     resolvedAt: Number(iss.resolvedAt) || 0,
     resolution: stripHTML(iss.resolution||""),
     resolutionPhotos: Array.isArray(iss.resolutionPhotos) ? iss.resolutionPhotos.filter(x => typeof x==="string" && /^https:\/\//.test(x)) : [],
+    // Rev 2.62: Preserve the history log (Rev 2.50). Was being silently stripped
+    // because sanitizeIssue didn't include it.
+    history: Array.isArray(iss.history) ? iss.history : [],
     updatedAt: Number(iss.updatedAt) || Date.now()
   };
 }
