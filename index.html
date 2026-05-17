@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.64" />
+<meta name="app-rev" content="2.65" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1005,7 +1005,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.64</div>
+  <div class="ver">AutoFlag© · v2.65</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1013,10 +1013,13 @@
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, parts, tools..." oninput="renderActive()" />
-    <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
-    <input type="text" id="aiInput" class="ai-bar-input" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
-    <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
-    <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
+    <!-- Rev 2.65: AI elements grouped via .header-ai-el class so they can all
+         be hidden together for customer role (they shouldn't see AI — context
+         includes all customers + tool/BOM prices + procedures which is internal). -->
+    <div class="ai-bar-label header-ai-el" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
+    <input type="text" id="aiInput" class="ai-bar-input header-ai-el" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
+    <button class="ai-icon-btn header-ai-el" onclick="askAI()" title="Ask AI">🤖</button>
+    <button class="ai-icon-btn header-ai-el" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
       📸
       <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
     </button>
@@ -1082,7 +1085,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.64</span>
+    <span>v2.65</span>
     <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2471,6 +2474,12 @@ onAuthStateChanged(auth, async user => {
   const ftrHist = document.getElementById("ftrHistoryLink");
   if(ftrData) ftrData.style.display = state.isAdmin ? "" : "none";
   if(ftrHist) ftrHist.style.display = state.isAdmin ? "" : "none";
+  // Rev 2.65: Ask AI hidden from customers. Their context would include all
+  // customers + tool/BOM prices + procedures — internal data they shouldn't see.
+  // We'll revisit a customer-scoped AI later if/when customers actually ask for it.
+  document.querySelectorAll(".header-ai-el").forEach(el => {
+    el.style.display = (state.userRole === "customer") ? "none" : "";
+  });
   // Rev 2.59: Customer role gets a separate "Manage your team" button that opens
   // a customer-scoped people modal (same modal, different gating).
   const customerPeopleBtn = document.getElementById("customerPeopleBtn");
@@ -12219,11 +12228,10 @@ function renderIssues(){
   const cancelled = all.filter(i => i.status === "cancelled");
 
   let html = renderViewHeaderStrip();
-  html += `<div class="list-toolbar no-print">
-    <div class="list-toolbar-left">
-      <strong>${all.length}</strong> issue${all.length===1?'':'s'}
-      <div class="list-subtitle">${active.length} active · ${resolved.length} resolved${cancelled.length ? ` · ${cancelled.length} cancelled` : ''}</div>
-    </div>
+  // Rev 2.65: Dropped the "10 issues" / "1 active · 9 resolved" header per Phil —
+  // the per-section headings below ("🚨 Active (1)" / "✓ Resolved (9)") already
+  // make the counts obvious. Just keep the + New Issue button.
+  html += `<div class="list-toolbar no-print" style="justify-content:flex-end">
     <div class="list-toolbar-right">
       <button class="list-print-btn" onclick="openIssueFiler()">+ New Issue</button>
     </div>
@@ -12265,25 +12273,33 @@ function renderIssues(){
     </tr></thead><tbody>${renderRows(active)}</tbody></table>`;
   }
   if(resolved.length){
-    html += `<h3 style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px">✓ Resolved (${resolved.length})</h3>`;
-    html += `<table class="list-table"><thead><tr>
-      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
-    </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
-      const c = state.data.customers[iss.customerId];
-      const s = c?.sites?.[iss.siteId];
-      const p = s?.poles?.[iss.poleId];
-      return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
-        <td><strong>${escapeHtml(iss.title)}</strong></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
-        <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
-        <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
-        <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
-      </tr>`;
-    }).join("")}</tbody></table>`;
-    if(resolved.length > 50){
-      html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+    // Rev 2.65: Resolved section now collapsed by default. Austen got confused
+    // by the resolved list dumping below active issues. Heading is clickable
+    // (▶/▼ indicator) to toggle expansion. State lives on window so it
+    // survives re-renders within the session; resets on reload.
+    const expanded = !!window._issuesResolvedExpanded;
+    const indicator = expanded ? "▼" : "▶";
+    html += `<h3 onclick="window._issuesResolvedExpanded=!${expanded};renderActive()" style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;user-select:none" title="${expanded ? 'Hide' : 'Show'} resolved issues">${indicator} ✓ Resolved (${resolved.length})</h3>`;
+    if(expanded){
+      html += `<table class="list-table"><thead><tr>
+        <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
+      </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
+        const c = state.data.customers[iss.customerId];
+        const s = c?.sites?.[iss.siteId];
+        const p = s?.poles?.[iss.poleId];
+        return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
+          <td><strong>${escapeHtml(iss.title)}</strong></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
+          <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
+          <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
+          <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
+      if(resolved.length > 50){
+        html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+      }
     }
   }
   return html;
