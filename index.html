@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.60" />
+<meta name="app-rev" content="2.61" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -71,6 +71,11 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.4;overscroll-behavior:none;max-width:100%}
   button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;background:transparent;border:none;outline:none}
+  /* Rev 2.61: Force dark backgrounds on <option> elements so dropdowns are
+     readable in dark mode. Without this, some browsers render the open
+     dropdown list with white-on-white text. Applies to every select. */
+  select option{background:var(--surface2);color:var(--text)}
+  select option:checked{background:var(--surface3);color:var(--amber)}
   button{cursor:pointer}
   a{color:var(--amber);text-decoration:none}
 
@@ -993,7 +998,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.60</div>
+  <div class="ver">AutoFlag© · v2.61</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1070,7 +1075,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.60</span>
+    <span>v2.61</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1381,7 +1386,10 @@
   <div class="modal">
     <div class="modal-header"><h2>👥 People</h2><button class="modal-close" onclick="closeModal('modalPeople')">×</button></div>
     <div class="modal-body">
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+      <!-- Rev 2.61: Intro text + button label are role-dependent. Set in
+           openPeopleModal() / openCustomerPeopleModal() at open time so
+           customers see customer-friendly copy. -->
+      <div id="ppl-intro" style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
         Add people by email and assign a role. They sign in with that exact email and the app grants them the right access automatically.
         <strong>No Firebase Console steps required.</strong>
       </div>
@@ -1389,7 +1397,7 @@
       <div class="section-h" style="margin-top:0">Current people</div>
       <div id="peopleList" style="margin-bottom:14px"></div>
 
-      <div class="section-h">Add person</div>
+      <div class="section-h" id="ppl-add-heading">Add person</div>
       <div class="form-grid-2">
         <div class="form-row"><label>Email *</label><input id="ppl-email" type="email" placeholder="lucas@example.com" /></div>
         <div class="form-row"><label>Display name</label><input id="ppl-name" placeholder="Lucas" /></div>
@@ -1406,7 +1414,7 @@
 
       <div class="btn-row">
         <button class="btn-secondary btn" onclick="closeModal('modalPeople')">Close</button>
-        <button class="btn" onclick="addPerson()">+ Add Person</button>
+        <button class="btn" id="ppl-add-btn" onclick="addPerson()">+ Add Person</button>
       </div>
     </div>
   </div>
@@ -3117,6 +3125,21 @@ window.openPeopleModal = () => {
   // Rev 2.59: Reset header for admin context
   const header = document.querySelector("#modalPeople .modal-header h2");
   if(header) header.textContent = "👥 People";
+  // Rev 2.61: Reset role row visibility (in case a customer just had it hidden)
+  const roleRow = document.getElementById("ppl-role").closest(".form-row");
+  if(roleRow) roleRow.style.display = "";
+  // Rev 2.61: Reset admin-side copy (in case it was overridden by customer flow)
+  const intro = document.getElementById("ppl-intro");
+  if(intro) intro.innerHTML = `Add people by email and assign a role. They sign in with that exact email and the app grants them the right access automatically. <strong>No Firebase Console steps required.</strong>`;
+  const addHeading = document.getElementById("ppl-add-heading");
+  if(addHeading) addHeading.textContent = "Add person";
+  const addBtn = document.getElementById("ppl-add-btn");
+  if(addBtn) addBtn.textContent = "+ Add Person";
+  // Reset amber input borders
+  const emailIn = document.getElementById("ppl-email");
+  const nameIn  = document.getElementById("ppl-name");
+  if(emailIn) emailIn.style.borderColor = "";
+  if(nameIn)  nameIn.style.borderColor  = "";
   populatePeopleCustomerDropdown();
   renderPeopleList();
   openModal("modalPeople");
@@ -3145,6 +3168,18 @@ window.openCustomerPeopleModal = () => {
   const header = document.querySelector("#modalPeople .modal-header h2");
   const myCustomerName = state.data.customers[myCustomerId]?.name || "Your team";
   if(header) header.textContent = `👥 ${myCustomerName} — Team`;
+  // Rev 2.61: Customer-facing copy. Drop the admin-only Firebase Console mention.
+  const intro = document.getElementById("ppl-intro");
+  if(intro) intro.innerHTML = `Invite team members by email so they can see ${escapeHtml(myCustomerName)}'s flagpoles. They'll sign in with that exact email and get the same access you have.`;
+  const addHeading = document.getElementById("ppl-add-heading");
+  if(addHeading) addHeading.textContent = "Add fellow user";
+  const addBtn = document.getElementById("ppl-add-btn");
+  if(addBtn) addBtn.textContent = "+ Add fellow user";
+  // Rev 2.61: Amber border on the email + name inputs to match the Add button
+  const emailIn = document.getElementById("ppl-email");
+  const nameIn  = document.getElementById("ppl-name");
+  if(emailIn) emailIn.style.borderColor = "var(--amber)";
+  if(nameIn)  nameIn.style.borderColor  = "var(--amber)";
   populatePeopleCustomerDropdown();
   renderPeopleList();
   openModal("modalPeople");
@@ -11489,7 +11524,12 @@ window.openIssueDetail = (issueId) => {
   const curStatus = iss.status || "open";
   const isTerminal = curStatus === "resolved" || curStatus === "cancelled";
   const statusBadge = `<span class="status-badge ${statusBadgeClass(curStatus)}">${statusLabel(curStatus).toUpperCase()}</span>`;
-  document.getElementById("issd-title").innerHTML = `🚨 ${escapeHtml(iss.title)} ${statusBadge}`;
+  // Rev 2.61: Admin can double-click the title to rename. Tooltip hints at the
+  // affordance. Non-admins get a plain (non-editable) title.
+  const titleHtml = state.isAdmin
+    ? `🚨 <span ondblclick="editIssueTitle('${issueId}')" title="Double-click to rename" style="cursor:text;border-bottom:1px dashed var(--border)">${escapeHtml(iss.title)}</span> ${statusBadge}`
+    : `🚨 ${escapeHtml(iss.title)} ${statusBadge}`;
+  document.getElementById("issd-title").innerHTML = titleHtml;
 
   // Dispatch options (admins + installers from peopleRoster + Phil)
   const dispatchOptions = [];
@@ -11620,8 +11660,8 @@ window.openIssueDetail = (issueId) => {
       ${state.isAdmin ? `<button class="btn-secondary btn" onclick="confirmDeleteIssue('${issueId}')" style="color:var(--red);font-size:11px;padding:5px 10px" title="Delete this issue (admin only — destructive)">🗑 Delete</button>` : ""}
       <div style="flex:1"></div>
       <button class="btn-secondary btn" onclick="closeModal('modalIssueDetail')">Cancel</button>
-      <select id="issd-status" style="padding:6px 8px">
-        ${ISSUE_STATUSES.map(s => `<option value="${s.key}" ${s.key === curStatus ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join("")}
+      <select id="issd-status" style="padding:6px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm)">
+        ${ISSUE_STATUSES.map(s => `<option value="${s.key}" ${s.key === curStatus ? 'selected' : ''} style="background:var(--surface2);color:var(--text)">${escapeHtml(s.label)}</option>`).join("")}
       </select>
       <button class="btn" onclick="saveIssueProgress('${issueId}')">Save</button>
     </div>`;
@@ -11664,6 +11704,41 @@ function renderResolutionPhotoThumbs(){
 window.removeResolutionPhoto = (idx) => {
   resolutionPendingPhotos.splice(idx, 1);
   renderResolutionPhotoThumbs();
+};
+
+// Rev 2.61: Inline title editor for issues. Admin-only. Same verify-after-write
+// pattern as dispatchIssue (Rev 2.55) so mobile users don't get a fake success.
+window.editIssueTitle = async (issueId) => {
+  if(!state.isAdmin) return;
+  const iss = state.issues[issueId];
+  if(!iss) return;
+  const current = iss.title || "";
+  const next = prompt("Edit issue title:", current);
+  if(next === null) return;                 // cancelled
+  const trimmed = next.trim();
+  if(!trimmed) return toast("Title can't be empty", true);
+  if(trimmed === current) return;            // no change
+  toast("Saving title…");
+  try {
+    await patchNode(`autoflag/issues/${issueId}`, {
+      title: trimmed, updatedAt: Date.now()
+    });
+  } catch(e){
+    toast("Save failed: " + e.message, true);
+    return;
+  }
+  // Verify
+  let verified = null;
+  try { verified = await readNode(`autoflag/issues/${issueId}/title`); }
+  catch(e){ toast("Save couldn't be confirmed — please retry", true); return; }
+  if(verified !== trimmed){
+    toast("Title didn't save — try again", true);
+    return;
+  }
+  state.issues = { ...state.issues, [issueId]: { ...iss, title: trimmed, id: issueId } };
+  if(typeof renderActive === "function") renderActive();
+  toast("✓ Title updated");
+  openIssueDetail(issueId); // re-render
 };
 
 window.dispatchIssue = async (issueId) => {
@@ -12006,10 +12081,15 @@ window.deleteIssue = async (issueId) => {
 
 // ===== Top-level Issues view =====
 function renderIssues(){
-  // Rev 2.25: Scoped per role — admins see all issues; installers see only
-  // those whose pole they're assigned to. Same gating as the Browse tree.
+  // Rev 2.25 / 2.60: Scoped per role.
+  //   - admins: see all issues
+  //   - installers: see only issues whose pole they're assigned to
+  //   - customers: see issues on poles owned by their customerId
   let allIssues = Object.values(state.issues || {});
-  if(!state.isAdmin){
+  if(state.userRole === "customer"){
+    const myCustomerId = state.userPersonRecord?.customerId;
+    allIssues = allIssues.filter(iss => iss.customerId === myCustomerId);
+  } else if(!state.isAdmin){
     const myKey = emailToKey(state.user?.email || "");
     allIssues = allIssues.filter(iss => {
       const c = state.data.customers?.[iss.customerId];
@@ -12098,6 +12178,11 @@ function renderIssues(){
 function visibleOpenIssues(){
   const all = Object.values(state.issues || {}).filter(i => i.status === "open");
   if(state.isAdmin) return all;
+  // Rev 2.60: Customer scope — issues on poles under their customerId
+  if(state.userRole === "customer"){
+    const myCustomerId = state.userPersonRecord?.customerId;
+    return all.filter(iss => iss.customerId === myCustomerId);
+  }
   const myKey = emailToKey(state.user?.email || "");
   return all.filter(iss => {
     const c = state.data.customers?.[iss.customerId];
