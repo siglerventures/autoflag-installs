@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.65" />
+<meta name="app-rev" content="2.66" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1007,7 +1007,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.65</div>
+  <div class="ver">AutoFlag© · v2.66</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1087,7 +1087,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.65</span>
+    <span>v2.66</span>
     <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2334,6 +2334,10 @@ let signOutInProgress = false;
 window.signOutNow = async () => {
   signOutInProgress = true;
   stopRestPoll(); // halt any active REST poll before signing out
+  // Rev 2.66: Tear down all realtime listeners BEFORE signing out. Without this,
+  // each listener keeps trying to read against the rules with no auth, generating
+  // a flood of permission_denied errors and toast spam.
+  teardownAllSubs();
   try { await signOut(auth); }
   finally { signOutInProgress = false; }
 };
@@ -2363,6 +2367,9 @@ onAuthStateChanged(auth, async user => {
       state.userRole = null;
       state.userPersonRecord = null;
       state.isAdmin = false;
+      // Rev 2.66: Tear down listeners here too (signOutNow already did it,
+      // but this catches sign-outs triggered from elsewhere)
+      teardownAllSubs();
       showLogin();
       return;
     }
@@ -2378,6 +2385,8 @@ onAuthStateChanged(auth, async user => {
       state.userRole = null;
       state.userPersonRecord = null;
       state.isAdmin = false;
+      // Rev 2.66: First-load with no session → no subs running yet, but defensive
+      teardownAllSubs();
       showLogin();
       return;
     }
@@ -2442,8 +2451,11 @@ onAuthStateChanged(auth, async user => {
     // so the user can be retried after admin adds them to People. Without the
     // delete, the orphan account blocks "Create Account" again ("email already
     // exists") forever.
+    // Rev 2.66: Also tear down subscriptions before signing out — otherwise the
+    // listeners keep firing permission_denied after sign-out.
     const isEmailUser = user.providerData?.some(p => p.providerId === "password");
     toast(`Your email isn't authorized. Ask your admin to add ${user.email} to People first.`, true);
+    teardownAllSubs();
     if(isEmailUser){
       try {
         await user.delete();   // removes orphan from Firebase Auth
@@ -2568,6 +2580,22 @@ function showLogin(){
 // online), refresh token + re-fetch + re-subscribe. Guard against null/empty
 // snapshots that arrive during reconnect — keep existing data instead of clearing.
 let currentDataUnsubscribe = null;
+// Rev 2.66: Subscription registry for clean tear-down on sign-out.
+// Bug Phil hit (2.65): permission_denied flood after sign-out because
+// listeners kept firing against rules that now denied them (no auth). Each
+// dead subscription threw an error toast on the now-empty session. Track
+// every subscription here so signOutNow() can unsubscribe them all.
+const __subs = [];
+function trackSub(unsub){
+  if(typeof unsub === "function") __subs.push(unsub);
+}
+function teardownAllSubs(){
+  __subs.splice(0).forEach(u => { try { u(); } catch(_){} });
+  if(currentDataUnsubscribe){
+    try { currentDataUnsubscribe(); } catch(_){}
+    currentDataUnsubscribe = null;
+  }
+}
 
 function applyCustomerSnapshot(raw, source){
   if(raw === null || raw === undefined){
@@ -3114,7 +3142,7 @@ function fmtHistoryField(f){
 
 function subscribeProcedures(){
   ["external","internal","cylinder"].forEach(type => {
-    onValue(ref(db, `autoflag/procedures/${type}`), snap => {
+    trackSub(onValue(ref(db, `autoflag/procedures/${type}`), snap => {
       const v = snap.val();
       state.procedures[type] = v && typeof v === "object" ? v : null;
       // If a pole modal is open and showing this type, re-render the checklist
@@ -3136,7 +3164,7 @@ function subscribeProcedures(){
       if(state.view === "installs" && (state.installsTab || "external") === type){
         renderActive();
       }
-    });
+    }));
   });
 }
 
@@ -3147,7 +3175,7 @@ function subscribeProcedures(){
 
 function subscribeToolsAndParts(){
   // Tools (universal)
-  onValue(ref(db, "autoflag/tools"), snap => {
+  trackSub(onValue(ref(db, "autoflag/tools"), snap => {
     const v = snap.val();
     state.tools = v && typeof v === "object" ? v : {};
     if(state.view === "installs" && state.installsTab === "tools"){
@@ -3155,35 +3183,35 @@ function subscribeToolsAndParts(){
       const focusedInsideTb = document.activeElement?.closest?.(".tb-detail-inner, .tb-search");
       if(!focusedInsideTb) renderActive();
     }
-  }, err => console.error("Tools subscribe error:", err));
+  }, err => console.error("Tools subscribe error:", err)));
 
   // Install BOM parts (per install-type)
   ["external","internal","cylinder"].forEach(installType => {
-    onValue(ref(db, `autoflag/parts/${installType}`), snap => {
+    trackSub(onValue(ref(db, `autoflag/parts/${installType}`), snap => {
       const v = snap.val();
       state.parts[installType] = v && typeof v === "object" ? v : {};
       if(state.view === "installs" && state.installsTab === "installbom" && state.bomTab === installType){
         const focusedInsideTb = document.activeElement?.closest?.(".tb-detail-inner, .tb-search");
         if(!focusedInsideTb) renderActive();
       }
-    }, err => console.error(`Install BOM parts subscribe error (${installType}):`, err));
+    }, err => console.error(`Install BOM parts subscribe error (${installType}):`, err)));
   });
 
   // Mechanical BOM (universal — the AutoFlag device internals)
-  onValue(ref(db, "autoflag/mechanical-parts"), snap => {
+  trackSub(onValue(ref(db, "autoflag/mechanical-parts"), snap => {
     const v = snap.val();
     state.mechParts = v && typeof v === "object" ? v : {};
     if(state.view === "installs" && state.installsTab === "mechbom"){
       const focusedInsideTb = document.activeElement?.closest?.(".tb-detail-inner, .tb-search");
       if(!focusedInsideTb) renderActive();
     }
-  }, err => console.error("Mechanical BOM subscribe error:", err));
+  }, err => console.error("Mechanical BOM subscribe error:", err)));
 }
 
 // Rev 2.24: Issues subscription. Top-level live-stream of every issue.
 // Re-renders the Issues view + the issue badge in the top header on every change.
 function subscribeIssues(){
-  onValue(ref(db, "autoflag/issues"), snap => {
+  trackSub(onValue(ref(db, "autoflag/issues"), snap => {
     const raw = snap.val() || {};
     const sanitized = {};
     Object.entries(raw).forEach(([id, v]) => { sanitized[id] = sanitizeIssue(v, id); });
@@ -3207,14 +3235,14 @@ function subscribeIssues(){
     if(reRenderViews.includes(state.view) && !isFocusedInInput){
       renderActive();
     }
-  }, err => console.error("Issues subscribe error:", err));
+  }, err => console.error("Issues subscribe error:", err)));
 }
 
 // ==== People management (admin only) ====
 // Replaces old installer roster. People are keyed by emailKey, not UID.
 // Roles: admin, installer, customer (customers also have a customerId scope).
 function subscribePeople(){
-  onValue(ref(db, "autoflag/people"), snap => {
+  trackSub(onValue(ref(db, "autoflag/people"), snap => {
     const raw = snap.val() || {};
     const out = {};
     Object.entries(raw).forEach(([key, v]) => {
@@ -3230,7 +3258,7 @@ function subscribePeople(){
     });
     peopleRoster = out;
     renderPeopleList();
-  });
+  }));
 }
 
 window.openPeopleModal = () => {
@@ -8260,13 +8288,13 @@ window.toggleInstallsSection = (sectionId) => {
 };
 
 window.switchView = v => {
-  // Map toggle: if user clicks the Map tab while Map is already active,
-  // switch back to whatever view they had before (or Browse if none tracked).
-  // This makes the Map tab feel like a toggle: tap to open, tap again to close.
-  if(v === "map" && state.view === "map"){
+  // Rev 2.65: Both Map and Issues toggle: clicking the active tab returns to
+  // the prior view (or Browse). Issues was clicker-trap pre-2.65 — Phil's bug.
+  const TOGGLEABLE = ["map", "issues"];
+  if(TOGGLEABLE.includes(v) && state.view === v){
     v = state._prevView || "browse";
-  } else if(v !== "map"){
-    // Remember the last non-map view so re-tapping Map can return here
+  } else if(!TOGGLEABLE.includes(v)){
+    // Remember the last non-toggleable view so re-tapping toggle returns here
     state._prevView = v;
   }
   state.view = v;
