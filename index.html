@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.59" />
+<meta name="app-rev" content="2.60" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -993,7 +993,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.59</div>
+  <div class="ver">AutoFlag© · v2.60</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1070,7 +1070,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.59</span>
+    <span>v2.60</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2374,9 +2374,9 @@ onAuthStateChanged(auth, async user => {
   // a customer-scoped people modal (same modal, different gating).
   const customerPeopleBtn = document.getElementById("customerPeopleBtn");
   if(customerPeopleBtn) customerPeopleBtn.style.display = (state.userRole === "customer") ? "" : "none";
-  // Rev 2.59: Customers don't add poles/sites in this rev — hide the floating "+" FAB
+  // Rev 2.60: Customers CAN now add poles + sites (auto-save as draft, in_review status).
   const fabBtn = document.getElementById("fabAddBtn");
-  if(fabBtn) fabBtn.style.display = (state.userRole === "customer") ? "none" : "";
+  if(fabBtn) fabBtn.style.display = "";
   // Rev 2.59: Customers don't see internal Tools / BOM / Procedures
   const installsTab = document.getElementById("installsViewTab");
   if(installsTab) installsTab.style.display = (state.userRole === "customer") ? "none" : "";
@@ -8458,8 +8458,22 @@ window.openSiteModal = (sid, cid) => {
   document.getElementById("ms-notes").value = s?.notes || "";
   document.getElementById("ms-delete").style.display = s ? "" : "none";
   renderSitePhotos(s?.photos || []);
-  // Rev 2.59: Customer role — read-only site modal
-  const isCustomerView = state.userRole === "customer";
+  // Rev 2.59 / 2.60: Customer role.
+  // - Existing site that's NOT theirs: read-only
+  // - Existing site that IS theirs (they requested it): editable
+  // - New site: editable
+  const isCustomerRole = state.userRole === "customer";
+  let customerCanEditSite = false;
+  if(isCustomerRole){
+    if(!s){
+      customerCanEditSite = true;
+    } else {
+      const myKey = peopleEmailKeyForCurrentUser();
+      customerCanEditSite = s.requestedBy === myKey;
+    }
+  }
+  const isCustomerView = isCustomerRole && !customerCanEditSite;
+  const isCustomerEditing = isCustomerRole && customerCanEditSite;
   const modalSite = document.getElementById("modalSite");
   if(modalSite){
     modalSite.querySelectorAll("input, textarea, select").forEach(el => {
@@ -8470,7 +8484,10 @@ window.openSiteModal = (sid, cid) => {
   const sdBtn = document.getElementById("ms-delete");
   const scBtn = document.getElementById("ms-cancel");
   const sxBtn = document.getElementById("ms-close");
-  if(ssBtn) ssBtn.style.display = isCustomerView ? "none" : "";
+  if(ssBtn){
+    ssBtn.style.display = isCustomerView ? "none" : "";
+    ssBtn.textContent = isCustomerEditing ? "Save Progress" : "Save";
+  }
   if(sdBtn && s) sdBtn.style.display = isCustomerView ? "none" : "";
   if(scBtn) scBtn.style.display = isCustomerView ? "none" : "";
   if(sxBtn) sxBtn.style.display = isCustomerView ? "" : "none";
@@ -8615,7 +8632,18 @@ window.saveSite = async () => {
     photos: [...existingPhotos, ...uploaded],
     updatedAt: Date.now()
   };
-  if(isNewSite) { patch.createdAt = Date.now(); patch.poles = {}; }
+  if(isNewSite) {
+    patch.createdAt = Date.now();
+    patch.poles = {};
+    // Rev 2.60: Customer-created sites get stamped too. Sites don't have a
+    // status field like poles, so the admin distinguishes via the requestedBy
+    // marker in the Browse tree.
+    if(state.userRole === "customer"){
+      patch.requestedBy = peopleEmailKeyForCurrentUser();
+      patch.requestedByName = state.user?.displayName || state.user?.email || "(unknown)";
+      patch.requestedAt = Date.now();
+    }
+  }
   await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}`, patch);
   await patchNode(`autoflag/installs/customers/${cid}`, {updatedAt: Date.now()});
   state.siteTempPhotos = [];
@@ -8701,15 +8729,29 @@ window.openPoleModal = (pid, cid, sid) => {
     const aiRow = aiGrid.closest(".form-row");
     if(aiRow) aiRow.style.display = (state.userRole === "customer") ? "none" : "";
   }
-  // Rev 2.59: Customer role gets a read-only pole view — disable all inputs/textareas/selects,
-  // hide Save/Delete/Cancel, show Close instead. Past Issues + Report Issue stay live.
-  const isCustomerView = state.userRole === "customer";
+  // Rev 2.59 / 2.60: Customer role.
+  // - Existing pole that is NOT theirs OR not in_review: read-only
+  // - Existing pole that IS theirs AND still in_review: editable (continue progress)
+  // - New pole: editable (initial creation)
+  // The Save button label clarifies the partial-save mental model.
+  const isCustomerRole = state.userRole === "customer";
+  let customerCanEdit = false;
+  if(isCustomerRole){
+    if(!p){
+      customerCanEdit = true; // new pole
+    } else {
+      // Existing pole: editable only if they originally requested it AND it's still in_review
+      const myKey = peopleEmailKeyForCurrentUser();
+      const stillInReview = (p.status || "in_review") === "in_review";
+      const isMine = p.requestedBy === myKey;
+      customerCanEdit = stillInReview && isMine;
+    }
+  }
+  const isCustomerView = isCustomerRole && !customerCanEdit;
+  const isCustomerEditing = isCustomerRole && customerCanEdit;
   const modalPole = document.getElementById("modalPole");
   if(modalPole){
     modalPole.querySelectorAll("input, textarea, select").forEach(el => {
-      // Don't disable the labels/buttons — only data inputs.
-      // We need them disabled for customer; for everyone else, re-enable (in case
-      // a previous open left them disabled).
       el.disabled = isCustomerView;
     });
   }
@@ -8717,7 +8759,10 @@ window.openPoleModal = (pid, cid, sid) => {
   const deleteBtn = document.getElementById("mp-delete");
   const cancelBtn = document.getElementById("mp-cancel");
   const closeBtn = document.getElementById("mp-close");
-  if(saveBtn) saveBtn.style.display = isCustomerView ? "none" : "";
+  if(saveBtn){
+    saveBtn.style.display = isCustomerView ? "none" : "";
+    saveBtn.textContent = isCustomerEditing ? "Save Progress" : "Save";
+  }
   if(deleteBtn && p) deleteBtn.style.display = isCustomerView ? "none" : "";
   if(cancelBtn) cancelBtn.style.display = isCustomerView ? "none" : "";
   if(closeBtn) closeBtn.style.display = isCustomerView ? "" : "none";
@@ -9700,7 +9745,21 @@ window.savePole = async () => {
     photos,
     updatedAt: Date.now(), updatedBy: state.user.uid
   };
-  if(isNewPole){ patch.createdAt = Date.now(); patch.createdBy = state.user.uid; }
+  if(isNewPole){
+    patch.createdAt = Date.now();
+    patch.createdBy = state.user.uid;
+    // Rev 2.60: Customer-created poles get stamped with requestedBy / requestedAt
+    // so the admin team can distinguish customer-requested poles from poles
+    // they added themselves. Status is forced to "in_review" — customer cannot
+    // bump status. The form-side already defaults non-admin to in_review, but
+    // this is a server-side belt-and-suspenders enforcement.
+    if(state.userRole === "customer"){
+      patch.requestedBy = peopleEmailKeyForCurrentUser();
+      patch.requestedByName = state.user?.displayName || state.user?.email || "(unknown)";
+      patch.requestedAt = Date.now();
+      patch.status = "in_review";
+    }
+  }
 
   // Build audit log entry
   const changes = diffPole(before, patch);
