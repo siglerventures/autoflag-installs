@@ -993,8 +993,10 @@
   <div style="margin-top:14px;color:var(--text-muted);font-size:12px;text-align:center">or</div>
   <div id="emailPwUI" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px">
     <input type="email" id="emailPwEmail" placeholder="your.email@example.com" autocomplete="email"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('emailPwPassword').focus();}"
       style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
     <input type="password" id="emailPwPassword" placeholder="Password (6+ characters)" autocomplete="current-password"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();signInWithEmailPassword();}"
       style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
     <div style="display:flex;gap:6px;width:100%">
       <button class="btn" id="emailPwSignInBtn" onclick="signInWithEmailPassword()" style="flex:1">Sign In</button>
