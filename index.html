@@ -2822,11 +2822,25 @@ function subscribeRealtime(){
   }
   const root = ref(db, "autoflag/installs/customers");
   // onValue's modular SDK signature returns an unsubscribe function
+  let lastErrAt = 0;
   currentDataUnsubscribe = onValue(root, snap => {
     applyCustomerSnapshot(snap.val(), "onValue");
   }, err => {
     console.error("onValue error:", err?.code, err?.message);
-    toast("Read failed: "+err.message, true);
+    // Rev 2.64: This handler was firing repeatedly when rules denied the read
+    // (e.g. customer role mis-configured, token expired, etc.), spamming the
+    // user with toasts every time the listener retried. Dedupe to once per
+    // 10 seconds and silently log the rest. Add diagnostic context to help
+    // debug why a customer is being denied.
+    const now = Date.now();
+    if(now - lastErrAt > 10000){
+      lastErrAt = now;
+      const myEmail = state.user?.email || "(no email)";
+      const myKey = emailToKey(state.user?.email || "");
+      const myRole = state.userRole || "(no role)";
+      console.warn("[autoflag] read denied diagnostics:", { email: myEmail, key: myKey, role: myRole, hasPersonRecord: !!state.userPersonRecord });
+      toast(`Read failed: ${err?.code || err.message}. Sign out and back in if this persists.`, true);
+    }
   });
 }
 
