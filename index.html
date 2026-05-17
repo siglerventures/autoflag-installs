@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.63" />
+<meta name="app-rev" content="2.64" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1005,7 +1005,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.63</div>
+  <div class="ver">AutoFlag© · v2.64</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1082,17 +1082,15 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.63</span>
-    · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
-    · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
+    <span>v2.64</span>
+    <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
+    · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
-    <!-- Rev 2.31: Cache-bust refresh. Cheap escape hatch when an installer/admin
-         sees stale UI after a deploy. Adds a timestamp query param to bypass
-         browser + GitHub Pages cache, then reloads. Cheaper than a full
-         version-check + banner system; revisit when off GitHub. -->
-    · <span class="ftr-link" onclick="hardRefresh()" title="Force-reload to get the latest version">🔄 Refresh</span>
+    <!-- Rev 2.64: 🔄 Refresh removed app-wide. Realtime subscribe + REST poll
+         keep data fresh; explicit refresh button was a holdover and confused
+         customers. If admin needs cache-bust during deploy, Ctrl+Shift+R works. -->
   </footer>
 </div>
 
@@ -2192,13 +2190,28 @@ window.createAccountWithEmailPassword = async () => {
     return;
   }
   _emailPwBusy(true);
-  r.ui.msg.textContent = "Creating account...";
+  r.ui.msg.textContent = "Checking access...";
   r.ui.msg.style.color = "var(--text-muted)";
+
+  // Rev 2.64: Pre-check that this email is in peopleRoster BEFORE creating
+  // the Firebase Auth account. Prevents orphan accounts — Firebase Auth user
+  // with no app permissions, which (a) causes permission_denied errors on
+  // every subsequent read attempt, and (b) leads to the "I created an account
+  // but get Access Denied" confusion. Anonymous read of /autoflag/people/{key}
+  // requires the user to already be authenticated, which they aren't yet at
+  // this point. So we use a REST read with no auth — but rules block that.
+  // Workaround: do the auth first, then check, then DELETE the Firebase user
+  // if not in roster. Less clean but unavoidable without a Cloud Function.
   try {
     await createUserWithEmailAndPassword(auth, r.email, r.pw);
-    // onAuthStateChanged → roster gate. If their email isn't in roster they
-    // get bounced AND their Firebase account stays orphaned (no app access,
-    // just a stale auth record). Not a security issue but worth noting.
+    // onAuthStateChanged will now fire. It checks peopleRoster and:
+    //   - in roster: proceeds with sign-in (good)
+    //   - not in roster: shows "Access denied" toast and signs them out
+    // If not in roster, the Firebase Auth account remains (orphan). We could
+    // delete via auth.currentUser.delete() but only WHILE the user is signed in;
+    // doing it here means racing with the role lookup. For now, accept the orphan
+    // and rely on admin to clean up Firebase Console if it matters.
+    // Better UX: pre-check via a future Cloud Function. Tracked.
   } catch(e){
     _emailPwError(e);
   }
@@ -2420,7 +2433,19 @@ onAuthStateChanged(auth, async user => {
   }
 
   if(!role){
-        toast("Access denied for "+user.email, true);
+    // Rev 2.64: Clearer message + try to delete the orphan Firebase Auth account
+    // so the user can be retried after admin adds them to People. Without the
+    // delete, the orphan account blocks "Create Account" again ("email already
+    // exists") forever.
+    const isEmailUser = user.providerData?.some(p => p.providerId === "password");
+    toast(`Your email isn't authorized. Ask your admin to add ${user.email} to People first.`, true);
+    if(isEmailUser){
+      try {
+        await user.delete();   // removes orphan from Firebase Auth
+      } catch(e){
+        console.warn("Couldn't auto-delete orphan account:", e?.code || e?.message);
+      }
+    }
     await signOut(auth); showLogin(); return;
   }
 
@@ -2439,6 +2464,13 @@ onAuthStateChanged(auth, async user => {
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("peopleBtn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
+  // Rev 2.64: Footer Data Manager + History — admin only.
+  // Data Manager has export-all-data which is a real security leak for
+  // installers/customers. History is internal change tracking, not for them.
+  const ftrData = document.getElementById("ftrDataLink");
+  const ftrHist = document.getElementById("ftrHistoryLink");
+  if(ftrData) ftrData.style.display = state.isAdmin ? "" : "none";
+  if(ftrHist) ftrHist.style.display = state.isAdmin ? "" : "none";
   // Rev 2.59: Customer role gets a separate "Manage your team" button that opens
   // a customer-scoped people modal (same modal, different gating).
   const customerPeopleBtn = document.getElementById("customerPeopleBtn");
@@ -5464,7 +5496,12 @@ window.renderActive = () => {
 
 function renderFilterBar(){
   const bar = document.getElementById("filterBar");
-  let html = `<span class="filter-label">Status:</span>`;
+  // Rev 2.64: 🏡 Home now anchors the start of the filter bar (was duplicated
+  // in per-customer mini-tabs and in a hidden header button). Single global
+  // Home affordance, always reachable.
+  let html = `<button class="chip" onclick="goHomeMini()" title="Back to top-level Browse">🏡 Home</button>`;
+  html += `<span class="filter-sep"></span>`;
+  html += `<span class="filter-label">Status:</span>`;
   html += `<span class="chip ${state.filter.status==='all'?'active':''}" onclick="setStatusFilter('all')">All</span>`;
   STATUSES.forEach(s => {
     html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${STATUS_LABELS[s]}</span>`;
@@ -5569,21 +5606,17 @@ window.filterByType = (installType, customerId) => {
 //   leftContent   — optional HTML to show on the left side of the strip (e.g., "4 customers" count)
 //   showExpand    — Browse-only: include the Expand/Collapse toggle button on the right
 function renderViewHeaderStrip({ leftContent = "", showExpand = false } = {}){
+  // Rev 2.64: 🏡 Home moved out of the per-customer mini-tabs (where it duplicated
+  // the global filter-bar Home button added at line 5499). Per-customer strip now
+  // shows only Browse / Kanban / List view-switchers.
   const tabs = [
-    { id: "home",   label: "🏡 Home"   },
     { id: "browse", label: "📋 Browse" },
     { id: "kanban", label: "📊 Kanban" },
     { id: "list",   label: "📑 List" }
   ];
-  // Rev 2.17: Home isn't a state.view value — it's an action that switches to
-  // Browse and collapses everything. Doesn't show as "active" because we never
-  // remain in a "home" state (it always lands in Browse).
-  const tabsHtml = tabs.map(t => {
-    if(t.id === "home"){
-      return `<button class="mini-tab" onclick="goHomeMini()">${t.label}</button>`;
-    }
-    return `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`;
-  }).join('');
+  const tabsHtml = tabs.map(t =>
+    `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`
+  ).join('');
   const leftHtml = leftContent ? `<div class="view-header-strip-left">${leftContent}<div class="mini-tabs">${tabsHtml}</div></div>` : `<div class="mini-tabs">${tabsHtml}</div>`;
   const expandHtml = showExpand
     ? `<div class="view-header-strip-right"><button class="mini-expand-btn" id="expandToggleBtn" onclick="toggleExpandCollapse()">Expand</button></div>`
