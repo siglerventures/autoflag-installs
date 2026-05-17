@@ -5788,10 +5788,14 @@ function renderBrowse(){
     //   - Sites → Sites drilldown view (site-level info, not poles)
     //   - Remaining → List view filtered to synthetic "remaining" pseudo-status
     // The existing top-bar Type/Status chips still serve to clear filters.
-    const clickChip = (label, n, kind, value) =>
-      n > 0
-        ? `<span class="tree-stat tree-stat-clickable" onclick="totalsChipClick('${kind}','${value}')" title="View ${label} list">${label} ${n}</span>`
-        : "";
+    const clickChip = (label, n, kind, value) => {
+      if(n <= 0) return "";
+      // Rev 2.59 fix: "✓ Completed" totals count includes verified poles to match
+      // the per-customer chip semantics. Surface that in the tooltip so the user
+      // understands the number includes both statuses.
+      const tooltip = (label === "✓ Completed") ? `View ${label} list (includes verified)` : `View ${label} list`;
+      return `<span class="tree-stat tree-stat-clickable" onclick="totalsChipClick('${kind}','${value}')" title="${tooltip}">${label} ${n}</span>`;
+    };
     const tRemaining = totals.remaining > 0
       ? `<span class="tree-stat-remaining tree-stat-clickable" onclick="totalsChipClick('status','remaining')" title="View remaining list">${totals.remaining} remaining</span>`
       : "";
@@ -5814,7 +5818,7 @@ function renderBrowse(){
         ${clickChip("In Review", totals.in_review, "status", "in_review")}
         ${clickChip("Scheduled", totals.scheduled, "status", "scheduled")}
         ${clickChip("In Progress", totals.in_progress, "status", "in_progress")}
-        ${clickChip("✓ Completed", totals.completed, "status", "completed")}
+        ${clickChip("✓ Completed", totals.completed + totals.verified, "status", "completed")}
         ${clickChip("★ Verified", totals.verified, "status", "verified")}
         ${tIssues}
         ${tRemaining}
