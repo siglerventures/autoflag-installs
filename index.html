@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.58" />
+<meta name="app-rev" content="2.59" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -980,7 +980,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.58</div>
+  <div class="ver">AutoFlag© · v2.59</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1010,7 +1010,7 @@
     <div class="view-tabs" style="border-bottom:none;padding:0;background:transparent;flex-shrink:0">
       <button class="view-tab" data-view="home" id="homeBtnTop" onclick="softGoBrowse()" title="Back to Browse" style="display:none">🏡 Home</button>
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
-      <button class="view-tab" data-view="installs" onclick="switchView('installs')">🔧 Installs</button>
+      <button class="view-tab" data-view="installs" id="installsViewTab" onclick="switchView('installs')">🔧 Installs</button>
       <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues</button>
       <button class="view-tab" onclick="openSuggestionModal()" title="Submit a suggestion or report an issue">💡 Suggest</button>
     </div>
@@ -1054,13 +1054,13 @@
 
   <main id="main"></main>
 
-  <button class="fab" onclick="openAddMenu()" title="Add">+</button>
+  <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.58</span>
+    <span>v2.59</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
-    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
+    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
     <!-- Rev 2.31: Cache-bust refresh. Cheap escape hatch when an installer/admin
@@ -1132,8 +1132,9 @@
 
       <div class="btn-row">
         <button class="btn-secondary btn" id="ms-delete" onclick="deleteSite()">Delete</button>
-        <button class="btn-secondary btn" onclick="closeModal('modalSite')">Cancel</button>
-        <button class="btn" onclick="saveSite()">Save</button>
+        <button class="btn-secondary btn" id="ms-cancel" onclick="closeModal('modalSite')">Cancel</button>
+        <button class="btn-secondary btn" id="ms-close" onclick="closeModal('modalSite')" style="display:none">Close</button>
+        <button class="btn" id="ms-save" onclick="saveSite()">Save</button>
       </div>
     </div>
   </div>
@@ -1287,8 +1288,9 @@
              editing state from inside the module scope. -->
         <button class="btn-secondary btn" onclick="showPastIssuesForCurrentPole()" style="border-color:#5a7d38;color:#a8d68a" title="See all issues filed on this pole">👷 Past Issues</button>
         <button class="btn-secondary btn" onclick="reportIssueForCurrentPole()" style="border-color:#7d3838;color:#e88a8a">🚨 Report Issue</button>
-        <button class="btn-secondary btn" onclick="closeModal('modalPole')">Cancel</button>
-        <button class="btn" onclick="savePole()">Save</button>
+        <button class="btn-secondary btn" id="mp-cancel" onclick="closeModal('modalPole')">Cancel</button>
+        <button class="btn-secondary btn" id="mp-close" onclick="closeModal('modalPole')" style="display:none">Close</button>
+        <button class="btn" id="mp-save" onclick="savePole()">Save</button>
       </div>
     </div>
   </div>
@@ -2284,6 +2286,16 @@ onAuthStateChanged(auth, async user => {
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("peopleBtn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
+  // Rev 2.59: Customer role gets a separate "Manage your team" button that opens
+  // a customer-scoped people modal (same modal, different gating).
+  const customerPeopleBtn = document.getElementById("customerPeopleBtn");
+  if(customerPeopleBtn) customerPeopleBtn.style.display = (state.userRole === "customer") ? "" : "none";
+  // Rev 2.59: Customers don't add poles/sites in this rev — hide the floating "+" FAB
+  const fabBtn = document.getElementById("fabAddBtn");
+  if(fabBtn) fabBtn.style.display = (state.userRole === "customer") ? "none" : "";
+  // Rev 2.59: Customers don't see internal Tools / BOM / Procedures
+  const installsTab = document.getElementById("installsViewTab");
+  if(installsTab) installsTab.style.display = (state.userRole === "customer") ? "none" : "";
 
   // Admins subscribe to people roster for the management UI; everyone reads procedures + data
   if(state.isAdmin) subscribePeople();
@@ -2291,20 +2303,26 @@ onAuthStateChanged(auth, async user => {
   subscribeToolsAndParts();
   subscribeIssues();
 
-  // Customer role: portal not yet implemented. Show a "coming soon" message and sign out.
-  // (Their email is whitelisted, but the customer-facing UI is a future rev.)
+  // Rev 2.59: Customer role now enters the app (was bounced to "portal not ready" pre-2.59).
+  // Customers see a filtered, read-only view of their own customerId's data plus the
+  // ability to file issues and manage people under their customerId.
   if(state.userRole === "customer"){
-    document.getElementById("app").style.display = "none";
-    document.getElementById("loginScreen").style.display = "";
-    const loginScreen = document.getElementById("loginScreen");
-    if(loginScreen){
-      loginScreen.innerHTML = `<div style="text-align:center;max-width:420px">
-        <h1 style="color:var(--amber);margin-bottom:14px">AutoFlag Installs</h1>
-        <p style="color:var(--text-dim);margin-bottom:20px">Hi ${user.displayName||user.email}! Your customer portal isn't ready yet — we're building it. We'll email you when it's available.</p>
-        <button class="btn-secondary btn" onclick="signOutNow()">Sign Out</button>
-      </div>`;
+    // Verify they have a customerId mapped — without one, we can't scope their data.
+    if(!state.userPersonRecord?.customerId){
+      document.getElementById("app").style.display = "none";
+      document.getElementById("loginScreen").style.display = "";
+      const loginScreen = document.getElementById("loginScreen");
+      if(loginScreen){
+        loginScreen.innerHTML = `<div style="text-align:center;max-width:420px">
+          <h1 style="color:var(--amber);margin-bottom:14px">AutoFlag</h1>
+          <p style="color:var(--text-dim);margin-bottom:20px">Hi ${user.displayName||user.email}! Your account isn't linked to a customer yet. Please contact your AutoFlag admin to complete setup.</p>
+          <button class="btn-secondary btn" onclick="signOutNow()">Sign Out</button>
+        </div>`;
+      }
+      return;
     }
-    return;
+    // Has customerId — fall through to normal app init. Scope-filtering happens in
+    // applyVisibilityScope() and per-button isAdmin/isInstaller checks throughout.
   }
 
   // Force a fresh ID token before our first DB read. Mobile devices that
@@ -2371,6 +2389,16 @@ function applyCustomerSnapshot(raw, source){
     const sc = sanitizeCustomer(c, cid);
     if(state.isAdmin){
       customers[cid] = sc;
+      return;
+    }
+    // Rev 2.59: Customer role scope. Customers see all poles under their
+    // assigned customerId — no per-pole assignment filtering, just customerId match.
+    // Without a customerId on their record (which we check at login), they'd see
+    // nothing; the login guard catches this case.
+    if(state.userRole === "customer"){
+      if(cid === state.userPersonRecord?.customerId){
+        customers[cid] = sc;
+      }
       return;
     }
     // Rev 2.21: Installer scoping is now POLE-level, not customer-level.
@@ -3002,6 +3030,37 @@ window.openPeopleModal = () => {
   document.getElementById("ppl-role").value = "installer";
   document.getElementById("ppl-customer-row").style.display = "none";
   document.getElementById("ppl-customer").value = "";
+  // Rev 2.59: Reset header for admin context
+  const header = document.querySelector("#modalPeople .modal-header h2");
+  if(header) header.textContent = "👥 People";
+  populatePeopleCustomerDropdown();
+  renderPeopleList();
+  openModal("modalPeople");
+};
+
+// Rev 2.59: Customer-scoped people modal. Reuses the same modal as admin but:
+//  - Role dropdown is forced to "customer" and hidden (can't change)
+//  - Customer dropdown is forced to their own customerId and hidden
+//  - List is filtered to only people under their customerId
+//  - Add/Remove restricted to people under their customerId
+//  - Self-removal blocked if they're the last person on that customerId
+window.openCustomerPeopleModal = () => {
+  if(state.userRole !== "customer") return;
+  const myCustomerId = state.userPersonRecord?.customerId;
+  if(!myCustomerId) return toast("No customer linked to your account", true);
+  document.getElementById("ppl-email").value = "";
+  document.getElementById("ppl-name").value = "";
+  // Force customer role + customerId
+  document.getElementById("ppl-role").value = "customer";
+  document.getElementById("ppl-customer").value = myCustomerId;
+  // Hide the role + customer dropdowns — customers can only invite other customers under themselves
+  const roleRow = document.getElementById("ppl-role").closest(".form-row");
+  if(roleRow) roleRow.style.display = "none";
+  document.getElementById("ppl-customer-row").style.display = "none";
+  // Update header to show which company they're managing
+  const header = document.querySelector("#modalPeople .modal-header h2");
+  const myCustomerName = state.data.customers[myCustomerId]?.name || "Your team";
+  if(header) header.textContent = `👥 ${myCustomerName} — Team`;
   populatePeopleCustomerDropdown();
   renderPeopleList();
   openModal("modalPeople");
@@ -3018,7 +3077,12 @@ function populatePeopleCustomerDropdown(){
 function renderPeopleList(){
   const wrap = document.getElementById("peopleList");
   if(!wrap) return;
-  const entries = Object.entries(peopleRoster);
+  let entries = Object.entries(peopleRoster);
+  // Rev 2.59: When a customer opens this modal, filter to only people on their customerId
+  if(state.userRole === "customer"){
+    const myCustomerId = state.userPersonRecord?.customerId;
+    entries = entries.filter(([_, info]) => info.role === "customer" && info.customerId === myCustomerId);
+  }
   if(entries.length === 0){
     wrap.innerHTML = `<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No people yet. Add someone below.</div>`;
     return;
@@ -3055,11 +3119,23 @@ window.onPeopleRoleChange = () => {
 };
 
 window.addPerson = async () => {
-  if(!state.isAdmin) return;
+  // Rev 2.59: Admin can add anyone; customer can add only customers under their own customerId.
+  const isAdminAdd = state.isAdmin;
+  const isCustomerAdd = state.userRole === "customer";
+  if(!isAdminAdd && !isCustomerAdd) return;
+
   const email = document.getElementById("ppl-email").value.trim().toLowerCase();
   const name = document.getElementById("ppl-name").value.trim();
-  const role = document.getElementById("ppl-role").value;
-  const customerId = document.getElementById("ppl-customer").value;
+  let role = document.getElementById("ppl-role").value;
+  let customerId = document.getElementById("ppl-customer").value;
+
+  // Customer role overrides — force role + customerId regardless of form state
+  if(isCustomerAdd){
+    role = "customer";
+    customerId = state.userPersonRecord?.customerId || "";
+    if(!customerId) return toast("Your account isn't linked to a customer", true);
+  }
+
   if(!email) return toast("Email required", true);
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Invalid email format", true);
   if(!["admin","installer","customer"].includes(role)) return toast("Invalid role", true);
@@ -3089,17 +3165,39 @@ window.addPerson = async () => {
 };
 
 window.removePerson = async (key) => {
-  if(!state.isAdmin) return;
+  // Rev 2.59: Admin can remove anyone; customer can remove only customers under their customerId,
+  // with a last-person safety rail to prevent locking themselves out.
+  const isAdminRemove = state.isAdmin;
+  const isCustomerRemove = state.userRole === "customer";
+  if(!isAdminRemove && !isCustomerRemove) return;
+
   const info = peopleRoster[key];
   if(!info) return;
-  // Block removing yourself by accident
-  if(state.user?.email && emailToKey(state.user.email) === key){
-    return toast("You can't remove yourself. Ask another admin.", true);
+
+  if(isCustomerRemove){
+    const myCustomerId = state.userPersonRecord?.customerId;
+    // Only allow removing people on your own customerId
+    if(info.role !== "customer" || info.customerId !== myCustomerId){
+      return toast("You can only remove people on your own team", true);
+    }
+    // Safety rail: prevent removing self if you're the last person on this customerId
+    if(state.user?.email && emailToKey(state.user.email) === key){
+      const sameTeamCount = Object.values(peopleRoster).filter(p =>
+        p.role === "customer" && p.customerId === myCustomerId
+      ).length;
+      if(sameTeamCount <= 1){
+        return toast("You're the last person on your team — can't remove yourself or you'll lose access. Add someone else first.", true);
+      }
+    }
+  } else {
+    // Admin path: same old block-self-removal rule
+    if(state.user?.email && emailToKey(state.user.email) === key){
+      return toast("You can't remove yourself. Ask another admin.", true);
+    }
   }
+
   if(!confirm(`Remove ${info.name} (${info.email})? They will lose access immediately.`)) return;
   try{
-    // Rev 2.38: route through removeNode (REST fallback) — raw SDK remove()
-    // was hanging on mobile, leaving the user with no toast and no removal.
     await removeNode(`autoflag/people/${key}`);
     toast("Removed");
     if(typeof loadDataViaREST === "function") loadDataViaREST().catch(()=>{});
@@ -8272,6 +8370,22 @@ window.openSiteModal = (sid, cid) => {
   document.getElementById("ms-notes").value = s?.notes || "";
   document.getElementById("ms-delete").style.display = s ? "" : "none";
   renderSitePhotos(s?.photos || []);
+  // Rev 2.59: Customer role — read-only site modal
+  const isCustomerView = state.userRole === "customer";
+  const modalSite = document.getElementById("modalSite");
+  if(modalSite){
+    modalSite.querySelectorAll("input, textarea, select").forEach(el => {
+      el.disabled = isCustomerView;
+    });
+  }
+  const ssBtn = document.getElementById("ms-save");
+  const sdBtn = document.getElementById("ms-delete");
+  const scBtn = document.getElementById("ms-cancel");
+  const sxBtn = document.getElementById("ms-close");
+  if(ssBtn) ssBtn.style.display = isCustomerView ? "none" : "";
+  if(sdBtn && s) sdBtn.style.display = isCustomerView ? "none" : "";
+  if(scBtn) scBtn.style.display = isCustomerView ? "none" : "";
+  if(sxBtn) sxBtn.style.display = isCustomerView ? "" : "none";
   openModal("modalSite");
 };
 
@@ -8491,6 +8605,34 @@ window.openPoleModal = (pid, cid, sid) => {
   populateCompletedByDropdown(p?.completedBy || "");
   // Rev 2.21: Populate assigned-installers checkbox grid
   populateAssignedInstallersGrid(p?.assignedInstallers || []);
+  // Rev 2.59: Hide the Assigned Installers row from customer role — they don't
+  // need to see who's working on their poles internally. The row's parent
+  // is .form-row; find it by walking up from the grid element.
+  const aiGrid = document.getElementById("mp-assigned-installers");
+  if(aiGrid){
+    const aiRow = aiGrid.closest(".form-row");
+    if(aiRow) aiRow.style.display = (state.userRole === "customer") ? "none" : "";
+  }
+  // Rev 2.59: Customer role gets a read-only pole view — disable all inputs/textareas/selects,
+  // hide Save/Delete/Cancel, show Close instead. Past Issues + Report Issue stay live.
+  const isCustomerView = state.userRole === "customer";
+  const modalPole = document.getElementById("modalPole");
+  if(modalPole){
+    modalPole.querySelectorAll("input, textarea, select").forEach(el => {
+      // Don't disable the labels/buttons — only data inputs.
+      // We need them disabled for customer; for everyone else, re-enable (in case
+      // a previous open left them disabled).
+      el.disabled = isCustomerView;
+    });
+  }
+  const saveBtn = document.getElementById("mp-save");
+  const deleteBtn = document.getElementById("mp-delete");
+  const cancelBtn = document.getElementById("mp-cancel");
+  const closeBtn = document.getElementById("mp-close");
+  if(saveBtn) saveBtn.style.display = isCustomerView ? "none" : "";
+  if(deleteBtn && p) deleteBtn.style.display = isCustomerView ? "none" : "";
+  if(cancelBtn) cancelBtn.style.display = isCustomerView ? "none" : "";
+  if(closeBtn) closeBtn.style.display = isCustomerView ? "" : "none";
   document.getElementById("mp-survey").value = p?.survey || "";
   document.getElementById("mp-notes").value = p?.notes || "";
   document.getElementById("mp-delete").style.display = p ? "" : "none";
