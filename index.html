@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.57" />
+<meta name="app-rev" content="2.58" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -980,7 +980,7 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.57</div>
+  <div class="ver">AutoFlag© · v2.58</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1057,7 +1057,7 @@
   <button class="fab" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.57</span>
+    <span>v2.58</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -6700,8 +6700,10 @@ function renderToolsView(){
   const itemsArr = sortAndFilterItems(state.tools);
   const totalCost = itemsArr.reduce((sum, [_, t]) => sum + (Number(t.price) || 0), 0);
 
-  // Apply search filter (matches name, category, notes)
-  const search = (state.toolsSearch || "").trim().toLowerCase();
+  // Rev 2.58: Search now falls back to the global header search (state.search)
+  // when the inline tools search is empty. Previously the top search did nothing
+  // on the Tools tab because only state.toolsSearch was being read.
+  const search = ((state.toolsSearch || state.search || "")).trim().toLowerCase();
   const filtered = search
     ? itemsArr.filter(([_, t]) => {
         const hay = [t.name, t.category, t.notes, ...(t.links || []).map(l => l.label)].filter(Boolean).join(" ").toLowerCase();
@@ -6859,8 +6861,9 @@ function renderInstallBomView(){
     return sum + ((qty > 0 ? packCost / qty : 0) * qtyPerUnit);
   }, 0);
 
-  // Apply search filter
-  const search = (state.bomSearch || "").trim().toLowerCase();
+  // Rev 2.58: Search falls back to global header search (state.search)
+  // when the inline BOM search is empty. See parallel comment in renderToolsView.
+  const search = ((state.bomSearch || state.search || "")).trim().toLowerCase();
   const filtered = search
     ? itemsArr.filter(([_, p]) => {
         const hay = [p.name, p.material, p.notes, ...(p.links || []).map(l => l.label)].filter(Boolean).join(" ").toLowerCase();
@@ -6969,7 +6972,8 @@ function renderMechBomView(){
     return sum + ((qty > 0 ? packCost / qty : 0) * qtyPerUnit);
   }, 0);
 
-  const search = (state.mechSearch || "").trim().toLowerCase();
+  // Rev 2.58: Search falls back to global header search when local empty.
+  const search = ((state.mechSearch || state.search || "")).trim().toLowerCase();
   const filtered = search
     ? itemsArr.filter(([_, p]) => {
         const hay = [p.name, p.material, p.notes, ...(p.links || []).map(l => l.label)].filter(Boolean).join(" ").toLowerCase();
