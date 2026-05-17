@@ -11695,7 +11695,10 @@ window.openIssueDetail = (issueId) => {
   `;
 
   // Dispatch row — admins only, always visible (even after resolution, in case admin
-  // needs to re-assign for follow-up)
+  // needs to re-assign for follow-up).
+  // Rev 2.65: Hint added — Dispatch button is a SHORTCUT for "just change dispatch,
+  // nothing else." Save (below) also writes dispatch when the dropdown changes,
+  // so admin doesn't have to click both.
   if(state.isAdmin){
     html += `<hr style="border-color:var(--border);margin:14px 0" />
       <div class="form-row">
@@ -11705,7 +11708,7 @@ window.openIssueDetail = (issueId) => {
             <option value="">— pick installer —</option>
             ${dispatchOptions.map(o => `<option value="${escapeHtml(o.key)}" ${iss.dispatchedTo===o.key?'selected':''}>${escapeHtml(o.name)}</option>`).join("")}
           </select>
-          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')">Dispatch</button>
+          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')" title="Quick reassign without changing status. Save (below) also writes this if you change it.">Dispatch only</button>
         </div>
         ${iss.dispatchedTo ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Currently dispatched to <strong>${escapeHtml(iss.dispatchedToName)}</strong></div>` : ""}
       </div>`;
@@ -11754,11 +11757,25 @@ window.openIssueDetail = (issueId) => {
       const statusLabel = statusInfo ? statusInfo.label : status;
       const statusColor = statusInfo ? statusInfo.color : "#888";
       const photos = (h.photos||[]).map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener"><img src="${escapeHtml(u)}" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid var(--border);margin-top:4px;margin-right:4px" /></a>`).join("");
+      // Rev 2.65: Show dispatch change inline with status change. Two cases:
+      //   - dispatchTo set (Rev 2.65+ history entries with combined save)
+      //   - legacy: nothing (Rev 2.50–2.64 history didn't capture dispatch)
+      let dispatchLine = "";
+      if(h.dispatchTo){
+        if(h.dispatchFrom){
+          dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Re-dispatched from <strong>${escapeHtml(h.dispatchFromName||h.dispatchFrom)}</strong> to <strong>${escapeHtml(h.dispatchToName||h.dispatchTo)}</strong></div>`;
+        } else {
+          dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Dispatched to <strong>${escapeHtml(h.dispatchToName||h.dispatchTo)}</strong></div>`;
+        }
+      } else if(h.dispatchFrom && !h.dispatchTo){
+        dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Unassigned (was <strong>${escapeHtml(h.dispatchFromName||h.dispatchFrom)}</strong>)</div>`;
+      }
       return `<div style="border-left:3px solid ${statusColor};padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:0 4px 4px 0">
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">
           <span style="color:${statusColor};font-weight:600">${escapeHtml(statusLabel)}</span> · ${escapeHtml(h.byName || "unknown")} · ${new Date(h.at || 0).toLocaleString()}
         </div>
         <div style="font-size:13px;white-space:pre-wrap">${escapeHtml(h.note || "")}</div>
+        ${dispatchLine}
         ${photos ? `<div style="margin-top:4px">${photos}</div>` : ""}
       </div>`;
     }).join("");
@@ -12009,15 +12026,43 @@ window.saveIssueProgress = async (issueId) => {
     toast("Invalid status", true); return;
   }
 
+  // Rev 2.65: Also read the dispatch dropdown. Single Save handles both
+  // status AND dispatch in one operation, so admin doesn't have to remember
+  // to click both Dispatch + Save (Phil's bug report — set Jake + status +
+  // note, clicked Save, dispatch never wrote because Dispatch button wasn't
+  // clicked). Now: if dispatch dropdown differs from iss.dispatchedTo, the
+  // save patches dispatch fields too AND logs the change in history.
+  const dispatchSel = document.getElementById("issd-dispatch");
+  const newDispatchTo = dispatchSel ? dispatchSel.value : (iss.dispatchedTo || "");
+  const dispatchChanged = (newDispatchTo || "") !== (iss.dispatchedTo || "");
+  let newDispatchToName = iss.dispatchedToName || "";
+  if(dispatchChanged && newDispatchTo){
+    // Look up the chosen installer's name
+    if(newDispatchTo === PHIL_UID){
+      newDispatchToName = "Phil Sigler";
+    } else if(typeof peopleRoster === "object" && peopleRoster[newDispatchTo]){
+      newDispatchToName = peopleRoster[newDispatchTo].name || peopleRoster[newDispatchTo].email || newDispatchTo;
+    } else {
+      newDispatchToName = newDispatchTo;
+    }
+  } else if(dispatchChanged && !newDispatchTo){
+    // Cleared dispatch
+    newDispatchToName = "";
+  }
+
   // If choosing a terminal status with no note, confirm — but for "in_progress"
   // / "waiting_*" mid-state updates, a note is required since the whole point
   // is to log what happened.
   const isTerminal = newStatus === "resolved" || newStatus === "cancelled";
-  if(!note && !isTerminal){
+  const statusChanged = newStatus !== (iss.status || "open");
+  if(!note && !isTerminal && (statusChanged || dispatchChanged)){
     toast("Add a note describing what happened", true); return;
   }
   if(!note && isTerminal){
     if(!confirm(`Mark as ${statusLabel(newStatus)} with no note?`)) return;
+  }
+  if(!statusChanged && !dispatchChanged && !note && resolutionPendingPhotos.length === 0){
+    toast("Nothing to save", true); return;
   }
 
   toast("Saving...");
@@ -12041,6 +12086,9 @@ window.saveIssueProgress = async (issueId) => {
   const byKey = peopleEmailKeyForCurrentUser();
   const byName = state.user?.displayName || state.user?.email || "(unknown)";
 
+  // Rev 2.65: History entry now records dispatch change too. If dispatch changed,
+  // include dispatchTo + dispatchToName fields on the entry so the history log
+  // can render "Dispatched to X" alongside status changes.
   const historyEntry = {
     at: now,
     by: byKey,
@@ -12050,6 +12098,12 @@ window.saveIssueProgress = async (issueId) => {
     note,
     photos: photoUrls
   };
+  if(dispatchChanged){
+    historyEntry.dispatchTo = newDispatchTo;
+    historyEntry.dispatchToName = newDispatchToName;
+    historyEntry.dispatchFrom = iss.dispatchedTo || "";
+    historyEntry.dispatchFromName = iss.dispatchedToName || "";
+  }
   const newHistory = Array.isArray(iss.history) ? [...iss.history, historyEntry] : [historyEntry];
 
   // Build the patch. Always update status + history + updatedAt. If terminal, also
@@ -12060,6 +12114,12 @@ window.saveIssueProgress = async (issueId) => {
     history: newHistory,
     updatedAt: now
   };
+  if(dispatchChanged){
+    patch.dispatchedTo = newDispatchTo;
+    patch.dispatchedToName = newDispatchToName;
+    patch.dispatchedAt = newDispatchTo ? now : 0;
+    patch.dispatchedBy = newDispatchTo ? byKey : "";
+  }
   if(newStatus === "resolved"){
     patch.resolution = note;
     patch.resolutionPhotos = photoUrls;
