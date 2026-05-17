@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.61" />
+<meta name="app-rev" content="2.62" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -998,7 +998,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.61</div>
+  <div class="ver">AutoFlag© · v2.62</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1075,7 +1075,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.61</span>
+    <span>v2.62</span>
     · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -12101,14 +12101,20 @@ function renderIssues(){
     });
   }
   const all = allIssues.sort((a,b) => b.filedAt - a.filedAt);
-  const open = all.filter(i => i.status === "open");
+  // Rev 2.62: All non-terminal statuses (Open, Dispatched, In Progress, Waiting
+  // on Parts, Waiting on Customer, Re-Dispatched) are "Active". Previously the
+  // view filtered for literal "open" / "resolved" only, so intermediate-status
+  // issues like "Waiting on Parts" disappeared from the list entirely.
+  const TERMINAL = ["resolved", "cancelled"];
+  const active = all.filter(i => !TERMINAL.includes(i.status || "open"));
   const resolved = all.filter(i => i.status === "resolved");
+  const cancelled = all.filter(i => i.status === "cancelled");
 
   let html = renderViewHeaderStrip();
   html += `<div class="list-toolbar no-print">
     <div class="list-toolbar-left">
       <strong>${all.length}</strong> issue${all.length===1?'':'s'}
-      <div class="list-subtitle">${open.length} open · ${resolved.length} resolved</div>
+      <div class="list-subtitle">${active.length} active · ${resolved.length} resolved${cancelled.length ? ` · ${cancelled.length} cancelled` : ''}</div>
     </div>
     <div class="list-toolbar-right">
       <button class="list-print-btn" onclick="openIssueFiler()">+ New Issue</button>
@@ -12128,8 +12134,13 @@ function renderIssues(){
     const dispatchInfo = iss.dispatchedTo
       ? `→ ${escapeHtml(iss.dispatchedToName||iss.dispatchedTo)}`
       : `<span style="color:var(--text-muted);font-style:italic">unassigned</span>`;
+    // Rev 2.62: Per-row status badge (color-coded by status from ISSUE_STATUSES).
+    const statusKey = iss.status || "open";
+    const statusInfo = ISSUE_STATUSES.find(x => x.key === statusKey) || ISSUE_STATUSES[0];
+    const statusBadge = `<span class="status-badge ${statusInfo.badgeClass}" style="font-size:10px;background:${statusInfo.color}22;color:${statusInfo.color};border:1px solid ${statusInfo.color}55">${escapeHtml(statusInfo.label.toUpperCase())}</span>`;
     return `<tr onclick="openIssueDetail('${iss.id}')">
       <td><strong>${escapeHtml(iss.title)}</strong></td>
+      <td>${statusBadge}</td>
       <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
@@ -12139,11 +12150,11 @@ function renderIssues(){
     </tr>`;
   }).join("");
 
-  if(open.length){
-    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Open (${open.length})</h3>`;
+  if(active.length){
+    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Active (${active.length})</h3>`;
     html += `<table class="list-table"><thead><tr>
-      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
-    </tr></thead><tbody>${renderRows(open)}</tbody></table>`;
+      <th>Issue</th><th>Status</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
+    </tr></thead><tbody>${renderRows(active)}</tbody></table>`;
   }
   if(resolved.length){
     html += `<h3 style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px">✓ Resolved (${resolved.length})</h3>`;
@@ -12176,7 +12187,10 @@ function renderIssues(){
 // assigned to (matches the visibility filter applied to customers/poles).
 // Returns the count + the actual list of issues for downstream filtering.
 function visibleOpenIssues(){
-  const all = Object.values(state.issues || {}).filter(i => i.status === "open");
+  // Rev 2.62: All non-terminal statuses count as "active" for the badge — was
+  // counting only literal "open" before, which made intermediate states invisible.
+  const TERMINAL = ["resolved", "cancelled"];
+  const all = Object.values(state.issues || {}).filter(i => !TERMINAL.includes(i.status || "open"));
   if(state.isAdmin) return all;
   // Rev 2.60: Customer scope — issues on poles under their customerId
   if(state.userRole === "customer"){
