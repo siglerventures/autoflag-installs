@@ -979,6 +979,19 @@
   <h1>AutoFlag© Installs</h1>
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
+
+  <!-- Rev 2.59: Email-link sign-in. Users without a Google account can request
+       a one-time sign-in link, sent to whatever email is on their peopleRoster
+       entry. Same role gating after sign-in — if the email isn't whitelisted,
+       they're still bounced. Just opens up auth to non-Google email providers. -->
+  <div style="margin-top:14px;color:var(--text-muted);font-size:12px;text-align:center">or</div>
+  <div id="emailLinkUI" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px">
+    <input type="email" id="emailLinkInput" placeholder="your.email@example.com" autocomplete="email"
+      style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
+    <button class="btn-secondary btn" id="emailLinkBtn" onclick="sendEmailLink()" style="width:100%">📧 Email me a sign-in link</button>
+    <div id="emailLinkMsg" style="font-size:11px;color:var(--text-muted);min-height:14px;text-align:center"></div>
+  </div>
+
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
   <div class="ver">AutoFlag© · v2.59</div>
 </div>
@@ -1797,7 +1810,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue, push, child } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getStorage, ref as storageRef, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCrW9Lrf7fWVqRxKqsnuPK0tL6UYbd_qds",
@@ -2066,6 +2079,77 @@ window.signIn = async () => {
     }
   }
 };
+
+// Rev 2.59: Email-link sign-in for users without a Google account.
+// Flow:
+//   1. User types their email, clicks "Email me a sign-in link"
+//   2. Firebase sends a one-time link to that email
+//   3. User clicks the link in their email → browser opens this page with a
+//      magic param in the URL → we detect it and complete sign-in automatically
+//   4. Email is stashed in localStorage during step 1 so step 3 can complete
+//      without re-asking
+//   5. Just like Google sign-in, peopleRoster gates access AFTER auth — random
+//      emails get bounced with "Access denied"
+window.sendEmailLink = async () => {
+  const emailInput = document.getElementById("emailLinkInput");
+  const btn = document.getElementById("emailLinkBtn");
+  const msg = document.getElementById("emailLinkMsg");
+  const email = (emailInput?.value || "").trim().toLowerCase();
+  if(!email){ msg.textContent = "Enter your email first"; msg.style.color = "var(--red)"; return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    msg.textContent = "That email doesn't look valid";
+    msg.style.color = "var(--red)";
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Sending...";
+  msg.textContent = "";
+  try {
+    await sendSignInLinkToEmail(auth, email, {
+      url: window.location.href.split("?")[0], // return URL — strip query so we don't loop
+      handleCodeInApp: true
+    });
+    // Stash email so we can complete sign-in when they click the link
+    try { localStorage.setItem("autoflag:emailLinkEmail", email); } catch(_){}
+    msg.innerHTML = `✓ Check <strong>${escapeHtml(email)}</strong> for a sign-in link. Open it on this same device.`;
+    msg.style.color = "var(--green)";
+    btn.textContent = "Link sent — check your email";
+    // Don't re-enable; user should follow the link, not click again
+  } catch(e){
+    console.error("Email link send failed:", e);
+    msg.textContent = "Couldn't send: " + (e.message || "unknown error");
+    msg.style.color = "var(--red)";
+    btn.disabled = false;
+    btn.textContent = "📧 Email me a sign-in link";
+  }
+};
+
+// Check on page load if we just came back from clicking an email link
+async function maybeCompleteEmailLinkSignIn(){
+  if(!isSignInWithEmailLink(auth, window.location.href)) return;
+  // Pull the email we stashed. If it's not there (e.g., they opened the link
+  // on a different device), prompt for it — same email Firebase sent the link to.
+  let email = null;
+  try { email = localStorage.getItem("autoflag:emailLinkEmail"); } catch(_){}
+  if(!email){
+    email = prompt("Please confirm your email to finish signing in:");
+    if(!email) return;
+  }
+  try {
+    await signInWithEmailLink(auth, email, window.location.href);
+    try { localStorage.removeItem("autoflag:emailLinkEmail"); } catch(_){}
+    // Clean the URL so refreshes don't try to re-process the link
+    if(window.history?.replaceState){
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    // onAuthStateChanged fires automatically and gates role from peopleRoster
+  } catch(e){
+    console.error("Email link sign-in failed:", e);
+    toast("Email link sign-in failed: " + (e.message || "expired or invalid"), true);
+  }
+}
+// Run on script load — checks the URL once
+maybeCompleteEmailLinkSignIn();;
 
 // Track redirect-result resolution state. On page load, we don't know yet
 // whether we're coming back from a sign-in redirect. onAuthStateChanged can
