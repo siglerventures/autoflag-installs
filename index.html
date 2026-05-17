@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.66" />
+<meta name="app-rev" content="2.67" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1007,7 +1007,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.66</div>
+  <div class="ver">AutoFlag© · v2.67</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1087,7 +1087,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.66</span>
+    <span>v2.67</span>
     <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2338,8 +2338,24 @@ window.signOutNow = async () => {
   // each listener keeps trying to read against the rules with no auth, generating
   // a flood of permission_denied errors and toast spam.
   teardownAllSubs();
-  try { await signOut(auth); }
-  finally { signOutInProgress = false; }
+  // Rev 2.67: Aggressive sign-out. Phil reported "it doesn't let me log out" —
+  // Firebase persistence in IndexedDB can auto-restore the session on reload.
+  // Belt and suspenders: clear local auth keys, then signOut, then force reload
+  // so any reconnecting listener or persisted credential starts from clean state.
+  try { await signOut(auth); } catch(e){ console.warn("signOut threw:", e?.message); }
+  try {
+    // Clear Firebase Auth persistence (IndexedDB)
+    if(window.indexedDB){
+      const dbs = await (indexedDB.databases ? indexedDB.databases() : Promise.resolve([]));
+      dbs.forEach(d => { if(d.name && d.name.includes("firebase")) try { indexedDB.deleteDatabase(d.name); } catch(_){} });
+    }
+    // Clear any local/session keys we own
+    try { localStorage.removeItem("autoflag:emailLinkEmail"); } catch(_){}
+    try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
+  } catch(e){ console.warn("Storage cleanup threw:", e?.message); }
+  signOutInProgress = false;
+  // Force a hard reload to drop any in-memory state + force a clean re-auth
+  location.replace(location.pathname);
 };
 
 // Rev 2.31: Footer 🔄 Refresh action. Bypasses browser + GitHub Pages cache
@@ -2877,7 +2893,10 @@ function subscribeRealtime(){
       const myEmail = state.user?.email || "(no email)";
       const myKey = emailToKey(state.user?.email || "");
       const myRole = state.userRole || "(no role)";
-      console.warn("[autoflag] read denied diagnostics:", { email: myEmail, key: myKey, role: myRole, hasPersonRecord: !!state.userPersonRecord });
+      const hasPerson = !!state.userPersonRecord;
+      const customerId = state.userPersonRecord?.customerId || "(none)";
+      const authUid = state.user?.uid || "(none)";
+      console.warn(`[autoflag] read denied diagnostics:\n  email=${myEmail}\n  key=${myKey}\n  role=${myRole}\n  hasPersonRecord=${hasPerson}\n  customerId=${customerId}\n  uid=${authUid}`);
       toast(`Read failed: ${err?.code || err.message}. Sign out and back in if this persists.`, true);
     }
   });
