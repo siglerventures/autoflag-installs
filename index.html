@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.67" />
+<meta name="app-rev" content="2.68" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.67</div>
+  <div class="ver">AutoFlag© · v2.68</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,10 +1084,10 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.67</span>
-    · <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
-    · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
-    · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
+    <span>v2.68</span>
+    <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
+    <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
+    <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
     <!-- Rev 2.62: 🔄 Refresh removed. Realtime subscribe keeps data fresh.
@@ -2305,8 +2305,18 @@ let signOutInProgress = false;
 window.signOutNow = async () => {
   signOutInProgress = true;
   stopRestPoll(); // halt any active REST poll before signing out
+  // Rev 2.67: Tear down the realtime listener BEFORE signOut. If the listener
+  // is stuck in a denied state (rules revoking customer subs), signOut() can
+  // hang waiting for clean shutdown. Explicit teardown unblocks it.
+  if(currentDataUnsubscribe){
+    try { currentDataUnsubscribe(); } catch(_){}
+    currentDataUnsubscribe = null;
+  }
   try { await signOut(auth); }
-  finally { signOutInProgress = false; }
+  catch(e){ console.warn("signOut threw:", e?.message); }
+  signOutInProgress = false;
+  // Force the UI to login state even if signOut had any quirks
+  showLogin();
 };
 
 // Rev 2.31: Footer 🔄 Refresh action. Bypasses browser + GitHub Pages cache
@@ -2446,14 +2456,11 @@ onAuthStateChanged(auth, async user => {
   // Admin-only UI bits
   // (Rev 2.21: mc-installer-row removed — customer-level installer field deleted)
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
-  document.getElementById("peopleBtn").style.display = state.isAdmin ? "" : "none";
-  document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
-  // Rev 2.62: Data Manager + History footer links — admin only.
-  // Data Manager exposed export-all-data which was a security leak for installers/customers.
-  const ftrData = document.getElementById("ftrDataLink");
-  const ftrHist = document.getElementById("ftrHistoryLink");
-  if(ftrData) ftrData.style.display = state.isAdmin ? "" : "none";
-  if(ftrHist) ftrHist.style.display = state.isAdmin ? "" : "none";
+  // Rev 2.67: Hide admin-only footer items as a class so the leading "·" separator
+  // hides too. Otherwise customers see orphaned dots between hidden links.
+  document.querySelectorAll(".ftr-admin-only").forEach(el => {
+    el.style.display = state.isAdmin ? "" : "none";
+  });
   // Rev 2.63: Hide Ask AI from customers (AI context exposes internal data)
   document.querySelectorAll(".header-ai-el").forEach(el => {
     el.style.display = (state.userRole === "customer") ? "none" : "";
