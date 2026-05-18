@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.69" />
+<meta name="app-rev" content="2.70" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.69</div>
+  <div class="ver">AutoFlag© · v2.70</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.69</span>
+    <span>v2.70</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1101,13 +1101,18 @@
     <div class="modal-header"><h2 id="mc-title">Customer</h2><button class="modal-close" onclick="closeModal('modalCustomer')">×</button></div>
     <div class="modal-body">
       <div class="form-row"><label>Customer name *</label><input id="mc-name" /></div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Primary contact</label><input id="mc-contact" /></div>
-        <div class="form-row"><label>Phone / Email</label><input id="mc-phone" /></div>
+      <!-- Rev 2.70: Multiple contacts per customer. Each row has Name, Title,
+           Phone, Email, Type (Primary/Secondary/etc). Replaces the old
+           single Primary contact + Phone/Email field. Existing customers
+           auto-migrate: old contact+phone become contact #1 (Primary). -->
+      <div class="form-row">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>Contacts</span>
+          <button class="btn-secondary btn" style="font-size:11px;padding:4px 10px" onclick="mcAddContact()">+ Add Contact</button>
+        </label>
+        <div id="mc-contacts-list" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
       <div class="form-row"><label>Notes</label><textarea id="mc-notes"></textarea></div>
-      <!-- Rev 2.21: Customer-level "Assigned installers" field removed. Installer
-           assignment moved to per-pole `assignedInstallers` (see Pole modal). -->
       <div class="btn-row">
         <button class="btn-secondary btn" id="mc-delete" onclick="deleteCustomer()">Delete</button>
         <button class="btn-secondary btn" onclick="closeModal('modalCustomer')">Cancel</button>
@@ -2023,9 +2028,18 @@ function sanitizeCustomer(c, id){
   if(c.sites && typeof c.sites==="object"){
     Object.entries(c.sites).forEach(([sid,s])=>{ sites[sid]=sanitizeSite(s,sid); });
   }
+  // Rev 2.70: Preserve contacts[] array (with field sanitization)
+  const contacts = Array.isArray(c.contacts) ? c.contacts.map(ct => ({
+    name: stripHTML((ct?.name)||""),
+    title: stripHTML((ct?.title)||""),
+    phone: stripHTML((ct?.phone)||""),
+    email: stripHTML((ct?.email)||""),
+    type: stripHTML((ct?.type)||"")
+  })).filter(ct => ct.name || ct.phone || ct.email) : [];
   return {
     id, name: stripHTML(c.name||""),
     contact: stripHTML(c.contact||""), phone: stripHTML(c.phone||""),
+    contacts,
     notes: stripHTML(c.notes||""),
     // Rev 2.21: customer-level `installers` array deleted. Replaced with
     // pole-level `assignedInstallers` (see sanitizePole). Stored data may still
@@ -5316,8 +5330,12 @@ function matchesSearch(c, s, p){
   };
   const statusLabel = p?.status ? (STATUS_LABELS?.[p.status] || p.status) : "";
   const installerName = p?.completedBy ? (typeof getCompletedByName === "function" ? getCompletedByName(p.completedBy) : "") : "";
+  // Rev 2.70: Flatten multi-contact data into searchable haystack
+  const allContacts = c ? (Array.isArray(c.contacts) ? c.contacts : []) : [];
+  const contactSearchTokens = allContacts.flatMap(ct => [ct?.name, ct?.title, ct?.phone, ct?.email, ct?.type]);
   const hay = [
-    c?.name, c?.contact, c?.phone, c?.notes,
+    c?.name, c?.contact, c?.phone, c?.email, c?.notes,
+    ...contactSearchTokens,
     s?.name, s?.address, s?.notes, s?.contact, s?.phone,
     p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes,
     p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.saas,
@@ -6065,10 +6083,24 @@ function renderCustomerDetail(c){
       <button class="mini-tab" onclick="switchCustomerScopedView('list','${c.id}')">📑 List</button>
     </div>
   </div>`;
-  if(c.contact || c.phone || c.notes){
+  // Rev 2.70: Render all contacts (auto-migrates legacy contact/phone field)
+  const contacts = getCustomerContacts(c);
+  if(contacts.length || c.notes){
     html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">`;
-    if(c.contact||c.phone) html += `<div><strong>${c.contact||''}</strong>${c.contact&&c.phone?' · ':''}${c.phone||''}</div>`;
-    if(c.notes) html += `<div style="color:var(--text-dim);margin-top:4px">${c.notes}</div>`;
+    if(contacts.length){
+      html += `<div style="display:flex;flex-direction:column;gap:8px">`;
+      contacts.forEach(ct => {
+        const typeBadge = ct.type ? `<span style="font-size:10px;background:var(--amber-dim);color:var(--amber);padding:2px 7px;border-radius:3px;font-weight:600;letter-spacing:.4px;text-transform:uppercase">${escapeHtml(ct.type)}</span>` : '';
+        const nameTitle = [ct.name, ct.title].filter(Boolean).map(escapeHtml).join(' · ');
+        const phoneEmail = [ct.phone, ct.email].filter(Boolean).map(escapeHtml).join(' · ');
+        html += `<div style="display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;align-items:center;gap:8px"><strong>${nameTitle || '(no name)'}</strong>${typeBadge}</div>
+          ${phoneEmail ? `<div style="color:var(--text-dim);font-size:12px">${phoneEmail}</div>` : ''}
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    if(c.notes) html += `<div style="color:var(--text-dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${escapeHtml(c.notes)}</div>`;
     html += `</div>`;
   }
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="section-h" style="margin:0;border:none">Sites (${sites.length})</div>
@@ -8581,27 +8613,111 @@ function openPoleModalFor(customerId, siteId){
 }
 
 // ==== Customer CRUD ====
+// Rev 2.70: Multi-contact support.
+// Normalize a customer record's contacts: returns array of contact objects.
+// Auto-migrates legacy single-field contact/phone/email into a contacts[0].
+function getCustomerContacts(c){
+  if(!c) return [];
+  if(Array.isArray(c.contacts) && c.contacts.length) return c.contacts;
+  // Legacy migration: pull single fields into one Primary contact
+  const legacy = {
+    name: c.contact || "",
+    title: "",
+    phone: c.phone || "",
+    email: c.email || "",
+    type: "Primary"
+  };
+  if(legacy.name || legacy.phone || legacy.email) return [legacy];
+  return [];
+}
+
+// Render the editable contacts list inside the customer modal.
+// Each row is a small card with Name, Title, Phone, Email, Type inputs + Remove button.
+function mcRenderContactsList(){
+  const list = document.getElementById("mc-contacts-list");
+  if(!list) return;
+  const contacts = state.editing._contacts || [];
+  if(contacts.length === 0){
+    list.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px;text-align:center;border:1px dashed var(--border);border-radius:var(--radius-sm)">No contacts yet — click "+ Add Contact" above.</div>`;
+    return;
+  }
+  list.innerHTML = contacts.map((ct, i) => `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;display:flex;flex-direction:column;gap:6px" data-contact-idx="${i}">
+      <div style="display:flex;gap:8px;align-items:center">
+        <select onchange="mcUpdateContact(${i},'type',this.value)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:var(--radius-sm);font-size:12px;font-weight:600">
+          <option value="Primary"${ct.type==='Primary'?' selected':''}>Primary</option>
+          <option value="Secondary"${ct.type==='Secondary'?' selected':''}>Secondary</option>
+          <option value="Tertiary"${ct.type==='Tertiary'?' selected':''}>Tertiary</option>
+          <option value="Billing"${ct.type==='Billing'?' selected':''}>Billing</option>
+          <option value="Technical"${ct.type==='Technical'?' selected':''}>Technical</option>
+          <option value="Other"${ct.type==='Other'?' selected':''}>Other</option>
+        </select>
+        <button class="btn-secondary" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="mcRemoveContact(${i})" title="Remove contact">Remove</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input placeholder="Name" value="${escapeHtml(ct.name||'')}" oninput="mcUpdateContact(${i},'name',this.value)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius-sm);font-size:13px" />
+        <input placeholder="Title" value="${escapeHtml(ct.title||'')}" oninput="mcUpdateContact(${i},'title',this.value)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius-sm);font-size:13px" />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input placeholder="Phone" value="${escapeHtml(ct.phone||'')}" oninput="mcUpdateContact(${i},'phone',this.value)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius-sm);font-size:13px" />
+        <input placeholder="Email" value="${escapeHtml(ct.email||'')}" oninput="mcUpdateContact(${i},'email',this.value)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius-sm);font-size:13px" />
+      </div>
+    </div>
+  `).join("");
+}
+window.mcAddContact = () => {
+  if(!state.editing._contacts) state.editing._contacts = [];
+  const isFirst = state.editing._contacts.length === 0;
+  state.editing._contacts.push({ name:"", title:"", phone:"", email:"", type: isFirst ? "Primary" : "Secondary" });
+  mcRenderContactsList();
+};
+window.mcRemoveContact = (i) => {
+  if(!state.editing._contacts) return;
+  state.editing._contacts.splice(i, 1);
+  mcRenderContactsList();
+};
+window.mcUpdateContact = (i, field, value) => {
+  if(!state.editing._contacts || !state.editing._contacts[i]) return;
+  state.editing._contacts[i][field] = value;
+};
+
 window.openCustomerModal = (cid) => {
   state.editing = { type:"customer", customerId: cid||null };
   const c = cid ? state.data.customers[cid] : null;
   document.getElementById("mc-title").textContent = c ? "Edit Customer" : "New Customer";
   document.getElementById("mc-name").value = c?.name || "";
-  document.getElementById("mc-contact").value = c?.contact || "";
-  document.getElementById("mc-phone").value = c?.phone || "";
   document.getElementById("mc-notes").value = c?.notes || "";
-  // Rev 2.21: mc-installers field removed — pole-level assignedInstallers now
+  // Rev 2.70: Build editable contacts list (auto-migrates legacy fields)
+  state.editing._contacts = JSON.parse(JSON.stringify(getCustomerContacts(c)));
+  mcRenderContactsList();
   document.getElementById("mc-delete").style.display = c ? "" : "none";
   openModal("modalCustomer");
 };
+
 window.saveCustomer = async () => {
   const name = document.getElementById("mc-name").value.trim();
   if(!name) return toast("Name required", true);
   let id = state.editing.customerId;
   if(!id) id = push(ref(db, "autoflag/installs/customers")).key;
-  // Rev 2.21: Customer-level `installers` field removed; not part of patch.
+  // Rev 2.70: contacts is the new canonical field. Keep legacy contact/phone
+  // as derived values from contacts[0] for backward compat (rendering code
+  // still reads c.contact + c.phone; getCustomerContacts() reads contacts[]).
+  const contacts = (state.editing._contacts || [])
+    .map(ct => ({
+      name: (ct.name||"").trim(),
+      title: (ct.title||"").trim(),
+      phone: (ct.phone||"").trim(),
+      email: (ct.email||"").trim(),
+      type: (ct.type||"Other").trim()
+    }))
+    .filter(ct => ct.name || ct.phone || ct.email);
+  const primary = contacts[0] || { name:"", phone:"", email:"" };
   const patch = {
-    name, contact: document.getElementById("mc-contact").value.trim(),
-    phone: document.getElementById("mc-phone").value.trim(),
+    name,
+    contacts,
+    // Legacy mirror — keeps old code paths working until migrated
+    contact: primary.name,
+    phone: primary.phone || primary.email,
     notes: document.getElementById("mc-notes").value.trim(),
     updatedAt: Date.now()
   };
