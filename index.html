@@ -6202,6 +6202,10 @@ function fmtShortDate(iso){
 }
 
 window.drillTo = (customerId, siteId) => {
+  // Rev 2.67b: Always switch to Browse view before drilling, otherwise drilling
+  // from List or Kanban would update drill state invisibly (those renderers
+  // don't read drillCustomer/Site, only renderBrowse does).
+  if(state.view !== "browse") state.view = "browse";
   state.drillCustomer = customerId; state.drillSite = siteId;
   renderActive();
 };
