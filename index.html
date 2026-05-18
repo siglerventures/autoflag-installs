@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.68" />
+<meta name="app-rev" content="2.69" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.68</div>
+  <div class="ver">AutoFlag© · v2.69</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.68</span>
+    <span>v2.69</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -6056,6 +6056,15 @@ function renderCustomerDetail(c){
     <span class="sep">›</span><strong>${c.name}</strong>
     ${state.isAdmin?` <button class="icon-btn" style="margin-left:8px" onclick="openCustomerModal('${c.id}')">Edit</button>`:''}
   </div>`;
+  // Rev 2.69: Mini-tabs to view this customer's poles in Kanban or List
+  // (customer-scoped). Browse tab is the customer detail (current view).
+  html += `<div class="view-header-strip" style="margin-bottom:10px">
+    <div class="mini-tabs">
+      <button class="mini-tab active" onclick="switchCustomerScopedView('browse','${c.id}')">📋 Browse</button>
+      <button class="mini-tab" onclick="switchCustomerScopedView('kanban','${c.id}')">📊 Kanban</button>
+      <button class="mini-tab" onclick="switchCustomerScopedView('list','${c.id}')">📑 List</button>
+    </div>
+  </div>`;
   if(c.contact || c.phone || c.notes){
     html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">`;
     if(c.contact||c.phone) html += `<div><strong>${c.contact||''}</strong>${c.contact&&c.phone?' · ':''}${c.phone||''}</div>`;
@@ -6209,11 +6218,21 @@ function fmtShortDate(iso){
 }
 
 window.drillTo = (customerId, siteId) => {
-  // Rev 2.67b: Always switch to Browse view before drilling, otherwise drilling
+  // Rev 2.67: Always switch to Browse view before drilling, otherwise drilling
   // from List or Kanban would update drill state invisibly (those renderers
   // don't read drillCustomer/Site, only renderBrowse does).
   if(state.view !== "browse") state.view = "browse";
   state.drillCustomer = customerId; state.drillSite = siteId;
+  // Rev 2.69: Clear customer-scoped tracker + filter when drilling to
+  // a different customer or going up to All Customers.
+  if(state._customerScopedFrom && state._customerScopedFrom !== customerId){
+    state._customerScopedFrom = null;
+    state.filter.customer = "all";
+  }
+  if(!customerId){
+    state._customerScopedFrom = null;
+    state.filter.customer = "all";
+  }
   renderActive();
 };
 // Rev 2.27: Wrapper for drilling out of the Issues view. Issues view doesn't
@@ -6269,7 +6288,26 @@ function renderKanban(){
     });
     return { status:s, label:STATUS_LABELS[s], poles: colPoles };
   });
-  let html = renderViewHeaderStrip();
+  let html = "";
+  // Rev 2.69: If we entered Kanban from a customer detail, show the same
+  // customer-scoped mini-tabs at top so user can navigate back to Browse
+  // (customer detail) or List without losing scope.
+  const scopedCust = state._customerScopedFrom && state.data.customers[state._customerScopedFrom];
+  if(scopedCust){
+    html += `<div class="breadcrumb">
+      <a onclick="switchCustomerScopedView('browse','${scopedCust.id}')">${scopedCust.name}</a>
+      <span class="sep">›</span><strong>Kanban</strong>
+    </div>`;
+    html += `<div class="view-header-strip" style="margin-bottom:10px">
+      <div class="mini-tabs">
+        <button class="mini-tab" onclick="switchCustomerScopedView('browse','${scopedCust.id}')">📋 Browse</button>
+        <button class="mini-tab active" onclick="switchCustomerScopedView('kanban','${scopedCust.id}')">📊 Kanban</button>
+        <button class="mini-tab" onclick="switchCustomerScopedView('list','${scopedCust.id}')">📑 List</button>
+      </div>
+    </div>`;
+  } else {
+    html += renderViewHeaderStrip();
+  }
   html += `<div class="kanban">`;
   cols.forEach(col => {
     html += `<div class="kanban-col" data-status="${col.status}"
@@ -6675,7 +6713,24 @@ function renderList(){
   const ind = col => _listSort.col === col ? (_listSort.dir === "asc" ? " ▲" : " ▼") : "";
   const th = (col, label) => `<th onclick="setListSort('${col}')" style="cursor:pointer;user-select:none">${label}${ind(col)}</th>`;
 
-  let html = renderViewHeaderStrip();
+  let html = "";
+  // Rev 2.69: Customer-scoped mini-tabs if entered from customer detail
+  const scopedCust = state._customerScopedFrom && state.data.customers[state._customerScopedFrom];
+  if(scopedCust){
+    html += `<div class="breadcrumb">
+      <a onclick="switchCustomerScopedView('browse','${scopedCust.id}')">${scopedCust.name}</a>
+      <span class="sep">›</span><strong>List</strong>
+    </div>`;
+    html += `<div class="view-header-strip no-print" style="margin-bottom:10px">
+      <div class="mini-tabs">
+        <button class="mini-tab" onclick="switchCustomerScopedView('browse','${scopedCust.id}')">📋 Browse</button>
+        <button class="mini-tab" onclick="switchCustomerScopedView('kanban','${scopedCust.id}')">📊 Kanban</button>
+        <button class="mini-tab active" onclick="switchCustomerScopedView('list','${scopedCust.id}')">📑 List</button>
+      </div>
+    </div>`;
+  } else {
+    html += renderViewHeaderStrip();
+  }
   // Rev 2.16: 🖨️ Print button — formatted for paper via @media print CSS below.
   // Reflects the current filter set, so the printed list is exactly what's on screen.
   const filterSummary = [];
@@ -8250,6 +8305,31 @@ window.switchView = v => {
     state._prevView = v;
   }
   state.view = v;
+  document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view===v));
+  renderInstallsSubTabsInline();
+  renderActive();
+};
+
+// Rev 2.69: Customer-scoped view switch — used by the mini-tabs on the customer
+// detail page. Keeps state.drillCustomer so toggling back to Browse returns
+// to customer detail. While in Kanban/List, sets state.filter.customer so
+// collectPoles() narrows to just this customer's poles.
+window.switchCustomerScopedView = (v, customerId) => {
+  if(v === "browse"){
+    // Back to customer detail
+    state.view = "browse";
+    state.drillCustomer = customerId;
+    state.drillSite = null;
+    // Restore "all" customer filter — drillCustomer takes over scope
+    state.filter.customer = "all";
+  } else {
+    // Kanban or List scoped to this customer
+    state.view = v;
+    state.drillCustomer = null; // clear so we don't bounce back to detail
+    state.drillSite = null;
+    state._customerScopedFrom = customerId; // remember for Browse-return
+    state.filter.customer = customerId; // scope collectPoles + renderList
+  }
   document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view===v));
   renderInstallsSubTabsInline();
   renderActive();
