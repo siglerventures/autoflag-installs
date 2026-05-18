@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.65" />
+<meta name="app-rev" content="2.66" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.65</div>
+  <div class="ver">AutoFlag© · v2.66</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.65</span>
+    <span>v2.66</span>
     · <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2417,6 +2417,24 @@ onAuthStateChanged(auth, async user => {
   state.userRole = role;
   state.userPersonRecord = personRecord;
   state.isAdmin = (role === "admin");
+
+  // Rev 2.66: Cache the resolved role at /autoflag/uid_roles/{uid} for
+  // UID-keyed rule authorization. The email-keyed rule path is fragile —
+  // it fails intermittently during Firebase token refresh because the rules
+  // engine doesn't reliably short-circuit && when the RHS calls string methods
+  // on potentially-null auth.token.email. UID is always present when auth != null,
+  // so the new path is bulletproof. Awaited so the write commits before
+  // listeners subscribe — otherwise rules eval against pre-write state and deny.
+  if(user?.uid){
+    try {
+      const uidRolePatch = { role, updatedAt: Date.now() };
+      if(personRecord?.customerId) uidRolePatch.customerId = personRecord.customerId;
+      await patchNode(`autoflag/uid_roles/${user.uid}`, uidRolePatch);
+    } catch(e){
+      console.warn("[uid_roles] cache write failed (auth continues):", e?.message);
+    }
+  }
+
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("app").style.display="";
   document.getElementById("userPill").innerHTML =
