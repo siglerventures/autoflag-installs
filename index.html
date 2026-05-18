@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.66" />
+<meta name="app-rev" content="2.70" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1007,7 +1007,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.66</div>
+  <div class="ver">AutoFlag© · v2.70</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1087,7 +1087,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.66</span>
+    <span>v2.70</span>
     <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2085,25 +2085,20 @@ function isMobileDevice(){
 }
 
 window.signIn = async () => {
-  // Popup-first on all platforms. Redirect-based signin requires storage writes
-  // to bridge philinity-893d2.firebaseapp.com → siglerventures.github.io, which
-  // Android Chrome and Safari ITP block as cross-origin tracking. Popup keeps
-  // everything in the same tab/origin and avoids that class of failure.
-  // If popup itself fails (older browser, blocker), we fall back to redirect —
-  // that path may still fail on the same browsers, but at least the user sees
-  // a clear error instead of a silent bounce.
+  // Rev 2.70: Switched from popup-first to redirect-first because Chrome's
+  // Cross-Origin-Opener-Policy now blocks the parent page from detecting popup
+  // closure, causing "INTERNAL ASSERTION FAILED: Pending promise was never set"
+  // errors from Firebase Auth SDK. Redirect bypasses popup entirely — the page
+  // navigates to Google, user signs in, navigates back. Slightly different UX
+  // but reliable across all browsers.
   try {
-    await signInWithPopup(auth, PROVIDER);
+    sessionStorage.setItem("autoflag:redirectPending", String(Date.now()));
+  } catch(_){}
+  try {
+    await signInWithRedirect(auth, PROVIDER);
   } catch(e){
-    if(e.code === "auth/popup-blocked" || e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request"){
-      try {
-        try { sessionStorage.setItem("autoflag:redirectPending", "1"); } catch(_){}
-        await signInWithRedirect(auth, PROVIDER);
-      }
-      catch(e2){ toast("Sign-in failed: "+e2.message, true); }
-    } else {
-      toast("Sign-in failed: "+e.message, true);
-    }
+    toast("Sign-in failed: " + (e?.message || "unknown error"), true);
+    try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
   }
 };
 
@@ -2251,9 +2246,20 @@ let redirectHasUser = false;
 // signInWithRedirect — checking our own flag is reliable across all browsers
 // (sniffing Firebase's internal keys was unreliable: works on iOS Safari, fails
 // on Android Chrome which stores its redirect state in IndexedDB).
+// Detect whether this load is a return from our redirect-based sign-in.
+// Rev 2.70: Flag now stores Date.now() instead of "1", and is treated as stale
+// after 60 seconds. Prevents a stuck flag from a never-completed redirect from
+// trapping subsequent page loads in a 9-second timeout wait.
 function looksLikeRedirectReturn(){
   try{
-    return sessionStorage.getItem("autoflag:redirectPending") === "1";
+    const raw = sessionStorage.getItem("autoflag:redirectPending");
+    if(!raw) return false;
+    const ts = Number(raw);
+    if(!ts || Date.now() - ts > 60000){
+      try { sessionStorage.removeItem("autoflag:redirectPending"); } catch(_){}
+      return false;
+    }
+    return true;
   }catch(e){ return false; }
 }
 
