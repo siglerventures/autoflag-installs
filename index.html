@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.61" />
+<meta name="app-rev" content="2.66" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -985,20 +985,26 @@
   <div class="sub">Customer Installation / Tracking</div>
   <button class="btn-google" onclick="signIn()">Sign in with Google</button>
 
-  <!-- Rev 2.59: Email-link sign-in. Users without a Google account can request
-       a one-time sign-in link, sent to whatever email is on their peopleRoster
-       entry. Same role gating after sign-in — if the email isn't whitelisted,
-       they're still bounced. Just opens up auth to non-Google email providers. -->
+  <!-- Rev 2.64: Email + password sign-in. For users without a Google account.
+       Roster gate runs AFTER auth — only whitelisted emails can actually use the app. -->
   <div style="margin-top:14px;color:var(--text-muted);font-size:12px;text-align:center">or</div>
-  <div id="emailLinkUI" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px">
-    <input type="email" id="emailLinkInput" placeholder="your.email@example.com" autocomplete="email"
+  <div id="emailPwUI" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px">
+    <input type="email" id="emailPwEmail" placeholder="your.email@example.com" autocomplete="email"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('emailPwPassword').focus();}"
       style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
-    <button class="btn-secondary btn" id="emailLinkBtn" onclick="sendEmailLink()" style="width:100%">📧 Email me a sign-in link</button>
-    <div id="emailLinkMsg" style="font-size:11px;color:var(--text-muted);min-height:14px;text-align:center"></div>
+    <input type="password" id="emailPwPassword" placeholder="Password (6+ characters)" autocomplete="current-password"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();signInWithEmailPassword();}"
+      style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px" />
+    <div style="display:flex;gap:6px;width:100%">
+      <button class="btn" id="emailPwSignInBtn" onclick="signInWithEmailPassword()" style="flex:1">Sign In</button>
+      <button class="btn-secondary btn" id="emailPwSignUpBtn" onclick="createAccountWithEmailPassword()" style="flex:1" title="New users — set up your account">Create Account</button>
+    </div>
+    <button onclick="forgotPassword()" style="font-size:11px;padding:4px 8px;background:transparent;border:none;color:var(--text-muted);text-decoration:underline;cursor:pointer">Forgot password?</button>
+    <div id="emailPwMsg" style="font-size:11px;color:var(--text-muted);min-height:14px;text-align:center"></div>
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.61</div>
+  <div class="ver">AutoFlag© · v2.66</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1006,14 +1012,17 @@
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, parts, tools..." oninput="renderActive()" />
-    <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
-    <input type="text" id="aiInput" class="ai-bar-input" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
-    <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
-    <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
+    <!-- Rev 2.63: AI elements tagged .header-ai-el so they can all be hidden
+         together for customer role. AI context includes all customers + tool/BOM
+         prices + procedures — internal data customers shouldn't see. -->
+    <div class="ai-bar-label header-ai-el" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
+    <input type="text" id="aiInput" class="ai-bar-input header-ai-el" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
+    <button class="ai-icon-btn header-ai-el" onclick="askAI()" title="Ask AI">🤖</button>
+    <button class="ai-icon-btn header-ai-el" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
       📸
       <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
     </button>
-    <button class="ai-icon-btn" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
+    <button class="ai-icon-btn header-ai-el" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
     <!-- Rev 2.25: Top-right 🚨 button removed — was redundant with the
          🚨 Issues view tab AND had confusing dual purpose (badge for count
          but click went to file-new). Now the canonical entry point is
@@ -1075,17 +1084,14 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.61</span>
-    · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
-    · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
+    <span>v2.66</span>
+    · <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
+    · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
-    <!-- Rev 2.31: Cache-bust refresh. Cheap escape hatch when an installer/admin
-         sees stale UI after a deploy. Adds a timestamp query param to bypass
-         browser + GitHub Pages cache, then reloads. Cheaper than a full
-         version-check + banner system; revisit when off GitHub. -->
-    · <span class="ftr-link" onclick="hardRefresh()" title="Force-reload to get the latest version">🔄 Refresh</span>
+    <!-- Rev 2.62: 🔄 Refresh removed. Realtime subscribe keeps data fresh.
+         If admin needs cache-bust during deploy, Ctrl+Shift+R works. -->
   </footer>
 </div>
 
@@ -1818,7 +1824,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue, push, child } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getStorage, ref as storageRef, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCrW9Lrf7fWVqRxKqsnuPK0tL6UYbd_qds",
@@ -2032,7 +2038,11 @@ function sanitizeCustomer(c, id){
 // a pole via (customerId, siteId, poleId). Status is just open|resolved.
 function sanitizeIssue(iss, id){
   if(!iss || typeof iss !== "object") iss = {};
-  const status = ["open","resolved"].includes(iss.status) ? iss.status : "open";
+  // Rev 2.62: All 8 issue statuses are valid — was previously coercing
+  // intermediate states ("waiting_parts", "in_progress", etc.) back to "open"
+  // because the sanitizer's whitelist only included open/resolved.
+  const VALID_STATUSES = ["open","dispatched","in_progress","waiting_parts","waiting_customer","re_dispatched","resolved","cancelled"];
+  const status = VALID_STATUSES.includes(iss.status) ? iss.status : "open";
   return {
     id,
     customerId: stripHTML(iss.customerId||""),
@@ -2055,6 +2065,8 @@ function sanitizeIssue(iss, id){
     resolvedAt: Number(iss.resolvedAt) || 0,
     resolution: stripHTML(iss.resolution||""),
     resolutionPhotos: Array.isArray(iss.resolutionPhotos) ? iss.resolutionPhotos.filter(x => typeof x==="string" && /^https:\/\//.test(x)) : [],
+    // Rev 2.62: Preserve history log — was being silently stripped on Firebase updates.
+    history: Array.isArray(iss.history) ? iss.history : [],
     updatedAt: Number(iss.updatedAt) || Date.now()
   };
 }
@@ -2088,76 +2100,114 @@ window.signIn = async () => {
   }
 };
 
-// Rev 2.59: Email-link sign-in for users without a Google account.
-// Flow:
-//   1. User types their email, clicks "Email me a sign-in link"
-//   2. Firebase sends a one-time link to that email
-//   3. User clicks the link in their email → browser opens this page with a
-//      magic param in the URL → we detect it and complete sign-in automatically
-//   4. Email is stashed in localStorage during step 1 so step 3 can complete
-//      without re-asking
-//   5. Just like Google sign-in, peopleRoster gates access AFTER auth — random
-//      emails get bounced with "Access denied"
-window.sendEmailLink = async () => {
-  const emailInput = document.getElementById("emailLinkInput");
-  const btn = document.getElementById("emailLinkBtn");
-  const msg = document.getElementById("emailLinkMsg");
-  const email = (emailInput?.value || "").trim().toLowerCase();
-  if(!email){ msg.textContent = "Enter your email first"; msg.style.color = "var(--red)"; return; }
+// Rev 2.64: Email + password sign-in. Three handlers, all feed into
+// onAuthStateChanged which gates by peopleRoster. Roster gate is unchanged —
+// random emails create a Firebase account but the app bounces them on role lookup.
+// Note: NOT including orphan auto-cleanup (Rev 2.64 prior) — that broke auth.
+// If a non-whitelisted email creates an account, admin can delete the orphan
+// in Firebase Console.
+
+function _emailPwUI(){
+  return {
+    emailEl: document.getElementById("emailPwEmail"),
+    pwEl: document.getElementById("emailPwPassword"),
+    signInBtn: document.getElementById("emailPwSignInBtn"),
+    signUpBtn: document.getElementById("emailPwSignUpBtn"),
+    msg: document.getElementById("emailPwMsg")
+  };
+}
+function _emailPwReadInputs(){
+  const ui = _emailPwUI();
+  const email = (ui.emailEl?.value || "").trim().toLowerCase();
+  const pw = ui.pwEl?.value || "";
+  if(!email){
+    ui.msg.textContent = "Enter your email";
+    ui.msg.style.color = "var(--red)";
+    return null;
+  }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-    msg.textContent = "That email doesn't look valid";
-    msg.style.color = "var(--red)";
+    ui.msg.textContent = "That email doesn't look valid";
+    ui.msg.style.color = "var(--red)";
+    return null;
+  }
+  return { email, pw, ui };
+}
+function _emailPwBusy(busy){
+  const ui = _emailPwUI();
+  if(ui.signInBtn) ui.signInBtn.disabled = busy;
+  if(ui.signUpBtn) ui.signUpBtn.disabled = busy;
+}
+function _emailPwError(e){
+  const ui = _emailPwUI();
+  const code = e?.code || "";
+  let plain = e?.message || "Unknown error";
+  if(code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"){
+    plain = "Wrong email or password. New here? Click 'Create Account'.";
+  } else if(code === "auth/email-already-in-use"){
+    plain = "An account already exists for this email. Use Sign In, or click 'Forgot password?'.";
+  } else if(code === "auth/weak-password"){
+    plain = "Password must be at least 6 characters.";
+  } else if(code === "auth/too-many-requests"){
+    plain = "Too many attempts. Wait a few minutes and try again.";
+  } else if(code === "auth/network-request-failed"){
+    plain = "Network problem. Check your connection and retry.";
+  }
+  ui.msg.textContent = plain;
+  ui.msg.style.color = "var(--red)";
+  _emailPwBusy(false);
+}
+
+window.signInWithEmailPassword = async () => {
+  const r = _emailPwReadInputs();
+  if(!r) return;
+  if(!r.pw){
+    r.ui.msg.textContent = "Enter your password";
+    r.ui.msg.style.color = "var(--red)";
     return;
   }
-  btn.disabled = true;
-  btn.textContent = "Sending...";
-  msg.textContent = "";
+  _emailPwBusy(true);
+  r.ui.msg.textContent = "Signing in...";
+  r.ui.msg.style.color = "var(--text-muted)";
   try {
-    await sendSignInLinkToEmail(auth, email, {
-      url: window.location.href.split("?")[0], // return URL — strip query so we don't loop
-      handleCodeInApp: true
-    });
-    // Stash email so we can complete sign-in when they click the link
-    try { localStorage.setItem("autoflag:emailLinkEmail", email); } catch(_){}
-    msg.innerHTML = `✓ Check <strong>${escapeHtml(email)}</strong> for a sign-in link. Open it on this same device.`;
-    msg.style.color = "var(--green)";
-    btn.textContent = "Link sent — check your email";
-    // Don't re-enable; user should follow the link, not click again
+    await signInWithEmailAndPassword(auth, r.email, r.pw);
   } catch(e){
-    console.error("Email link send failed:", e);
-    msg.textContent = "Couldn't send: " + (e.message || "unknown error");
-    msg.style.color = "var(--red)";
-    btn.disabled = false;
-    btn.textContent = "📧 Email me a sign-in link";
+    _emailPwError(e);
   }
 };
 
-// Check on page load if we just came back from clicking an email link
-async function maybeCompleteEmailLinkSignIn(){
-  if(!isSignInWithEmailLink(auth, window.location.href)) return;
-  // Pull the email we stashed. If it's not there (e.g., they opened the link
-  // on a different device), prompt for it — same email Firebase sent the link to.
-  let email = null;
-  try { email = localStorage.getItem("autoflag:emailLinkEmail"); } catch(_){}
-  if(!email){
-    email = prompt("Please confirm your email to finish signing in:");
-    if(!email) return;
+window.createAccountWithEmailPassword = async () => {
+  const r = _emailPwReadInputs();
+  if(!r) return;
+  if(!r.pw || r.pw.length < 6){
+    r.ui.msg.textContent = "Pick a password with at least 6 characters";
+    r.ui.msg.style.color = "var(--red)";
+    return;
   }
+  _emailPwBusy(true);
+  r.ui.msg.textContent = "Creating account...";
+  r.ui.msg.style.color = "var(--text-muted)";
   try {
-    await signInWithEmailLink(auth, email, window.location.href);
-    try { localStorage.removeItem("autoflag:emailLinkEmail"); } catch(_){}
-    // Clean the URL so refreshes don't try to re-process the link
-    if(window.history?.replaceState){
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    // onAuthStateChanged fires automatically and gates role from peopleRoster
+    await createUserWithEmailAndPassword(auth, r.email, r.pw);
   } catch(e){
-    console.error("Email link sign-in failed:", e);
-    toast("Email link sign-in failed: " + (e.message || "expired or invalid"), true);
+    _emailPwError(e);
   }
-}
-// Run on script load — checks the URL once
-maybeCompleteEmailLinkSignIn();;
+};
+
+window.forgotPassword = async () => {
+  const r = _emailPwReadInputs();
+  if(!r) return;
+  _emailPwBusy(true);
+  r.ui.msg.textContent = "Sending reset email...";
+  r.ui.msg.style.color = "var(--text-muted)";
+  try {
+    await sendPasswordResetEmail(auth, r.email);
+    r.ui.msg.innerHTML = `✓ Check <strong>${escapeHtml(r.email)}</strong> for a password reset link.`;
+    r.ui.msg.style.color = "var(--green)";
+    _emailPwBusy(false);
+  } catch(e){
+    _emailPwError(e);
+  }
+};
 
 // Track redirect-result resolution state. On page load, we don't know yet
 // whether we're coming back from a sign-in redirect. onAuthStateChanged can
@@ -2367,6 +2417,24 @@ onAuthStateChanged(auth, async user => {
   state.userRole = role;
   state.userPersonRecord = personRecord;
   state.isAdmin = (role === "admin");
+
+  // Rev 2.66: Cache the resolved role at /autoflag/uid_roles/{uid} for
+  // UID-keyed rule authorization. The email-keyed rule path is fragile —
+  // it fails intermittently during Firebase token refresh because the rules
+  // engine doesn't reliably short-circuit && when the RHS calls string methods
+  // on potentially-null auth.token.email. UID is always present when auth != null,
+  // so the new path is bulletproof. Awaited so the write commits before
+  // listeners subscribe — otherwise rules eval against pre-write state and deny.
+  if(user?.uid){
+    try {
+      const uidRolePatch = { role, updatedAt: Date.now() };
+      if(personRecord?.customerId) uidRolePatch.customerId = personRecord.customerId;
+      await patchNode(`autoflag/uid_roles/${user.uid}`, uidRolePatch);
+    } catch(e){
+      console.warn("[uid_roles] cache write failed (auth continues):", e?.message);
+    }
+  }
+
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("app").style.display="";
   document.getElementById("userPill").innerHTML =
@@ -2378,6 +2446,16 @@ onAuthStateChanged(auth, async user => {
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("peopleBtn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
+  // Rev 2.62: Data Manager + History footer links — admin only.
+  // Data Manager exposed export-all-data which was a security leak for installers/customers.
+  const ftrData = document.getElementById("ftrDataLink");
+  const ftrHist = document.getElementById("ftrHistoryLink");
+  if(ftrData) ftrData.style.display = state.isAdmin ? "" : "none";
+  if(ftrHist) ftrHist.style.display = state.isAdmin ? "" : "none";
+  // Rev 2.63: Hide Ask AI from customers (AI context exposes internal data)
+  document.querySelectorAll(".header-ai-el").forEach(el => {
+    el.style.display = (state.userRole === "customer") ? "none" : "";
+  });
   // Rev 2.59: Customer role gets a separate "Manage your team" button that opens
   // a customer-scoped people modal (same modal, different gating).
   const customerPeopleBtn = document.getElementById("customerPeopleBtn");
@@ -2389,10 +2467,15 @@ onAuthStateChanged(auth, async user => {
   const installsTab = document.getElementById("installsViewTab");
   if(installsTab) installsTab.style.display = (state.userRole === "customer") ? "none" : "";
 
-  // Admins subscribe to people roster for the management UI; everyone reads procedures + data
+  // Rev 2.65: Customers shouldn't subscribe to tools / parts / mechanical-parts /
+  // procedures — they don't have read access to those paths, and trying to
+  // subscribe causes a permission_denied flood in their console. Issues + customer
+  // tree are the only paths they need.
   if(state.isAdmin) subscribePeople();
-  subscribeProcedures();
-  subscribeToolsAndParts();
+  if(state.userRole !== "customer"){
+    subscribeProcedures();
+    subscribeToolsAndParts();
+  }
   subscribeIssues();
 
   // Rev 2.59: Customer role now enters the app (was bounced to "portal not ready" pre-2.59).
@@ -2733,6 +2816,11 @@ function subscribeRealtime(){
     applyCustomerSnapshot(snap.val(), "onValue");
   }, err => {
     console.error("onValue error:", err?.code, err?.message);
+    // Rev 2.64: Suppress error toast if we're signing out or already signed out.
+    // The listener keeps firing during the sign-out window before it tears down;
+    // each call fails with permission_denied because auth is gone. Showing the
+    // toast to a user mid-signout is confusing and looks like a real bug.
+    if(signOutInProgress || !state.user) return;
     toast("Read failed: "+err.message, true);
   });
 }
@@ -5403,7 +5491,11 @@ window.renderActive = () => {
 
 function renderFilterBar(){
   const bar = document.getElementById("filterBar");
-  let html = `<span class="filter-label">Status:</span>`;
+  // Rev 2.62: 🏡 Home anchors the start of the filter bar. Single global Home,
+  // always reachable; removed duplicate from per-customer mini-tabs.
+  let html = `<button class="chip" onclick="goHomeMini()" title="Back to top-level Browse">🏡 Home</button>`;
+  html += `<span class="filter-sep"></span>`;
+  html += `<span class="filter-label">Status:</span>`;
   html += `<span class="chip ${state.filter.status==='all'?'active':''}" onclick="setStatusFilter('all')">All</span>`;
   STATUSES.forEach(s => {
     html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${STATUS_LABELS[s]}</span>`;
@@ -5508,21 +5600,16 @@ window.filterByType = (installType, customerId) => {
 //   leftContent   — optional HTML to show on the left side of the strip (e.g., "4 customers" count)
 //   showExpand    — Browse-only: include the Expand/Collapse toggle button on the right
 function renderViewHeaderStrip({ leftContent = "", showExpand = false } = {}){
+  // Rev 2.62: Home moved to global filter bar; mini-tabs now only show
+  // Browse / Kanban / List.
   const tabs = [
-    { id: "home",   label: "🏡 Home"   },
     { id: "browse", label: "📋 Browse" },
     { id: "kanban", label: "📊 Kanban" },
     { id: "list",   label: "📑 List" }
   ];
-  // Rev 2.17: Home isn't a state.view value — it's an action that switches to
-  // Browse and collapses everything. Doesn't show as "active" because we never
-  // remain in a "home" state (it always lands in Browse).
-  const tabsHtml = tabs.map(t => {
-    if(t.id === "home"){
-      return `<button class="mini-tab" onclick="goHomeMini()">${t.label}</button>`;
-    }
-    return `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`;
-  }).join('');
+  const tabsHtml = tabs.map(t =>
+    `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`
+  ).join('');
   const leftHtml = leftContent ? `<div class="view-header-strip-left">${leftContent}<div class="mini-tabs">${tabsHtml}</div></div>` : `<div class="mini-tabs">${tabsHtml}</div>`;
   const expandHtml = showExpand
     ? `<div class="view-header-strip-right"><button class="mini-expand-btn" id="expandToggleBtn" onclick="toggleExpandCollapse()">Expand</button></div>`
@@ -8141,13 +8228,12 @@ window.toggleInstallsSection = (sectionId) => {
 };
 
 window.switchView = v => {
-  // Map toggle: if user clicks the Map tab while Map is already active,
-  // switch back to whatever view they had before (or Browse if none tracked).
-  // This makes the Map tab feel like a toggle: tap to open, tap again to close.
-  if(v === "map" && state.view === "map"){
+  // Rev 2.63: Both Map and Issues toggle: clicking the active tab returns to
+  // the prior view (or Browse). Issues was clicker-trap pre-2.63.
+  const TOGGLEABLE = ["map", "issues"];
+  if(TOGGLEABLE.includes(v) && state.view === v){
     v = state._prevView || "browse";
-  } else if(v !== "map"){
-    // Remember the last non-map view so re-tapping Map can return here
+  } else if(!TOGGLEABLE.includes(v)){
     state._prevView = v;
   }
   state.view = v;
@@ -11588,7 +11674,7 @@ window.openIssueDetail = (issueId) => {
             <option value="">— pick installer —</option>
             ${dispatchOptions.map(o => `<option value="${escapeHtml(o.key)}" ${iss.dispatchedTo===o.key?'selected':''}>${escapeHtml(o.name)}</option>`).join("")}
           </select>
-          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')">Dispatch</button>
+          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')" title="Quick reassign without changing status. Save (below) also writes this if you change it.">Dispatch only</button>
         </div>
         ${iss.dispatchedTo ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Currently dispatched to <strong>${escapeHtml(iss.dispatchedToName)}</strong></div>` : ""}
       </div>`;
@@ -11637,11 +11723,23 @@ window.openIssueDetail = (issueId) => {
       const statusLabel = statusInfo ? statusInfo.label : status;
       const statusColor = statusInfo ? statusInfo.color : "#888";
       const photos = (h.photos||[]).map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener"><img src="${escapeHtml(u)}" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid var(--border);margin-top:4px;margin-right:4px" /></a>`).join("");
+      // Rev 2.63: Show dispatch change inline with status change.
+      let dispatchLine = "";
+      if(h.dispatchTo){
+        if(h.dispatchFrom){
+          dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Re-dispatched from <strong>${escapeHtml(h.dispatchFromName||h.dispatchFrom)}</strong> to <strong>${escapeHtml(h.dispatchToName||h.dispatchTo)}</strong></div>`;
+        } else {
+          dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Dispatched to <strong>${escapeHtml(h.dispatchToName||h.dispatchTo)}</strong></div>`;
+        }
+      } else if(h.dispatchFrom && !h.dispatchTo){
+        dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Unassigned (was <strong>${escapeHtml(h.dispatchFromName||h.dispatchFrom)}</strong>)</div>`;
+      }
       return `<div style="border-left:3px solid ${statusColor};padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:0 4px 4px 0">
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">
           <span style="color:${statusColor};font-weight:600">${escapeHtml(statusLabel)}</span> · ${escapeHtml(h.byName || "unknown")} · ${new Date(h.at || 0).toLocaleString()}
         </div>
         <div style="font-size:13px;white-space:pre-wrap">${escapeHtml(h.note || "")}</div>
+        ${dispatchLine}
         ${photos ? `<div style="margin-top:4px">${photos}</div>` : ""}
       </div>`;
     }).join("");
@@ -11892,15 +11990,37 @@ window.saveIssueProgress = async (issueId) => {
     toast("Invalid status", true); return;
   }
 
-  // If choosing a terminal status with no note, confirm — but for "in_progress"
-  // / "waiting_*" mid-state updates, a note is required since the whole point
-  // is to log what happened.
+  // Rev 2.63: Read dispatch dropdown too. Single Save handles both status AND
+  // dispatch — was a two-button gotcha where admin set Jake + status + note
+  // and clicked Save, but dispatch never wrote (Save didn't read the dropdown).
+  const dispatchSel = document.getElementById("issd-dispatch");
+  const newDispatchTo = dispatchSel ? dispatchSel.value : (iss.dispatchedTo || "");
+  const dispatchChanged = (newDispatchTo || "") !== (iss.dispatchedTo || "");
+  let newDispatchToName = iss.dispatchedToName || "";
+  if(dispatchChanged && newDispatchTo){
+    if(newDispatchTo === PHIL_UID){
+      newDispatchToName = "Phil Sigler";
+    } else if(typeof peopleRoster === "object" && peopleRoster[newDispatchTo]){
+      newDispatchToName = peopleRoster[newDispatchTo].name || peopleRoster[newDispatchTo].email || newDispatchTo;
+    } else {
+      newDispatchToName = newDispatchTo;
+    }
+  } else if(dispatchChanged && !newDispatchTo){
+    newDispatchToName = "";
+  }
+
+  // If choosing a terminal status with no note, confirm. For mid-state updates
+  // (in_progress / waiting_*), a note is required to log what happened.
   const isTerminal = newStatus === "resolved" || newStatus === "cancelled";
-  if(!note && !isTerminal){
+  const statusChanged = newStatus !== (iss.status || "open");
+  if(!note && !isTerminal && (statusChanged || dispatchChanged)){
     toast("Add a note describing what happened", true); return;
   }
   if(!note && isTerminal){
     if(!confirm(`Mark as ${statusLabel(newStatus)} with no note?`)) return;
+  }
+  if(!statusChanged && !dispatchChanged && !note && resolutionPendingPhotos.length === 0){
+    toast("Nothing to save", true); return;
   }
 
   toast("Saving...");
@@ -11924,6 +12044,7 @@ window.saveIssueProgress = async (issueId) => {
   const byKey = peopleEmailKeyForCurrentUser();
   const byName = state.user?.displayName || state.user?.email || "(unknown)";
 
+  // Rev 2.63: History entry records dispatch change too.
   const historyEntry = {
     at: now,
     by: byKey,
@@ -11933,16 +12054,25 @@ window.saveIssueProgress = async (issueId) => {
     note,
     photos: photoUrls
   };
+  if(dispatchChanged){
+    historyEntry.dispatchTo = newDispatchTo;
+    historyEntry.dispatchToName = newDispatchToName;
+    historyEntry.dispatchFrom = iss.dispatchedTo || "";
+    historyEntry.dispatchFromName = iss.dispatchedToName || "";
+  }
   const newHistory = Array.isArray(iss.history) ? [...iss.history, historyEntry] : [historyEntry];
 
-  // Build the patch. Always update status + history + updatedAt. If terminal, also
-  // stamp the resolution-specific fields so the existing list view / legacy code
-  // that reads iss.resolution still works.
   const patch = {
     status: newStatus,
     history: newHistory,
     updatedAt: now
   };
+  if(dispatchChanged){
+    patch.dispatchedTo = newDispatchTo;
+    patch.dispatchedToName = newDispatchToName;
+    patch.dispatchedAt = newDispatchTo ? now : 0;
+    patch.dispatchedBy = newDispatchTo ? byKey : "";
+  }
   if(newStatus === "resolved"){
     patch.resolution = note;
     patch.resolutionPhotos = photoUrls;
@@ -12101,15 +12231,17 @@ function renderIssues(){
     });
   }
   const all = allIssues.sort((a,b) => b.filedAt - a.filedAt);
-  const open = all.filter(i => i.status === "open");
+  // Rev 2.62: All non-terminal statuses are "Active". Was filtering for literal
+  // "open" / "resolved" only, so intermediate-status issues disappeared.
+  const TERMINAL = ["resolved", "cancelled"];
+  const active = all.filter(i => !TERMINAL.includes(i.status || "open"));
   const resolved = all.filter(i => i.status === "resolved");
+  const cancelled = all.filter(i => i.status === "cancelled");
 
   let html = renderViewHeaderStrip();
-  html += `<div class="list-toolbar no-print">
-    <div class="list-toolbar-left">
-      <strong>${all.length}</strong> issue${all.length===1?'':'s'}
-      <div class="list-subtitle">${open.length} open · ${resolved.length} resolved</div>
-    </div>
+  // Rev 2.65: Dropped the "N issues · M active · K resolved" toolbar header — the
+  // section headings "🚨 Active (N)" / "✓ Resolved (N)" already show counts.
+  html += `<div class="list-toolbar no-print" style="justify-content:flex-end">
     <div class="list-toolbar-right">
       <button class="list-print-btn" onclick="openIssueFiler()">+ New Issue</button>
     </div>
@@ -12120,7 +12252,7 @@ function renderIssues(){
     return html;
   }
 
-  // Open issues first, then resolved
+  // Active issues first, then resolved
   const renderRows = (issues) => issues.map(iss => {
     const c = state.data.customers[iss.customerId];
     const s = c?.sites?.[iss.siteId];
@@ -12128,8 +12260,13 @@ function renderIssues(){
     const dispatchInfo = iss.dispatchedTo
       ? `→ ${escapeHtml(iss.dispatchedToName||iss.dispatchedTo)}`
       : `<span style="color:var(--text-muted);font-style:italic">unassigned</span>`;
+    // Rev 2.62: Per-row status badge with color from ISSUE_STATUSES.
+    const statusKey = iss.status || "open";
+    const statusInfo = ISSUE_STATUSES.find(x => x.key === statusKey) || ISSUE_STATUSES[0];
+    const statusBadge = `<span style="font-size:10px;background:${statusInfo.color}22;color:${statusInfo.color};border:1px solid ${statusInfo.color}55;padding:2px 6px;border-radius:3px;font-weight:600;letter-spacing:.4px">${escapeHtml(statusInfo.label.toUpperCase())}</span>`;
     return `<tr onclick="openIssueDetail('${iss.id}')">
       <td><strong>${escapeHtml(iss.title)}</strong></td>
+      <td>${statusBadge}</td>
       <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
@@ -12139,32 +12276,38 @@ function renderIssues(){
     </tr>`;
   }).join("");
 
-  if(open.length){
-    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Open (${open.length})</h3>`;
+  if(active.length){
+    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Active (${active.length})</h3>`;
     html += `<table class="list-table"><thead><tr>
-      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
-    </tr></thead><tbody>${renderRows(open)}</tbody></table>`;
+      <th>Issue</th><th>Status</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
+    </tr></thead><tbody>${renderRows(active)}</tbody></table>`;
   }
   if(resolved.length){
-    html += `<h3 style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px">✓ Resolved (${resolved.length})</h3>`;
-    html += `<table class="list-table"><thead><tr>
-      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
-    </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
-      const c = state.data.customers[iss.customerId];
-      const s = c?.sites?.[iss.siteId];
-      const p = s?.poles?.[iss.poleId];
-      return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
-        <td><strong>${escapeHtml(iss.title)}</strong></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
-        <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
-        <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
-        <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
-      </tr>`;
-    }).join("")}</tbody></table>`;
-    if(resolved.length > 50){
-      html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+    // Rev 2.63: Resolved section collapsed by default. Click ▶/▼ heading to toggle.
+    // Solves the "resolved list dumped below active issues confused users" UX.
+    const expanded = !!window._issuesResolvedExpanded;
+    const indicator = expanded ? "▼" : "▶";
+    html += `<h3 onclick="window._issuesResolvedExpanded=!${expanded};renderActive()" style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;user-select:none" title="${expanded ? 'Hide' : 'Show'} resolved issues">${indicator} ✓ Resolved (${resolved.length})</h3>`;
+    if(expanded){
+      html += `<table class="list-table"><thead><tr>
+        <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
+      </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
+        const c = state.data.customers[iss.customerId];
+        const s = c?.sites?.[iss.siteId];
+        const p = s?.poles?.[iss.poleId];
+        return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
+          <td><strong>${escapeHtml(iss.title)}</strong></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
+          <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
+          <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
+          <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
+      if(resolved.length > 50){
+        html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+      }
     }
   }
   return html;
@@ -12176,7 +12319,9 @@ function renderIssues(){
 // assigned to (matches the visibility filter applied to customers/poles).
 // Returns the count + the actual list of issues for downstream filtering.
 function visibleOpenIssues(){
-  const all = Object.values(state.issues || {}).filter(i => i.status === "open");
+  // Rev 2.62: All non-terminal statuses count as "active" for badge.
+  const TERMINAL = ["resolved", "cancelled"];
+  const all = Object.values(state.issues || {}).filter(i => !TERMINAL.includes(i.status || "open"));
   if(state.isAdmin) return all;
   // Rev 2.60: Customer scope — issues on poles under their customerId
   if(state.userRole === "customer"){
