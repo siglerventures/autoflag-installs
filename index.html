@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.64" />
+<meta name="app-rev" content="2.65" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.64</div>
+  <div class="ver">AutoFlag© · v2.65</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.64</span>
+    <span>v2.65</span>
     · <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2449,10 +2449,15 @@ onAuthStateChanged(auth, async user => {
   const installsTab = document.getElementById("installsViewTab");
   if(installsTab) installsTab.style.display = (state.userRole === "customer") ? "none" : "";
 
-  // Admins subscribe to people roster for the management UI; everyone reads procedures + data
+  // Rev 2.65: Customers shouldn't subscribe to tools / parts / mechanical-parts /
+  // procedures — they don't have read access to those paths, and trying to
+  // subscribe causes a permission_denied flood in their console. Issues + customer
+  // tree are the only paths they need.
   if(state.isAdmin) subscribePeople();
-  subscribeProcedures();
-  subscribeToolsAndParts();
+  if(state.userRole !== "customer"){
+    subscribeProcedures();
+    subscribeToolsAndParts();
+  }
   subscribeIssues();
 
   // Rev 2.59: Customer role now enters the app (was bounced to "portal not ready" pre-2.59).
@@ -12216,11 +12221,9 @@ function renderIssues(){
   const cancelled = all.filter(i => i.status === "cancelled");
 
   let html = renderViewHeaderStrip();
-  html += `<div class="list-toolbar no-print">
-    <div class="list-toolbar-left">
-      <strong>${all.length}</strong> issue${all.length===1?'':'s'}
-      <div class="list-subtitle">${active.length} active · ${resolved.length} resolved${cancelled.length ? ` · ${cancelled.length} cancelled` : ''}</div>
-    </div>
+  // Rev 2.65: Dropped the "N issues · M active · K resolved" toolbar header — the
+  // section headings "🚨 Active (N)" / "✓ Resolved (N)" already show counts.
+  html += `<div class="list-toolbar no-print" style="justify-content:flex-end">
     <div class="list-toolbar-right">
       <button class="list-print-btn" onclick="openIssueFiler()">+ New Issue</button>
     </div>
