@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.61" />
+<meta name="app-rev" content="2.62" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -998,7 +998,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.61</div>
+  <div class="ver">AutoFlag© · v2.62</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1075,17 +1075,14 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.61</span>
-    · <span class="ftr-link" onclick="openDataModal()">📦 Data</span>
-    · <span class="ftr-link" onclick="openHistoryModal()">📜 History</span>
+    <span>v2.62</span>
+    · <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
+    · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
     <span class="user-pill" id="userPill" style="display:inline-flex;background:transparent;border:none;padding:0 4px;vertical-align:middle"></span>
     · <span class="ftr-link" onclick="signOutNow()">🚪 Sign Out</span>
-    <!-- Rev 2.31: Cache-bust refresh. Cheap escape hatch when an installer/admin
-         sees stale UI after a deploy. Adds a timestamp query param to bypass
-         browser + GitHub Pages cache, then reloads. Cheaper than a full
-         version-check + banner system; revisit when off GitHub. -->
-    · <span class="ftr-link" onclick="hardRefresh()" title="Force-reload to get the latest version">🔄 Refresh</span>
+    <!-- Rev 2.62: 🔄 Refresh removed. Realtime subscribe keeps data fresh.
+         If admin needs cache-bust during deploy, Ctrl+Shift+R works. -->
   </footer>
 </div>
 
@@ -2032,7 +2029,11 @@ function sanitizeCustomer(c, id){
 // a pole via (customerId, siteId, poleId). Status is just open|resolved.
 function sanitizeIssue(iss, id){
   if(!iss || typeof iss !== "object") iss = {};
-  const status = ["open","resolved"].includes(iss.status) ? iss.status : "open";
+  // Rev 2.62: All 8 issue statuses are valid — was previously coercing
+  // intermediate states ("waiting_parts", "in_progress", etc.) back to "open"
+  // because the sanitizer's whitelist only included open/resolved.
+  const VALID_STATUSES = ["open","dispatched","in_progress","waiting_parts","waiting_customer","re_dispatched","resolved","cancelled"];
+  const status = VALID_STATUSES.includes(iss.status) ? iss.status : "open";
   return {
     id,
     customerId: stripHTML(iss.customerId||""),
@@ -2055,6 +2056,8 @@ function sanitizeIssue(iss, id){
     resolvedAt: Number(iss.resolvedAt) || 0,
     resolution: stripHTML(iss.resolution||""),
     resolutionPhotos: Array.isArray(iss.resolutionPhotos) ? iss.resolutionPhotos.filter(x => typeof x==="string" && /^https:\/\//.test(x)) : [],
+    // Rev 2.62: Preserve history log — was being silently stripped on Firebase updates.
+    history: Array.isArray(iss.history) ? iss.history : [],
     updatedAt: Number(iss.updatedAt) || Date.now()
   };
 }
@@ -2378,6 +2381,12 @@ onAuthStateChanged(auth, async user => {
   document.getElementById("add-customer-btn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("peopleBtn").style.display = state.isAdmin ? "" : "none";
   document.getElementById("proceduresBtn").style.display = state.isAdmin ? "" : "none";
+  // Rev 2.62: Data Manager + History footer links — admin only.
+  // Data Manager exposed export-all-data which was a security leak for installers/customers.
+  const ftrData = document.getElementById("ftrDataLink");
+  const ftrHist = document.getElementById("ftrHistoryLink");
+  if(ftrData) ftrData.style.display = state.isAdmin ? "" : "none";
+  if(ftrHist) ftrHist.style.display = state.isAdmin ? "" : "none";
   // Rev 2.59: Customer role gets a separate "Manage your team" button that opens
   // a customer-scoped people modal (same modal, different gating).
   const customerPeopleBtn = document.getElementById("customerPeopleBtn");
@@ -5403,7 +5412,11 @@ window.renderActive = () => {
 
 function renderFilterBar(){
   const bar = document.getElementById("filterBar");
-  let html = `<span class="filter-label">Status:</span>`;
+  // Rev 2.62: 🏡 Home anchors the start of the filter bar. Single global Home,
+  // always reachable; removed duplicate from per-customer mini-tabs.
+  let html = `<button class="chip" onclick="goHomeMini()" title="Back to top-level Browse">🏡 Home</button>`;
+  html += `<span class="filter-sep"></span>`;
+  html += `<span class="filter-label">Status:</span>`;
   html += `<span class="chip ${state.filter.status==='all'?'active':''}" onclick="setStatusFilter('all')">All</span>`;
   STATUSES.forEach(s => {
     html += `<span class="chip ${state.filter.status===s?'active':''}" onclick="setStatusFilter('${s}')">${STATUS_LABELS[s]}</span>`;
@@ -5508,21 +5521,16 @@ window.filterByType = (installType, customerId) => {
 //   leftContent   — optional HTML to show on the left side of the strip (e.g., "4 customers" count)
 //   showExpand    — Browse-only: include the Expand/Collapse toggle button on the right
 function renderViewHeaderStrip({ leftContent = "", showExpand = false } = {}){
+  // Rev 2.62: Home moved to global filter bar; mini-tabs now only show
+  // Browse / Kanban / List.
   const tabs = [
-    { id: "home",   label: "🏡 Home"   },
     { id: "browse", label: "📋 Browse" },
     { id: "kanban", label: "📊 Kanban" },
     { id: "list",   label: "📑 List" }
   ];
-  // Rev 2.17: Home isn't a state.view value — it's an action that switches to
-  // Browse and collapses everything. Doesn't show as "active" because we never
-  // remain in a "home" state (it always lands in Browse).
-  const tabsHtml = tabs.map(t => {
-    if(t.id === "home"){
-      return `<button class="mini-tab" onclick="goHomeMini()">${t.label}</button>`;
-    }
-    return `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`;
-  }).join('');
+  const tabsHtml = tabs.map(t =>
+    `<button class="mini-tab ${state.view === t.id ? 'active' : ''}" onclick="switchView('${t.id}')">${t.label}</button>`
+  ).join('');
   const leftHtml = leftContent ? `<div class="view-header-strip-left">${leftContent}<div class="mini-tabs">${tabsHtml}</div></div>` : `<div class="mini-tabs">${tabsHtml}</div>`;
   const expandHtml = showExpand
     ? `<div class="view-header-strip-right"><button class="mini-expand-btn" id="expandToggleBtn" onclick="toggleExpandCollapse()">Expand</button></div>`
@@ -12101,14 +12109,18 @@ function renderIssues(){
     });
   }
   const all = allIssues.sort((a,b) => b.filedAt - a.filedAt);
-  const open = all.filter(i => i.status === "open");
+  // Rev 2.62: All non-terminal statuses are "Active". Was filtering for literal
+  // "open" / "resolved" only, so intermediate-status issues disappeared.
+  const TERMINAL = ["resolved", "cancelled"];
+  const active = all.filter(i => !TERMINAL.includes(i.status || "open"));
   const resolved = all.filter(i => i.status === "resolved");
+  const cancelled = all.filter(i => i.status === "cancelled");
 
   let html = renderViewHeaderStrip();
   html += `<div class="list-toolbar no-print">
     <div class="list-toolbar-left">
       <strong>${all.length}</strong> issue${all.length===1?'':'s'}
-      <div class="list-subtitle">${open.length} open · ${resolved.length} resolved</div>
+      <div class="list-subtitle">${active.length} active · ${resolved.length} resolved${cancelled.length ? ` · ${cancelled.length} cancelled` : ''}</div>
     </div>
     <div class="list-toolbar-right">
       <button class="list-print-btn" onclick="openIssueFiler()">+ New Issue</button>
@@ -12120,7 +12132,7 @@ function renderIssues(){
     return html;
   }
 
-  // Open issues first, then resolved
+  // Active issues first, then resolved
   const renderRows = (issues) => issues.map(iss => {
     const c = state.data.customers[iss.customerId];
     const s = c?.sites?.[iss.siteId];
@@ -12128,8 +12140,13 @@ function renderIssues(){
     const dispatchInfo = iss.dispatchedTo
       ? `→ ${escapeHtml(iss.dispatchedToName||iss.dispatchedTo)}`
       : `<span style="color:var(--text-muted);font-style:italic">unassigned</span>`;
+    // Rev 2.62: Per-row status badge with color from ISSUE_STATUSES.
+    const statusKey = iss.status || "open";
+    const statusInfo = ISSUE_STATUSES.find(x => x.key === statusKey) || ISSUE_STATUSES[0];
+    const statusBadge = `<span style="font-size:10px;background:${statusInfo.color}22;color:${statusInfo.color};border:1px solid ${statusInfo.color}55;padding:2px 6px;border-radius:3px;font-weight:600;letter-spacing:.4px">${escapeHtml(statusInfo.label.toUpperCase())}</span>`;
     return `<tr onclick="openIssueDetail('${iss.id}')">
       <td><strong>${escapeHtml(iss.title)}</strong></td>
+      <td>${statusBadge}</td>
       <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
@@ -12139,11 +12156,11 @@ function renderIssues(){
     </tr>`;
   }).join("");
 
-  if(open.length){
-    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Open (${open.length})</h3>`;
+  if(active.length){
+    html += `<h3 style="color:var(--amber);font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px">🚨 Active (${active.length})</h3>`;
     html += `<table class="list-table"><thead><tr>
-      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
-    </tr></thead><tbody>${renderRows(open)}</tbody></table>`;
+      <th>Issue</th><th>Status</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Dispatched</th><th>Filed</th>
+    </tr></thead><tbody>${renderRows(active)}</tbody></table>`;
   }
   if(resolved.length){
     html += `<h3 style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px">✓ Resolved (${resolved.length})</h3>`;
@@ -12176,7 +12193,9 @@ function renderIssues(){
 // assigned to (matches the visibility filter applied to customers/poles).
 // Returns the count + the actual list of issues for downstream filtering.
 function visibleOpenIssues(){
-  const all = Object.values(state.issues || {}).filter(i => i.status === "open");
+  // Rev 2.62: All non-terminal statuses count as "active" for badge.
+  const TERMINAL = ["resolved", "cancelled"];
+  const all = Object.values(state.issues || {}).filter(i => !TERMINAL.includes(i.status || "open"));
   if(state.isAdmin) return all;
   // Rev 2.60: Customer scope — issues on poles under their customerId
   if(state.userRole === "customer"){
