@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.62" />
+<meta name="app-rev" content="2.63" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -998,7 +998,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.62</div>
+  <div class="ver">AutoFlag© · v2.63</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1006,14 +1006,17 @@
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
     <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, parts, tools..." oninput="renderActive()" />
-    <div class="ai-bar-label" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
-    <input type="text" id="aiInput" class="ai-bar-input" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
-    <button class="ai-icon-btn" onclick="askAI()" title="Ask AI">🤖</button>
-    <button class="ai-icon-btn" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
+    <!-- Rev 2.63: AI elements tagged .header-ai-el so they can all be hidden
+         together for customer role. AI context includes all customers + tool/BOM
+         prices + procedures — internal data customers shouldn't see. -->
+    <div class="ai-bar-label header-ai-el" style="font-size:12px;color:var(--amber);font-weight:600;white-space:nowrap">🤖 Ask AI</div>
+    <input type="text" id="aiInput" class="ai-bar-input header-ai-el" style="width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 14px;color:var(--text);font-size:13px" placeholder="Ask anything, or: 'Add Albertsons site...'" onkeydown="if(event.key==='Enter')askAI()" />
+    <button class="ai-icon-btn header-ai-el" onclick="askAI()" title="Ask AI">🤖</button>
+    <button class="ai-icon-btn header-ai-el" id="aiPhotoToggle" onclick="toggleAIPhotoPanel()" title="Attach photos (up to 4)">
       📸
       <span id="aiPhotoBadge" class="ai-photo-badge" style="display:none">0</span>
     </button>
-    <button class="ai-icon-btn" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
+    <button class="ai-icon-btn header-ai-el" onclick="openAIHistoryModal()" title="View AI chat history">💬</button>
     <!-- Rev 2.25: Top-right 🚨 button removed — was redundant with the
          🚨 Issues view tab AND had confusing dual purpose (badge for count
          but click went to file-new). Now the canonical entry point is
@@ -1075,7 +1078,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.62</span>
+    <span>v2.63</span>
     · <span class="ftr-link" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     · <span class="ftr-link" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     · <button class="icon-btn" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2387,6 +2390,10 @@ onAuthStateChanged(auth, async user => {
   const ftrHist = document.getElementById("ftrHistoryLink");
   if(ftrData) ftrData.style.display = state.isAdmin ? "" : "none";
   if(ftrHist) ftrHist.style.display = state.isAdmin ? "" : "none";
+  // Rev 2.63: Hide Ask AI from customers (AI context exposes internal data)
+  document.querySelectorAll(".header-ai-el").forEach(el => {
+    el.style.display = (state.userRole === "customer") ? "none" : "";
+  });
   // Rev 2.59: Customer role gets a separate "Manage your team" button that opens
   // a customer-scoped people modal (same modal, different gating).
   const customerPeopleBtn = document.getElementById("customerPeopleBtn");
@@ -8149,13 +8156,12 @@ window.toggleInstallsSection = (sectionId) => {
 };
 
 window.switchView = v => {
-  // Map toggle: if user clicks the Map tab while Map is already active,
-  // switch back to whatever view they had before (or Browse if none tracked).
-  // This makes the Map tab feel like a toggle: tap to open, tap again to close.
-  if(v === "map" && state.view === "map"){
+  // Rev 2.63: Both Map and Issues toggle: clicking the active tab returns to
+  // the prior view (or Browse). Issues was clicker-trap pre-2.63.
+  const TOGGLEABLE = ["map", "issues"];
+  if(TOGGLEABLE.includes(v) && state.view === v){
     v = state._prevView || "browse";
-  } else if(v !== "map"){
-    // Remember the last non-map view so re-tapping Map can return here
+  } else if(!TOGGLEABLE.includes(v)){
     state._prevView = v;
   }
   state.view = v;
@@ -11596,7 +11602,7 @@ window.openIssueDetail = (issueId) => {
             <option value="">— pick installer —</option>
             ${dispatchOptions.map(o => `<option value="${escapeHtml(o.key)}" ${iss.dispatchedTo===o.key?'selected':''}>${escapeHtml(o.name)}</option>`).join("")}
           </select>
-          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')">Dispatch</button>
+          <button class="btn-secondary btn" onclick="dispatchIssue('${issueId}')" title="Quick reassign without changing status. Save (below) also writes this if you change it.">Dispatch only</button>
         </div>
         ${iss.dispatchedTo ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Currently dispatched to <strong>${escapeHtml(iss.dispatchedToName)}</strong></div>` : ""}
       </div>`;
@@ -11645,11 +11651,23 @@ window.openIssueDetail = (issueId) => {
       const statusLabel = statusInfo ? statusInfo.label : status;
       const statusColor = statusInfo ? statusInfo.color : "#888";
       const photos = (h.photos||[]).map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener"><img src="${escapeHtml(u)}" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid var(--border);margin-top:4px;margin-right:4px" /></a>`).join("");
+      // Rev 2.63: Show dispatch change inline with status change.
+      let dispatchLine = "";
+      if(h.dispatchTo){
+        if(h.dispatchFrom){
+          dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Re-dispatched from <strong>${escapeHtml(h.dispatchFromName||h.dispatchFrom)}</strong> to <strong>${escapeHtml(h.dispatchToName||h.dispatchTo)}</strong></div>`;
+        } else {
+          dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Dispatched to <strong>${escapeHtml(h.dispatchToName||h.dispatchTo)}</strong></div>`;
+        }
+      } else if(h.dispatchFrom && !h.dispatchTo){
+        dispatchLine = `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">→ Unassigned (was <strong>${escapeHtml(h.dispatchFromName||h.dispatchFrom)}</strong>)</div>`;
+      }
       return `<div style="border-left:3px solid ${statusColor};padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:0 4px 4px 0">
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">
           <span style="color:${statusColor};font-weight:600">${escapeHtml(statusLabel)}</span> · ${escapeHtml(h.byName || "unknown")} · ${new Date(h.at || 0).toLocaleString()}
         </div>
         <div style="font-size:13px;white-space:pre-wrap">${escapeHtml(h.note || "")}</div>
+        ${dispatchLine}
         ${photos ? `<div style="margin-top:4px">${photos}</div>` : ""}
       </div>`;
     }).join("");
@@ -11900,15 +11918,37 @@ window.saveIssueProgress = async (issueId) => {
     toast("Invalid status", true); return;
   }
 
-  // If choosing a terminal status with no note, confirm — but for "in_progress"
-  // / "waiting_*" mid-state updates, a note is required since the whole point
-  // is to log what happened.
+  // Rev 2.63: Read dispatch dropdown too. Single Save handles both status AND
+  // dispatch — was a two-button gotcha where admin set Jake + status + note
+  // and clicked Save, but dispatch never wrote (Save didn't read the dropdown).
+  const dispatchSel = document.getElementById("issd-dispatch");
+  const newDispatchTo = dispatchSel ? dispatchSel.value : (iss.dispatchedTo || "");
+  const dispatchChanged = (newDispatchTo || "") !== (iss.dispatchedTo || "");
+  let newDispatchToName = iss.dispatchedToName || "";
+  if(dispatchChanged && newDispatchTo){
+    if(newDispatchTo === PHIL_UID){
+      newDispatchToName = "Phil Sigler";
+    } else if(typeof peopleRoster === "object" && peopleRoster[newDispatchTo]){
+      newDispatchToName = peopleRoster[newDispatchTo].name || peopleRoster[newDispatchTo].email || newDispatchTo;
+    } else {
+      newDispatchToName = newDispatchTo;
+    }
+  } else if(dispatchChanged && !newDispatchTo){
+    newDispatchToName = "";
+  }
+
+  // If choosing a terminal status with no note, confirm. For mid-state updates
+  // (in_progress / waiting_*), a note is required to log what happened.
   const isTerminal = newStatus === "resolved" || newStatus === "cancelled";
-  if(!note && !isTerminal){
+  const statusChanged = newStatus !== (iss.status || "open");
+  if(!note && !isTerminal && (statusChanged || dispatchChanged)){
     toast("Add a note describing what happened", true); return;
   }
   if(!note && isTerminal){
     if(!confirm(`Mark as ${statusLabel(newStatus)} with no note?`)) return;
+  }
+  if(!statusChanged && !dispatchChanged && !note && resolutionPendingPhotos.length === 0){
+    toast("Nothing to save", true); return;
   }
 
   toast("Saving...");
@@ -11932,6 +11972,7 @@ window.saveIssueProgress = async (issueId) => {
   const byKey = peopleEmailKeyForCurrentUser();
   const byName = state.user?.displayName || state.user?.email || "(unknown)";
 
+  // Rev 2.63: History entry records dispatch change too.
   const historyEntry = {
     at: now,
     by: byKey,
@@ -11941,16 +11982,25 @@ window.saveIssueProgress = async (issueId) => {
     note,
     photos: photoUrls
   };
+  if(dispatchChanged){
+    historyEntry.dispatchTo = newDispatchTo;
+    historyEntry.dispatchToName = newDispatchToName;
+    historyEntry.dispatchFrom = iss.dispatchedTo || "";
+    historyEntry.dispatchFromName = iss.dispatchedToName || "";
+  }
   const newHistory = Array.isArray(iss.history) ? [...iss.history, historyEntry] : [historyEntry];
 
-  // Build the patch. Always update status + history + updatedAt. If terminal, also
-  // stamp the resolution-specific fields so the existing list view / legacy code
-  // that reads iss.resolution still works.
   const patch = {
     status: newStatus,
     history: newHistory,
     updatedAt: now
   };
+  if(dispatchChanged){
+    patch.dispatchedTo = newDispatchTo;
+    patch.dispatchedToName = newDispatchToName;
+    patch.dispatchedAt = newDispatchTo ? now : 0;
+    patch.dispatchedBy = newDispatchTo ? byKey : "";
+  }
   if(newStatus === "resolved"){
     patch.resolution = note;
     patch.resolutionPhotos = photoUrls;
@@ -12163,25 +12213,31 @@ function renderIssues(){
     </tr></thead><tbody>${renderRows(active)}</tbody></table>`;
   }
   if(resolved.length){
-    html += `<h3 style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px">✓ Resolved (${resolved.length})</h3>`;
-    html += `<table class="list-table"><thead><tr>
-      <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
-    </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
-      const c = state.data.customers[iss.customerId];
-      const s = c?.sites?.[iss.siteId];
-      const p = s?.poles?.[iss.poleId];
-      return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
-        <td><strong>${escapeHtml(iss.title)}</strong></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
-        <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
-        <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
-        <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
-        <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
-      </tr>`;
-    }).join("")}</tbody></table>`;
-    if(resolved.length > 50){
-      html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+    // Rev 2.63: Resolved section collapsed by default. Click ▶/▼ heading to toggle.
+    // Solves the "resolved list dumped below active issues confused users" UX.
+    const expanded = !!window._issuesResolvedExpanded;
+    const indicator = expanded ? "▼" : "▶";
+    html += `<h3 onclick="window._issuesResolvedExpanded=!${expanded};renderActive()" style="color:var(--text-dim);font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;user-select:none" title="${expanded ? 'Hide' : 'Show'} resolved issues">${indicator} ✓ Resolved (${resolved.length})</h3>`;
+    if(expanded){
+      html += `<table class="list-table"><thead><tr>
+        <th>Issue</th><th>Pole</th><th>Site</th><th>Customer</th><th>Filed by</th><th>Resolved by</th><th>Resolved</th>
+      </tr></thead><tbody>${resolved.slice(0, 50).map(iss => {
+        const c = state.data.customers[iss.customerId];
+        const s = c?.sites?.[iss.siteId];
+        const p = s?.poles?.[iss.poleId];
+        return `<tr onclick="openIssueDetail('${iss.id}')" style="opacity:.75">
+          <td><strong>${escapeHtml(iss.title)}</strong></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
+          <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
+          <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
+          <td>${escapeHtml(iss.resolvedByName||iss.resolvedBy||"")}</td>
+          <td>${new Date(iss.resolvedAt).toLocaleDateString()}</td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
+      if(resolved.length > 50){
+        html += `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">Showing 50 most recent resolved · ${resolved.length - 50} more in history</div>`;
+      }
     }
   }
   return html;
