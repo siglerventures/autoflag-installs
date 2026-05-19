@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.71" />
+<meta name="app-rev" content="2.72" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.71</div>
+  <div class="ver">AutoFlag© · v2.72</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.71</span>
+    <span>v2.72</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -1248,8 +1248,8 @@
       </div>
       <div id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:10px;min-height:14px"></div>
       <div class="form-grid-4">
-        <div class="form-row"><label>Expected Install</label><input id="mp-expected-date" type="date" /></div>
-        <div class="form-row"><label>Completed Date</label><input id="mp-completed-date" type="date" /></div>
+        <div class="form-row"><label>Expected Install</label><input id="mp-expected-date" type="date" onclick="this.showPicker?.()" /></div>
+        <div class="form-row"><label>Completed Date</label><input id="mp-completed-date" type="date" onclick="this.showPicker?.()" /></div>
         <div class="form-row"><label>SaaS active</label><select id="mp-saas">
           <option value="">—</option>
           <option value="pending">Pending</option>
@@ -2529,8 +2529,11 @@ onAuthStateChanged(auth, async user => {
   // reject, no resolve). Force-refreshing here guarantees the token is
   // propagated before subscribeData() opens any listeners.
   // Same pattern as Eats Rev 10.55 / Mobile Auth Token Race fix.
+  //
+  // Rev 2.72 DIAGNOSTIC: AF5 hypothesizes that this forced refresh is what's
+  // revoking customer listeners. Commenting out for the test.
   try {
-    await user.getIdToken(true);
+    // await user.getIdToken(true);
   } catch(e){
     console.error("Token refresh failed:", e?.code, e?.message);
     toast("Auth token refresh failed — please sign in again", true);
