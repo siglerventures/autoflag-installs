@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.72" />
+<meta name="app-rev" content="2.73" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.72</div>
+  <div class="ver">AutoFlag© · v2.73</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.72</span>
+    <span>v2.73</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2376,8 +2376,20 @@ onAuthStateChanged(auth, async user => {
       showLogin();
       return;
     }
-        // Otherwise this is a transient token-refresh null with an active session — ignore
-    console.warn("[auth] onAuthStateChanged(null) ignored as transient (active session)");
+        // Rev 2.73: The "transient ignore" pattern was masking REAL sign-outs.
+    // When Firebase Auth fires onAuthStateChanged(null), the SDK is genuinely
+    // unauthenticated server-side. Ignoring it left the UI in a zombie state
+    // (still rendering customer tree) while every RTDB read silently failed
+    // with permission_denied. This was the 30s-2min "rules bug" that wasn't a
+    // rules bug at all — the user's Google session was being deauthed and we
+    // were pretending it wasn't. (Confirmed by diagnostic: live currentUser=NULL
+    // while UI still showed signed-in pill. Credit: AF5-Installer.)
+    console.warn("[auth] onAuthStateChanged(null) — treating as real sign-out");
+    state.user = null;
+    state.userRole = null;
+    state.userPersonRecord = null;
+    state.isAdmin = false;
+    showLogin();
     return;
   }
 
@@ -2530,10 +2542,10 @@ onAuthStateChanged(auth, async user => {
   // propagated before subscribeData() opens any listeners.
   // Same pattern as Eats Rev 10.55 / Mobile Auth Token Race fix.
   //
-  // Rev 2.72 DIAGNOSTIC: AF5 hypothesizes that this forced refresh is what's
-  // revoking customer listeners. Commenting out for the test.
+  // Rev 2.72 diagnostic confirmed this is NOT the cause of the customer
+  // revocation bug. Restoring for its original mobile-cold-start purpose.
   try {
-    // await user.getIdToken(true);
+    await user.getIdToken(true);
   } catch(e){
     console.error("Token refresh failed:", e?.code, e?.message);
     toast("Auth token refresh failed — please sign in again", true);
@@ -2843,34 +2855,12 @@ function subscribeRealtime(){
   }, err => {
     console.error("onValue error:", err?.code, err?.message);
     // Rev 2.64: Suppress error toast if we're signing out or already signed out.
-    // The listener keeps firing during the sign-out window before it tears down;
-    // each call fails with permission_denied because auth is gone. Showing the
-    // toast to a user mid-signout is confusing and looks like a real bug.
     if(signOutInProgress || !state.user) return;
-    // Rev 2.71: Auto-recover from permission_denied. Firebase sometimes revokes
-    // a long-lived listener even though the user IS authorized — typically
-    // during token refresh windows or post-reconnect when the rules engine
-    // re-evaluates with stale auth context. Refresh the ID token and
-    // re-subscribe once. If it works → silent recovery. If it fails again →
-    // surface the toast like before.
-    if((err?.code === "PERMISSION_DENIED" || err?.message?.includes("permission_denied")) && !window._customerRecoveryInProgress){
-      window._customerRecoveryInProgress = true;
-      console.log("[customer-listener] auto-recovering from permission_denied...");
-      (async () => {
-        try {
-          await auth.currentUser?.getIdToken(true);
-          await new Promise(r => setTimeout(r, 500)); // small settle delay
-          await loadDataOnce();
-          subscribeRealtime();
-          console.log("[customer-listener] recovery complete");
-        } catch(e){
-          console.warn("[customer-listener] recovery failed:", e?.message);
-        }
-        // Allow another recovery attempt later
-        setTimeout(() => { window._customerRecoveryInProgress = false; }, 10000);
-      })();
-      return; // don't toast — we're recovering
-    }
+    // Rev 2.73: Removed auto-recover that called getIdToken(true) + resubscribed.
+    // The bug it was working around (silent permission_denied loops) was caused by
+    // the "transient null ignore" pattern masking real sign-outs. With that fixed
+    // (onAuthStateChanged(null) now triggers showLogin), permission_denied here
+    // means a real, non-auth-state problem — show the toast honestly.
     toast("Read failed: "+err.message, true);
   });
 }
@@ -3229,25 +3219,7 @@ function subscribeIssues(){
     }
   }, err => {
     console.error("Issues subscribe error:", err);
-    // Rev 2.71: Same auto-recovery as the customer-data listener.
-    // Revocations during token refresh are common for customer role; one
-    // resubscribe usually restores the connection.
-    if(signOutInProgress || !state.user) return;
-    if((err?.code === "PERMISSION_DENIED" || err?.message?.includes("permission_denied")) && !window._issuesRecoveryInProgress){
-      window._issuesRecoveryInProgress = true;
-      console.log("[issues-listener] auto-recovering from permission_denied...");
-      (async () => {
-        try {
-          await auth.currentUser?.getIdToken(true);
-          await new Promise(r => setTimeout(r, 500));
-          subscribeIssues();
-          console.log("[issues-listener] recovery complete");
-        } catch(e){
-          console.warn("[issues-listener] recovery failed:", e?.message);
-        }
-        setTimeout(() => { window._issuesRecoveryInProgress = false; }, 10000);
-      })();
-    }
+    // Rev 2.73: Removed auto-recover. See subscribeRealtime comment for rationale.
   });
 }
 
