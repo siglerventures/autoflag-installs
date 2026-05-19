@@ -2844,6 +2844,30 @@ function subscribeRealtime(){
     // each call fails with permission_denied because auth is gone. Showing the
     // toast to a user mid-signout is confusing and looks like a real bug.
     if(signOutInProgress || !state.user) return;
+    // Rev 2.71: Auto-recover from permission_denied. Firebase sometimes revokes
+    // a long-lived listener even though the user IS authorized — typically
+    // during token refresh windows or post-reconnect when the rules engine
+    // re-evaluates with stale auth context. Refresh the ID token and
+    // re-subscribe once. If it works → silent recovery. If it fails again →
+    // surface the toast like before.
+    if((err?.code === "PERMISSION_DENIED" || err?.message?.includes("permission_denied")) && !window._customerRecoveryInProgress){
+      window._customerRecoveryInProgress = true;
+      console.log("[customer-listener] auto-recovering from permission_denied...");
+      (async () => {
+        try {
+          await auth.currentUser?.getIdToken(true);
+          await new Promise(r => setTimeout(r, 500)); // small settle delay
+          await loadDataOnce();
+          subscribeRealtime();
+          console.log("[customer-listener] recovery complete");
+        } catch(e){
+          console.warn("[customer-listener] recovery failed:", e?.message);
+        }
+        // Allow another recovery attempt later
+        setTimeout(() => { window._customerRecoveryInProgress = false; }, 10000);
+      })();
+      return; // don't toast — we're recovering
+    }
     toast("Read failed: "+err.message, true);
   });
 }
@@ -3200,7 +3224,28 @@ function subscribeIssues(){
     if(reRenderViews.includes(state.view) && !isFocusedInInput){
       renderActive();
     }
-  }, err => console.error("Issues subscribe error:", err));
+  }, err => {
+    console.error("Issues subscribe error:", err);
+    // Rev 2.71: Same auto-recovery as the customer-data listener.
+    // Revocations during token refresh are common for customer role; one
+    // resubscribe usually restores the connection.
+    if(signOutInProgress || !state.user) return;
+    if((err?.code === "PERMISSION_DENIED" || err?.message?.includes("permission_denied")) && !window._issuesRecoveryInProgress){
+      window._issuesRecoveryInProgress = true;
+      console.log("[issues-listener] auto-recovering from permission_denied...");
+      (async () => {
+        try {
+          await auth.currentUser?.getIdToken(true);
+          await new Promise(r => setTimeout(r, 500));
+          subscribeIssues();
+          console.log("[issues-listener] recovery complete");
+        } catch(e){
+          console.warn("[issues-listener] recovery failed:", e?.message);
+        }
+        setTimeout(() => { window._issuesRecoveryInProgress = false; }, 10000);
+      })();
+    }
+  });
 }
 
 // ==== People management (admin only) ====
