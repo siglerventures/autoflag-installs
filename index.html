@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.73" />
+<meta name="app-rev" content="2.74" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.73</div>
+  <div class="ver">AutoFlag© · v2.74</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.73</span>
+    <span>v2.74</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -12493,11 +12493,18 @@ function renderIssues(){
     const statusKey = iss.status || "open";
     const statusInfo = ISSUE_STATUSES.find(x => x.key === statusKey) || ISSUE_STATUSES[0];
     const statusBadge = `<span style="font-size:10px;background:${statusInfo.color}22;color:${statusInfo.color};border:1px solid ${statusInfo.color}55;padding:2px 6px;border-radius:3px;font-weight:600;letter-spacing:.4px">${escapeHtml(statusInfo.label.toUpperCase())}</span>`;
+    // Rev 2.74: 🗺️ map icon next to the site link — opens directions to the
+    // site (lat/lng pin or address) via openMapToSite. Only shown when the site
+    // has coordinates or an address; otherwise it'd just toast an error.
+    const hasLoc = s && ((typeof s.lat === "number" && !isNaN(s.lat) && typeof s.lng === "number" && !isNaN(s.lng)) || (s.address && s.address.trim()));
+    const mapIcon = hasLoc
+      ? ` <span class="map-icon" onclick="event.stopPropagation();openMapToSite('${iss.customerId}','${iss.siteId}')" title="Directions to this site" style="cursor:pointer;margin-left:4px">🗺️</span>`
+      : "";
     return `<tr onclick="openIssueDetail('${iss.id}')">
       <td><strong>${escapeHtml(iss.title)}</strong></td>
       <td>${statusBadge}</td>
       <td><a class="link-cell" onclick="event.stopPropagation();openPoleFromIssues('${iss.poleId}','${iss.customerId}','${iss.siteId}')">${escapeHtml(p?.label||iss.poleId)}</a></td>
-      <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a></td>
+      <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}','${iss.siteId}')">${escapeHtml(s?.name||iss.siteId)}</a>${mapIcon}</td>
       <td><a class="link-cell" onclick="event.stopPropagation();drillToFromIssues('${iss.customerId}',null)">${escapeHtml(c?.name||iss.customerId)}</a></td>
       <td>${escapeHtml(iss.filedByName||iss.filedBy||"")}</td>
       <td>${dispatchInfo}</td>
