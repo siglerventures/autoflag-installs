@@ -1,3 +1,7 @@
+> **Standard:** the adopted access pattern is **email-key-in-rules** —
+> see `ADOPTED-STANDARD.md` (reference impl: `PIECE2`/`PIECE3` rules). The
+> `not-adopted/` folder (syncAccess + UID-mirror) was never deployed; ignore it.
+
 # ⚠️ READ FIRST — Firebase rules are ONE shared document
 
 All apps in the `philinity-893d2` project (autoflag, taskboard, veritas, eats,

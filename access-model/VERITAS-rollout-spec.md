@@ -1,8 +1,13 @@
 # Veritas rollout — spec & kickoff (for a session WITH veritas repo access)
 
-> ⚠️ **Before touching rules, read `access-model/RULES-COORDINATION.md`.** The
-> Firebase rules are ONE shared document for all apps — start from the CURRENT
-> live rules, change ONLY the `veritas` block, and don't run rollouts in parallel.
+> ⚠️ **Before touching rules, read `access-model/RULES-COORDINATION.md` and
+> `access-model/ADOPTED-STANDARD.md`.** The Firebase rules are ONE shared document
+> for all apps — start from the CURRENT live rules, change ONLY the `veritas`
+> block, and don't run rollouts in parallel.
+>
+> **Use email-key-in-rules** (the adopted standard; matches Veritas's existing
+> role-aware client and AutoFlag's live rules). Do **NOT** use the syncAccess /
+> UID-mirror design in `not-adopted/` — it was never deployed.
 
 Veritas lives at `siglerventures/veritas` (GitHub Pages →
 https://siglerventures.github.io/veritas/). Same Firebase project as AutoFlag

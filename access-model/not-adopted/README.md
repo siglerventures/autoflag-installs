@@ -1,3 +1,9 @@
+> ⛔️ **NOT ADOPTED — DO NOT BUILD AGAINST THIS.** This describes an early
+> syncAccess + UID-mirror design that was **never deployed**. The real, live
+> standard is **email-key-in-rules** — see `../ADOPTED-STANDARD.md` and AutoFlag's
+> `../PIECE2-rules-to-deploy.json` / `../PIECE3-rules-to-deploy.json`. Kept here
+> for reference only.
+
 # Standardized User-Access Model
 
 One access model for every app (AutoFlag, eats, taskboard, command_center,
