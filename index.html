@@ -1522,6 +1522,15 @@
             <button class="btn-secondary btn" onclick="forceRTDBReconnect('manual')">🔄 Reconnect Now</button>
           </div>
         </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+          <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px">🧰 Issues Migration <span style="color:var(--text-muted);font-size:11px">(one-time, admin)</span></div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Moves issues into per-customer storage so each customer only sees their own. <strong>Step 1: Migrate</strong> copies issues into per-customer buckets (safe — keeps originals). After you publish the matching database rules and confirm issues display for every role, <strong>Step 2: Clean Up</strong> removes the old copies.</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="btn-secondary btn" onclick="migrateIssuesToNested()">📦 Step 1: Migrate Issues</button>
+            <button class="btn-secondary btn" onclick="cleanupLegacyFlatIssues()" style="opacity:.85">🧹 Step 2: Clean Up Old Copies</button>
+          </div>
+        </div>
       </div>
 
       <div id="data-modal-status" style="margin-top:12px;font-size:11px;color:var(--text-muted);font-family:monospace"></div>
@@ -1883,6 +1892,68 @@ async function forceRTDBReconnect(reason){
   }
 }
 window.forceRTDBReconnect = forceRTDBReconnect;
+
+// Rev 2.76: One-time issues migration, run from Data Manager (admin only).
+// Issues moved from flat autoflag/issues/{issueId} to nested
+// autoflag/issues/{cid}/{issueId} so the database can isolate them per customer.
+// Step 1 (migrate) is non-destructive: it COPIES each flat issue into its
+// customer bucket and keeps the original. Step 2 (cleanup) deletes the originals
+// only after verifying a nested copy exists. A flat issue is detected by having
+// issue fields at the top level; a nested {cid} bucket is skipped.
+function _isFlatIssue(v){
+  return v && typeof v === "object" &&
+    (("status" in v) || ("title" in v) || ("poleId" in v) || ("filedAt" in v));
+}
+function _dataModalStatus(msg){
+  const el = document.getElementById("data-modal-status");
+  if(el) el.textContent = msg;
+}
+window.migrateIssuesToNested = async () => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  if(!confirm("Copy all issues into per-customer buckets?\n\nThis is safe and non-destructive — the originals are kept until you run Clean Up.")) return;
+  _dataModalStatus("Reading issues…");
+  let raw;
+  try { raw = await readNode("autoflag/issues") || {}; }
+  catch(e){ _dataModalStatus("Read failed: " + (e?.message||"")); return toast("Read failed", true); }
+  let moved=0, skipped=0, already=0, failed=0;
+  for(const [k, v] of Object.entries(raw)){
+    if(!v || typeof v !== "object") continue;
+    if(!_isFlatIssue(v)){ already++; continue; }      // already a {cid} bucket
+    const cid = v.customerId;
+    if(!cid){ skipped++; console.warn("[migrate] issue has no customerId, skipped:", k); continue; }
+    try {
+      await writeNode(`autoflag/issues/${cid}/${k}`, v);
+      moved++; _dataModalStatus(`Migrating… ${moved} copied`);
+    } catch(e){ failed++; console.error("[migrate] write failed for", k, e?.message); }
+  }
+  const msg = `✅ Copied ${moved} issue(s) into per-customer buckets. Skipped (no customer): ${skipped}. Already nested: ${already}. Failed: ${failed}. Originals kept — publish the Piece 3 rules, verify, then run Clean Up.`;
+  _dataModalStatus(msg);
+  toast(`Migrated ${moved} issue(s)`);
+  alert(msg);
+};
+window.cleanupLegacyFlatIssues = async () => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  if(!confirm("Delete the old flat issue copies?\n\nRun this ONLY after you've published the new rules and confirmed issues display correctly for admin, installer, and a customer. Each original is deleted only if a verified nested copy exists.")) return;
+  _dataModalStatus("Reading issues…");
+  let raw;
+  try { raw = await readNode("autoflag/issues") || {}; }
+  catch(e){ _dataModalStatus("Read failed: " + (e?.message||"")); return toast("Read failed", true); }
+  let del=0, kept=0, failed=0;
+  for(const [k, v] of Object.entries(raw)){
+    if(!_isFlatIssue(v)) continue;                     // skip nested {cid} buckets
+    const cid = v.customerId;
+    if(!cid){ kept++; continue; }                      // never migrated — keep
+    let nested = null;
+    try { nested = await readNode(`autoflag/issues/${cid}/${k}/filedAt`); } catch(_){}
+    if(nested === null || nested === undefined){ kept++; console.warn("[cleanup] no nested copy, keeping flat:", k); continue; }
+    try { await removeNode(`autoflag/issues/${k}`); del++; _dataModalStatus(`Cleaning… ${del} removed`); }
+    catch(e){ failed++; console.error("[cleanup] delete failed", k, e?.message); }
+  }
+  const msg = `🧹 Deleted ${del} old flat issue(s). Kept (no verified nested copy): ${kept}. Failed: ${failed}.`;
+  _dataModalStatus(msg);
+  toast(`Cleaned up ${del} issue(s)`);
+  alert(msg);
+};
 
 // ==== Auth + role config ====
 // Phil's UID is the only hardcoded "root admin" — guarantees lockout safety.
