@@ -1,5 +1,9 @@
 # Taskboard rollout — spec & kickoff (for a session WITH taskboard repo access)
 
+> ⚠️ **Before touching rules, read `access-model/RULES-COORDINATION.md`.** The
+> Firebase rules are ONE shared document for all apps — start from the CURRENT
+> live rules, change ONLY the `taskboard` block, and don't run rollouts in parallel.
+
 Captures the Taskboard analysis + locked design so the next session can build it
 without re-deriving anything. Taskboard lives at `siglerventures/taskboard`
 (GitHub Pages → https://siglerventures.github.io/taskboard/).

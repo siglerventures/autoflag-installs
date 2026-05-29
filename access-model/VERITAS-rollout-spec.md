@@ -1,5 +1,9 @@
 # Veritas rollout — spec & kickoff (for a session WITH veritas repo access)
 
+> ⚠️ **Before touching rules, read `access-model/RULES-COORDINATION.md`.** The
+> Firebase rules are ONE shared document for all apps — start from the CURRENT
+> live rules, change ONLY the `veritas` block, and don't run rollouts in parallel.
+
 Veritas lives at `siglerventures/veritas` (GitHub Pages →
 https://siglerventures.github.io/veritas/). Same Firebase project as AutoFlag
 (`philinity-893d2`).
