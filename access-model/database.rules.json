@@ -1,0 +1,164 @@
+{
+  // =====================================================================
+  //  HARDENED RTDB SECURITY RULES — standardized access model
+  //  (RTDB rules support // comments; the Firebase CLI accepts this file.)
+  //
+  //  CORE PRINCIPLES (read these before editing):
+  //   1. NEVER grant .read/.write at an app's top-level node. In Firebase,
+  //      a granted permission at a parent CANNOT be revoked by a child.
+  //      Granting at the top is exactly what made the old child rules dead
+  //      letters and let installers self-promote. We grant at the LEAF.
+  //   2. Rules only consult UID-mirror nodes (admins_uid / installers /
+  //      customers_uid). Those nodes are written ONLY by the syncAccess
+  //      Cloud Function via the Admin SDK (which bypasses rules). Users can
+  //      NEVER self-claim a role — ".write": false locks them out; the
+  //      Admin SDK ignores that and writes anyway.
+  //   3. The "people" roster (email -> role) is the human-friendly
+  //      provisioning layer. Admins edit it from the People modal; the
+  //      function reads it to mint the UID mirrors on login.
+  //   4. Two ROOT admin UIDs are hardcoded everywhere as a lockout-proof
+  //      escape hatch. Keep them identical in client, rules, and function.
+  // =====================================================================
+
+  "rules": {
+
+    // ========================= AUTOFLAG =============================
+    "autoflag": {
+
+      // ---- Role mirrors: rules read these; only the function writes them ----
+      "admins_uid": {
+        // Admins may see who else is admin. No one can write via rules.
+        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())",
+        ".write": false
+      },
+      "installers": {
+        // Each user may read their own mirror entry (legacy client path).
+        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())",
+        ".write": false
+      },
+      "customers_uid": {
+        // PII (email + customerId). Admins read all; a user reads only their own.
+        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())",
+        ".write": false,
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid"
+        }
+      },
+
+      // ---- People roster: admin-managed (People modal), function-readable ----
+      "people": {
+        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())",
+        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())"
+      },
+
+      // ---- Customer / site / pole data ----
+      // Admins + installers: full operational access (installers are trusted
+      // staff; the client still filters their view to assigned poles).
+      // Customers: hard-isolated to their own customerId, server-side.
+      "installs": {
+        "customers": {
+          ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())",
+          "$cid": {
+            // Customer may read/write only their own org's subtree.
+            ".read":  "auth != null && root.child('autoflag/customers_uid').child(auth.uid).child('customerId').val() === $cid",
+            ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists() || root.child('autoflag/customers_uid').child(auth.uid).child('customerId').val() === $cid)"
+          }
+        }
+      },
+
+      // ---- Issues ----
+      // Admins + installers read all. Customers read/write only issues tagged
+      // with their own customerId (checked per-record).
+      "issues": {
+        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())",
+        ".indexOn": ["customerId"],
+        "$issueId": {
+          ".read":  "auth != null && root.child('autoflag/customers_uid').child(auth.uid).child('customerId').val() === data.child('customerId').val()",
+          ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists() || root.child('autoflag/customers_uid').child(auth.uid).child('customerId').val() === newData.child('customerId').val())"
+        }
+      },
+
+      // ---- Internal ops data: admins + installers read; admins write ----
+      // (procedures/tools/parts/BOM are authored by admins; installers read them.)
+      "procedures":      { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())" },
+      "tools":           { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())" },
+      "parts":           { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())" },
+      "mechanical-parts":{ ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists())" },
+
+      // ai history / misc / suggestions: non-customer (admin + installer).
+      "ai":          { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())" },
+      "misc":        { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())" },
+      "suggestions": { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/admins_uid').child(auth.uid).exists() || root.child('autoflag/installers').child(auth.uid).exists())" }
+    },
+
+    // ===================================================================
+    //  OTHER APPS — standardized role scaffolding.
+    //
+    //  Each app gets the SAME role plumbing (admins_uid / installers /
+    //  customers_uid / people). Today these apps are admin-only at the data
+    //  level (safe default that keeps working for you + any admin). When an
+    //  app gains customer-facing data, copy the "installs"/"issues" leaf
+    //  patterns from "autoflag" above into that app's data nodes.
+    //
+    //  The "$dataNode" wildcard below grants admins full read/write to every
+    //  data path EXCEPT the reserved role nodes (which it must not shadow),
+    //  so it's written as explicit guards. Replace per app as needed.
+    // ===================================================================
+
+    "eats":           { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('eats/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('eats/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "installers":   { ".write": false },
+      "customers_uid":{ ".write": false, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
+      "people":       { ".read": "auth != null && root.child('eats/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('eats/admins_uid').child(auth.uid).exists())" }
+    },
+
+    "taskboard":      { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('taskboard/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('taskboard/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "installers":   { ".write": false },
+      "customers_uid":{ ".write": false, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
+      "people":       { ".read": "auth != null && root.child('taskboard/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('taskboard/admins_uid').child(auth.uid).exists())" }
+    },
+
+    "command_center": { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('command_center/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('command_center/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "installers":   { ".write": false },
+      "customers_uid":{ ".write": false, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
+      "people":       { ".read": "auth != null && root.child('command_center/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('command_center/admins_uid').child(auth.uid).exists())" }
+    },
+
+    "philinity":      { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('philinity/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('philinity/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "installers":   { ".write": false },
+      "customers_uid":{ ".write": false, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
+      "people":       { ".read": "auth != null && root.child('philinity/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('philinity/admins_uid').child(auth.uid).exists())" }
+    },
+
+    "foodswipe":      { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('foodswipe/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('foodswipe/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "installers":   { ".write": false },
+      "customers_uid":{ ".write": false, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
+      "people":       { ".read": "auth != null && root.child('foodswipe/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('foodswipe/admins_uid').child(auth.uid).exists())" }
+    },
+
+    // veritas was world-read/write (any logged-in user). Locked to the same
+    // admin baseline. If it must stay open, restore ".read"/".write":"auth != null".
+    "veritas":        { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('veritas/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('veritas/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "people":       { ".read": "auth != null && root.child('veritas/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('veritas/admins_uid').child(auth.uid).exists())" }
+    },
+
+    // Per-user private scratch space — unchanged.
+    "users": {
+      "$uid": {
+        ".read":  "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    // Server-only config — Admin SDK only.
+    "config": {
+      ".read":  false,
+      ".write": false
+    }
+  }
+}
