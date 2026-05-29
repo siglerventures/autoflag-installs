@@ -2586,6 +2586,28 @@ function showLogin(){
 // snapshots that arrive during reconnect — keep existing data instead of clearing.
 let currentDataUnsubscribe = null;
 
+// Rev 2.75: Server-side customer scoping. Customers read ONLY their own
+// customer subtree (autoflag/installs/customers/{cid}); admins + installers
+// read the whole customers node and filter client-side exactly as before.
+// This lets the database rules deny cross-customer reads instead of relying on
+// the client to hide them. It's also safe under the CURRENT rules — a scoped
+// read is a subset of what's already permitted — so it can ship before the
+// rules tighten, with no behaviour change for any role.
+function customersSubPath(){
+  return (state.userRole === "customer" && state.userPersonRecord?.customerId)
+    ? `installs/customers/${state.userPersonRecord.customerId}`
+    : "installs/customers";
+}
+// A scoped customer read returns a single customer object (not keyed by cid).
+// Re-key it as {cid: obj} so applyCustomerSnapshot sees the usual whole-node
+// shape and its existing per-role filter keeps working unchanged.
+function normalizeCustomerSnapshot(val){
+  if(state.userRole === "customer" && state.userPersonRecord?.customerId){
+    return (val === null || val === undefined) ? null : { [state.userPersonRecord.customerId]: val };
+  }
+  return val;
+}
+
 function applyCustomerSnapshot(raw, source){
   if(raw === null || raw === undefined){
     console.warn(`AutoFlag data: ${source} got null — keeping existing ${Object.keys(state.data.customers||{}).length} customers`);
@@ -2686,7 +2708,7 @@ async function loadDataViaREST(){
       proceduresExtR, proceduresIntR, proceduresCylR,
       toolsR, partsExtR, partsIntR, partsCylR, mechPartsR
     ] = await Promise.all([
-      fetchJSON("installs/customers"),
+      fetchJSON(customersSubPath()),
       fetchJSON("issues"),
       fetchJSON("people"),
       fetchJSON("procedures/external"),
@@ -2704,7 +2726,7 @@ async function loadDataViaREST(){
     // --- Customers (everyone) ---
     if(customersR.ok){
       const data = await customersR.json();
-      if(applyCustomerSnapshot(data, "REST-fallback")) anyOk = true;
+      if(applyCustomerSnapshot(normalizeCustomerSnapshot(data), "REST-fallback")) anyOk = true;
     } else console.error(`REST fallback (customers): HTTP ${customersR.status}`);
 
     // --- Issues (everyone; render gate handles role scoping) ---
@@ -2819,12 +2841,12 @@ async function loadDataOnce(){
   const start = Date.now();
   try {
     const snap = await Promise.race([
-      get(ref(db, "autoflag/installs/customers")),
+      get(ref(db, "autoflag/" + customersSubPath())),
       new Promise((_, rej) => setTimeout(() => rej(new Error("SDK_TIMEOUT")), SDK_TIMEOUT_MS))
     ]);
     console.log(`[load] SDK ${Date.now()-start}ms`);
     stopRestPoll(); // SDK is healthy — stop any active fallback poll
-    return applyCustomerSnapshot(snap.val(), "loadDataOnce");
+    return applyCustomerSnapshot(normalizeCustomerSnapshot(snap.val()), "loadDataOnce");
   } catch(e){
     if(e?.message === "SDK_TIMEOUT"){
       // SDK WebSocket is wedged — fall back to REST
@@ -2848,10 +2870,10 @@ function subscribeRealtime(){
     try { currentDataUnsubscribe(); } catch(_){}
     currentDataUnsubscribe = null;
   }
-  const root = ref(db, "autoflag/installs/customers");
+  const root = ref(db, "autoflag/" + customersSubPath());
   // onValue's modular SDK signature returns an unsubscribe function
   currentDataUnsubscribe = onValue(root, snap => {
-    applyCustomerSnapshot(snap.val(), "onValue");
+    applyCustomerSnapshot(normalizeCustomerSnapshot(snap.val()), "onValue");
   }, err => {
     console.error("onValue error:", err?.code, err?.message);
     // Rev 2.64: Suppress error toast if we're signing out or already signed out.
