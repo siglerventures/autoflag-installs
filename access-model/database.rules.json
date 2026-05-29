@@ -112,11 +112,61 @@
       "people":       { ".read": "auth != null && root.child('eats/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('eats/admins_uid').child(auth.uid).exists())" }
     },
 
-    "taskboard":      { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('taskboard/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('taskboard/admins_uid').child(auth.uid).exists())",
-      "admins_uid":   { ".write": false },
-      "installers":   { ".write": false },
-      "customers_uid":{ ".write": false, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
-      "people":       { ".read": "auth != null && root.child('taskboard/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('taskboard/admins_uid').child(auth.uid).exists())" }
+    // ── TASKBOARD — EMAIL-ROSTER model (no cloud function / no UID mirror) ──
+    //  Unlike the other apps here, Taskboard resolves roles straight from an
+    //  email roster the client reads on login. Two ROOT admin UIDs are always
+    //  admin + lockout-proof. Everyone else's role comes from
+    //  taskboard/access/{emailKey} = { email, role, person?, name, addedAt,
+    //  addedBy }. Roles: admin | moderator | user.
+    //   • admin     — full access, Data Manager, and roster management.
+    //   • moderator — sees all tasks; no Data Manager / roster.
+    //   • user      — sees only tasks assigned to their mapped `person`
+    //                 (CLIENT-SIDE filtering — trusted internal staff).
+    //  These rules HARD-enforce: (1) the roster gate, (2) admin-only access
+    //  roster, (3) admin-only destructive Import (a write at the `tasks`
+    //  PARENT), while still letting any member edit/complete an individual
+    //  task (tasks/$taskId). NEVER put .read/.write on `taskboard` itself — a
+    //  granted parent read can't be revoked on a child, and that would leak
+    //  the access roster. We grant at the LEAF only.
+    //
+    //  emailKey MUST equal index.html emailToKey(): lowercase then dots→'_'.
+    //  RTDB .replace() swaps only the FIRST match, so '.' is replaced 6x to
+    //  cover realistic emails (same trick as the autoflag PIECE rules). The
+    //  other chars emailToKey handles (# $ [ ] /) never occur in these
+    //  Google accounts, so client and rules produce identical keys.
+    "taskboard": {
+
+      // Auth roster — admin read/write; a user may read ONLY their own record
+      // (needed for login role resolution). No one else can enumerate it.
+      "access": {
+        ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+        "$emailKey": {
+          ".read": "auth != null && auth.token.email != null && $emailKey == auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')"
+        }
+      },
+
+      // tasks — keyed map at tasks/{taskId}. Read = any roster member. A member
+      // may write an individual task (normal edit/complete). A write at the
+      // `tasks` PARENT (a destructive Import/Restore that replaces the whole
+      // node) is ADMIN-ONLY.
+      "tasks": {
+        ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+        "$taskId": {
+          ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))"
+        }
+      },
+
+      // Other shared task data — read+write = any roster member. (`people`
+      // here is ASSIGNEE NAMES, not the auth roster above.)
+      "categories":    { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" },
+      "completionLog": { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" },
+      "taskOrder":     { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" },
+      "nextId":        { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" },
+      "nextCatId":     { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" },
+      "people":        { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" },
+      "aiHistory":     { ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))", ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).exists()))" }
     },
 
     "command_center": { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('command_center/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('command_center/admins_uid').child(auth.uid).exists())",
