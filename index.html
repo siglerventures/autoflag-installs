@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.75" />
+<meta name="app-rev" content="2.76" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.75</div>
+  <div class="ver">AutoFlag© · v2.76</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.75</span>
+    <span>v2.76</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -2709,7 +2709,7 @@ async function loadDataViaREST(){
       toolsR, partsExtR, partsIntR, partsCylR, mechPartsR
     ] = await Promise.all([
       fetchJSON(customersSubPath()),
-      fetchJSON("issues"),
+      fetchJSON(issuesSubPath().replace("autoflag/", "")),
       fetchJSON("people"),
       fetchJSON("procedures/external"),
       fetchJSON("procedures/internal"),
@@ -2731,10 +2731,7 @@ async function loadDataViaREST(){
 
     // --- Issues (everyone; render gate handles role scoping) ---
     if(issuesR.ok){
-      const raw = await issuesR.json() || {};
-      const sanitized = {};
-      Object.entries(raw).forEach(([id, v]) => { sanitized[id] = sanitizeIssue(v, id); });
-      state.issues = sanitized;
+      state.issues = flattenIssues(await issuesR.json() || {});
       updateIssueBadge();
       anyOk = true;
     } else console.error(`REST fallback (issues): HTTP ${issuesR.status}`);
@@ -3212,14 +3209,47 @@ function subscribeToolsAndParts(){
   }, err => console.error("Mechanical BOM subscribe error:", err));
 }
 
-// Rev 2.24: Issues subscription. Top-level live-stream of every issue.
+// Rev 2.76: Issues are stored NESTED per-customer at autoflag/issues/{cid}/{issueId}
+// so the database can isolate one customer's issues from another's (same pattern
+// as installs/customers). state.issues stays a FLAT map keyed by issueId
+// internally, so all render/update logic is unchanged — only the storage paths
+// and the read/flatten step differ.
+function issueNodePath(issueId, cid){
+  const c = cid || state.issues?.[issueId]?.customerId || "_unassigned";
+  return `autoflag/issues/${c}/${issueId}`;
+}
+// Customers read only their own bucket; admins + installers read the whole tree.
+function issuesSubPath(){
+  return (state.userRole === "customer" && state.userPersonRecord?.customerId)
+    ? `autoflag/issues/${state.userPersonRecord.customerId}`
+    : "autoflag/issues";
+}
+// Flatten the read snapshot into the flat {issueId: issue} shape state.issues
+// uses. Handles three shapes transparently:
+//   - whole tree (admin/installer):        { cid: { issueId: issue } }
+//   - one customer bucket (customer read): { issueId: issue }
+//   - legacy flat issues (mid-migration):  { issueId: issue } at top level
+function flattenIssues(raw){
+  const out = {};
+  Object.entries(raw || {}).forEach(([k, v]) => {
+    if(!v || typeof v !== "object") return;
+    const looksLikeIssue = ("status" in v) || ("title" in v) || ("poleId" in v) || ("filedAt" in v);
+    if(looksLikeIssue){
+      out[k] = sanitizeIssue(v, k);                 // legacy flat issue (key = issueId)
+    } else {
+      Object.entries(v).forEach(([iid, iv]) => {     // customer bucket (key = cid)
+        if(iv && typeof iv === "object") out[iid] = sanitizeIssue(iv, iid);
+      });
+    }
+  });
+  return out;
+}
+
+// Rev 2.24: Issues subscription. Live-stream of issues (scoped per role).
 // Re-renders the Issues view + the issue badge in the top header on every change.
 function subscribeIssues(){
-  onValue(ref(db, "autoflag/issues"), snap => {
-    const raw = snap.val() || {};
-    const sanitized = {};
-    Object.entries(raw).forEach(([id, v]) => { sanitized[id] = sanitizeIssue(v, id); });
-    state.issues = sanitized;
+  onValue(ref(db, issuesSubPath()), snap => {
+    state.issues = flattenIssues(snap.val() || {});
     // Update the open-issues badge on the 🚨 button if it's mounted
     updateIssueBadge();
     // Rev 2.32: Re-render the active view if it shows issue data. Bug Phil hit
@@ -11779,7 +11809,7 @@ window.submitNewIssue = async () => {
     updatedAt: now
   };
   try {
-    await writeNode(`autoflag/issues/${issueId}`, issue);
+    await writeNode(issueNodePath(issueId, cid), issue);
     // Rev 2.53: Optimistic local update — mobile WebSocket may be wedged, so
     // the subscription echo from Firebase may never arrive. Update state.issues
     // immediately so the UI reflects the new issue without waiting for REST
@@ -12069,7 +12099,7 @@ window.editIssueTitle = async (issueId) => {
   if(trimmed === current) return;            // no change
   toast("Saving title…");
   try {
-    await patchNode(`autoflag/issues/${issueId}`, {
+    await patchNode(issueNodePath(issueId), {
       title: trimmed, updatedAt: Date.now()
     });
   } catch(e){
@@ -12078,7 +12108,7 @@ window.editIssueTitle = async (issueId) => {
   }
   // Verify
   let verified = null;
-  try { verified = await readNode(`autoflag/issues/${issueId}/title`); }
+  try { verified = await readNode(`${issueNodePath(issueId)}/title`); }
   catch(e){ toast("Save couldn't be confirmed — please retry", true); return; }
   if(verified !== trimmed){
     toast("Title didn't save — try again", true);
@@ -12117,7 +12147,7 @@ window.dispatchIssue = async (issueId) => {
   };
 
   try {
-    await patchNode(`autoflag/issues/${issueId}`, patch);
+    await patchNode(issueNodePath(issueId), patch);
   } catch(e){
     toast("Dispatch failed: " + e.message, true);
     console.error("[dispatch] patchNode threw:", e);
@@ -12128,7 +12158,7 @@ window.dispatchIssue = async (issueId) => {
   // readNode goes REST-first when _sdkWedged is true so this is fast.
   let verified = null;
   try {
-    verified = await readNode(`autoflag/issues/${issueId}/dispatchedTo`);
+    verified = await readNode(`${issueNodePath(issueId)}/dispatchedTo`);
   } catch(e){
     console.warn("[dispatch] verify read failed:", e);
     // Verify itself failed — don't lie. Tell user and bail out.
@@ -12216,7 +12246,7 @@ window.resolveIssue = async (issueId) => {
       resolvedBy: resolverKey, resolvedByName: resolverName, resolvedAt: now,
       updatedAt: now
     };
-    await patchNode(`autoflag/issues/${issueId}`, patch);
+    await patchNode(issueNodePath(issueId), patch);
     // Rev 2.53: Optimistic local update
     state.issues = { ...state.issues, [issueId]: { ...iss, ...patch, id: issueId } };
     if(typeof renderActive === "function") renderActive();
@@ -12335,7 +12365,7 @@ window.saveIssueProgress = async (issueId) => {
   // Rev 2.55: Verify-after-write — same pattern as dispatchIssue.
   // Don't lie to the user. Write, read back, only show success when verified.
   try {
-    await patchNode(`autoflag/issues/${issueId}`, patch);
+    await patchNode(issueNodePath(issueId), patch);
   } catch(e){
     toast("Save failed: " + e.message, true);
     console.error("[saveIssueProgress] patchNode threw:", e);
@@ -12346,7 +12376,7 @@ window.saveIssueProgress = async (issueId) => {
   // patch took. If not, something silently dropped the write.
   let verifiedStatus = null;
   try {
-    verifiedStatus = await readNode(`autoflag/issues/${issueId}/status`);
+    verifiedStatus = await readNode(`${issueNodePath(issueId)}/status`);
   } catch(e){
     console.warn("[saveIssueProgress] verify read failed:", e);
     toast("Save couldn't be confirmed — please retry", true);
@@ -12419,7 +12449,7 @@ window.confirmDeleteIssue = async (issueId) => {
     return;
   }
   try {
-    await removeNode(`autoflag/issues/${issueId}`);
+    await removeNode(issueNodePath(issueId));
     // Rev 2.53: Optimistic local update — strip the issue from state.issues
     const next = { ...state.issues };
     delete next[issueId];
@@ -12439,7 +12469,7 @@ window.reopenIssue = async (issueId) => {
       status: "open",
       updatedAt: Date.now()
     };
-    await patchNode(`autoflag/issues/${issueId}`, patch);
+    await patchNode(issueNodePath(issueId), patch);
     // Rev 2.53: Optimistic local update
     if(iss){
       state.issues = { ...state.issues, [issueId]: { ...iss, ...patch, id: issueId } };
@@ -12454,7 +12484,7 @@ window.deleteIssue = async (issueId) => {
   if(!state.isAdmin) return toast("Admin only", true);
   if(!confirm("Delete this issue permanently? Pole history entries will remain.")) return;
   try {
-    await removeNode(`autoflag/issues/${issueId}`);
+    await removeNode(issueNodePath(issueId));
     toast("Deleted");
     closeModal("modalIssueDetail");
   } catch(e){ toast("Delete failed: " + e.message, true); }

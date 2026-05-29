@@ -30,13 +30,11 @@
         }
       },
       "issues": {
-        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').exists()))",
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
         ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
-        ".indexOn": [
-          "customerId"
-        ],
-        "$issueId": {
-          ".write": "auth != null && auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'customer' && (newData.child('customerId').val() == root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val() || data.child('customerId').val() == root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val())"
+        "$cid": {
+          ".read": "auth != null && auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val() == $cid",
+          ".write": "auth != null && auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val() == $cid"
         }
       },
       "procedures": {
