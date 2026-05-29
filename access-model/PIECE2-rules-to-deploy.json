@@ -1,127 +1,105 @@
 {
-  // =====================================================================
-  //  PIECE 2 — Hardened rules for the AUTOFLAG app ONLY.
-  //  Every other app (eats, taskboard, command_center, philinity, foodswipe,
-  //  veritas, users, config) is preserved EXACTLY as your current live rules,
-  //  so deploying this changes nothing outside autoflag.
-  //
-  //  >>> DEPLOY ORDER — READ THIS <<<
-  //  1. PR #1 (Piece 1, the client) MUST be merged + live on GitHub Pages first.
-  //  2. Verify all three roles work in the live app.
-  //  3. ONLY THEN paste these rules into the Firebase console and Publish.
-  //  Reason: the OLD client (pre-Piece-1) makes customers read the WHOLE
-  //  installs/customers node. These rules deny that for customers, so a customer
-  //  on the old client would lose their data until Piece 1 is live.
-  //
-  //  ROLLBACK: paste your previous rules back in the console and Publish (~seconds).
-  //
-  //  HOW IT WORKS (no Cloud Function, no re-login needed):
-  //   - Roles come from the admin-managed roster at autoflag/people/{emailKey}
-  //     (emailKey = email lowercased with '.' -> '_', matching the client).
-  //   - Two ROOT admin UIDs are always admin (lockout-proof).
-  //   - READS are granted at the LEAF, so a customer can only read their own
-  //     customer subtree — the database now enforces what the app used to only
-  //     hide. (This is what makes the F12 probe return just city_of_boise.)
-  //   - WRITES: people is admin-only and now actually ENFORCED (no top-level
-  //     grant for installers to override it), so installers can no longer
-  //     promote themselves to admin.
-  //   - customers_uid self-grant write is disabled; reads no longer depend on
-  //     it, so the old self-grant bypass is closed.
-  //
-  //  KNOWN, INTENTIONAL FOLLOW-UP: issues are still readable by any roster
-  //  member (flat data structure). Customer WRITES to issues are scoped to
-  //  their own customerId. Full issue read-isolation is the next, separate step.
-  // =====================================================================
-
   "rules": {
-
     "autoflag": {
-
       "people": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))",
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
         "$personKey": {
-          ".read": "auth != null && auth.token.email != null && $personKey === auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')"
+          ".read": "auth != null && auth.token.email != null && $personKey == auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')"
         }
       },
-
       "installers": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))"
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))"
       },
-
       "customers_uid": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))",
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
         ".write": false,
         "$uid": {
-          ".read": "auth != null && auth.uid === $uid"
+          ".read": "auth != null && auth.uid == $uid"
         }
       },
-
       "installs": {
         "customers": {
-          ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))",
-          ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))",
+          ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+          ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
           "$cid": {
-            ".read":  "auth != null && auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/customerId').val() === $cid",
-            ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/customerId').val() === $cid)))"
+            ".read": "auth != null && auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val() == $cid",
+            ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val() == $cid)))"
           }
         }
       },
-
       "issues": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').exists()))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))",
-        ".indexOn": ["customerId"],
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').exists()))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".indexOn": [
+          "customerId"
+        ],
         "$issueId": {
-          ".write": "auth != null && auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'customer' && (newData.child('customerId').val() === root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/customerId').val() || data.child('customerId').val() === root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/customerId').val())"
+          ".write": "auth != null && auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'customer' && (newData.child('customerId').val() == root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val() || data.child('customerId').val() == root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('customerId').val())"
         }
       },
-
-      "procedures":       { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))" },
-      "tools":            { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))" },
-      "parts":            { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))" },
-      "mechanical-parts": { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin'))" },
-
-      "ai":          { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))" },
-      "misc":        { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))" },
-      "suggestions": { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers/' + auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'admin' || root.child('autoflag/people/' + auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_') + '/role').val() === 'installer')))" }
+      "procedures": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))"
+      },
+      "tools": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))"
+      },
+      "parts": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))"
+      },
+      "mechanical-parts": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))"
+      },
+      "ai": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))"
+      },
+      "misc": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))"
+      },
+      "suggestions": {
+        ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))",
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('autoflag/installers').child(auth.uid).exists() || (auth.token.email != null && (root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('autoflag/people').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'installer')))"
+      }
     },
-
-    // ===== Everything below is UNCHANGED from your current live rules =====
-
     "eats": {
-      ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
       ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')"
     },
     "taskboard": {
-      ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
       ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')"
     },
     "command_center": {
-      ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
       ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')"
     },
     "philinity": {
-      ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
       ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')"
     },
     "veritas": {
-      ".read":  "auth != null",
+      ".read": "auth != null",
       ".write": "auth != null"
     },
     "foodswipe": {
-      ".read":  "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
       ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')"
     },
     "users": {
       "$uid": {
-        ".read":  "auth != null && auth.uid == $uid",
+        ".read": "auth != null && auth.uid == $uid",
         ".write": "auth != null && auth.uid == $uid"
       }
     },
     "config": {
-      ".read":  false,
+      ".read": false,
       ".write": false
     }
   }
