@@ -140,62 +140,11 @@
       "people":       { ".read": "auth != null && root.child('foodswipe/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('foodswipe/admins_uid').child(auth.uid).exists())" }
     },
 
-    // ============================ VERITAS ============================
-    // Role-based, roster-gated to match the Veritas client. UNLIKE the other
-    // apps, Veritas has no syncAccess function and no UID-mirror node: the
-    // client resolves roles CLIENT-side by reading the email-keyed roster at
-    // veritas/people/{emailKey}.role. So these rules read that roster directly,
-    // transforming auth.token.email with the SAME emailToKey escaping the
-    // client uses (global replace, same order: . # $ [ ] /). RTDB .replace()
-    // is global, so it matches the client's /g regex chain exactly.
-    //   admin  = root UID  OR  people/{ek}.role === 'admin'
-    //   mod    = admin     OR  people/{ek}.role === 'moderator'   (canModerate)
-    //   member = admin/mod OR  people/{ek}.role === 'user'
-    // Cascade rule (see header #1): grants are pushed to the LEAF. Top-level
-    // .read/.write are admin-ONLY — this does NOT loosen children for
-    // non-admins (admin ⊇ mod ⊇ member), it keeps `people` private from
-    // members, and it lets the admin-only Data modal export (reads /veritas)
-    // and restore (writes /veritas whole node) keep working.
-    "veritas": {
-      ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin'))",
-      ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin'))",
-
-      // Legacy/stale UID-mirror node from the generic scaffold — never trusted
-      // by these rules. Lock writes so nobody can plant junk under it.
-      "admins_uid": { ".write": false },
-
-      // People roster (emailKey -> {role,name,...}). Admins read/write the whole
-      // roster; every signed-in user may read ONLY their own record so the
-      // client's resolveRole() can resolve a moderator/user's role.
-      "people": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin'))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin'))",
-        "$ek": {
-          ".read": "auth != null && auth.token.email != null && $ek === auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')"
-        }
-      },
-
-      // Sessions: every roster member reads all sessions and can create/update
-      // them (running a query writes a session). Edit/delete of OTHERS' sessions
-      // is gated CLIENT-side to moderators — sessions carry no createdBy, so
-      // rules can't tell ownership (accepted for trusted internal staff).
-      "sessions": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'moderator' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'user')))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'moderator' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'user')))"
-      },
-
-      // Categories: members read; admin/moderator write (saveCategories sets
-      // the whole veritas/categories node).
-      "categories": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'moderator' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'user')))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'moderator')))"
-      },
-
-      // Acknowledged facts: members read; admin/moderator write.
-      "acknowledged": {
-        ".read":  "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'moderator' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'user')))",
-        ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'admin' || root.child('veritas/people').child(auth.token.email.toLowerCase().replace('.', '_').replace('#', '_HASH_').replace('$', '_DOL_').replace('[', '_OB_').replace(']', '_CB_').replace('/', '_FS_')).child('role').val() === 'moderator')))"
-      }
+    // veritas was world-read/write (any logged-in user). Locked to the same
+    // admin baseline. If it must stay open, restore ".read"/".write":"auth != null".
+    "veritas":        { ".read": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('veritas/admins_uid').child(auth.uid).exists())", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('veritas/admins_uid').child(auth.uid).exists())",
+      "admins_uid":   { ".write": false },
+      "people":       { ".read": "auth != null && root.child('veritas/admins_uid').child(auth.uid).exists()", ".write": "auth != null && (auth.uid === 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid === 'g4stabGPKiWAE23NTw6oUsqawWf1' || root.child('veritas/admins_uid').child(auth.uid).exists())" }
     },
 
     // Per-user private scratch space — unchanged.
