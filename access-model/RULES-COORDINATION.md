@@ -33,7 +33,7 @@ publishes last wins and silently reverts the other's work.**
 | App | Rules state | Notes |
 |---|---|---|
 | autoflag | ✅ hardened (role-based, per-customer isolation) | Pieces 1–3 done |
-| veritas | 🟡 hardened in repo — PENDING DEPLOY | role-based (admin/moderator/user) in `PIECE3-rules-to-deploy.json`; client Rev 6.15. Deploy + probe per `VERITAS-rollout-verify.md` |
+| veritas | ✅ base hardening DEPLOYED 2026-05-31 · 🟡 per-session ownership PENDING DEPLOY | role-based (admin/moderator/user). Base (people/sessions/categories/acknowledged) live & probe-verified. New: `sessions/$sid` write = author or mod/root (needs Rev 6.17 client live first, then republish `PIECE3`) |
 | taskboard | 🔒 root-UID only | safe; hardened by the Taskboard rollout |
 | eats | 🔒 root-UID only | safe; harden when it gets real users |
 | command_center | 🔒 root-UID only | safe; harden when it gets real users |
