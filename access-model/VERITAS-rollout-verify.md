@@ -30,9 +30,18 @@ UID-mirror design is NOT used.
   | `veritas` (top) | admin | admin (Data-modal export reads `/veritas`; restore writes `/veritas`) |
   | `veritas/people` | admin | admin |
   | `veritas/people/$personKey` | own record (self) | — |
-  | `veritas/sessions` | member | member |
+  | `veritas/sessions` | member | — (no blanket write; pushed to `$sid`) |
+  | `veritas/sessions/$sid` | (member, via parent) | **author** (`createdBy.uid == auth.uid`) **or** admin/moderator |
   | `veritas/categories` | member | admin/moderator |
   | `veritas/acknowledged` | member | admin/moderator |
+
+  **Per-session ownership (Rev 6.17 / client attribution):** members still read
+  every session, but write is per-`$sid`: a `user` may create a session only with
+  their own uid in `createdBy`, and may edit/delete only their own (and cannot
+  reassign authorship); admins/moderators/root can edit/delete any. Legacy
+  sessions created before attribution have no `createdBy` → only moderators/admins
+  can move or delete them. Requires the Rev 6.17 client (stamps `createdBy.uid`)
+  to be live first, so deploy these rules AFTER shipping that client.
 
   `member` = `admin`/`moderator`/`user` in `veritas/people/{emailKey}.role` (or a
   root UID). Email-key parity with the client's `emailToKey` was checked for all
@@ -65,18 +74,26 @@ BASE=https://philinity-893d2-default-rtdb.firebaseio.com
 curl -s "$BASE/veritas/sessions.json?auth=$TOKEN_NONROSTER"      # expect: Permission denied
 curl -s "$BASE/veritas/categories.json?auth=$TOKEN_NONROSTER"    # expect: Permission denied
 
-# --- USER: reads sessions + can create one; cannot touch people/categories ---
+# --- USER: reads ALL sessions; can create/edit/delete only their OWN post ---
+#   $UID_USER = this account's Firebase uid (DevTools: firebase.auth().currentUser.uid)
+#   $OTHER_SID = id of a session created by a DIFFERENT user
 curl -s "$BASE/veritas/sessions.json?auth=$TOKEN_USER"                          # expect: data (or null)
-curl -s -X POST -d '{"category":"probe","title":"t","updatedAt":0}' \
-     "$BASE/veritas/sessions.json?auth=$TOKEN_USER"                             # expect: {"name":"-..."} (created)
+curl -s -X PUT -d '{"category":"probe","firstQuestion":"t","createdBy":{"uid":"'$UID_USER'"},"updatedAt":0}' \
+     "$BASE/veritas/sessions/probe-own.json?auth=$TOKEN_USER"                   # expect: written (own post)
+curl -s -X PUT -d '{"category":"probe","createdBy":{"uid":"someone-else"},"updatedAt":0}' \
+     "$BASE/veritas/sessions/probe-forge.json?auth=$TOKEN_USER"                 # expect: Permission denied (can't post AS another)
+curl -s -X DELETE "$BASE/veritas/sessions/probe-own.json?auth=$TOKEN_USER"      # expect: deleted (own post)
+curl -s -X DELETE "$BASE/veritas/sessions/$OTHER_SID.json?auth=$TOKEN_USER"     # expect: Permission denied (not your post)
 curl -s -X PUT  -d '{"x":1}' "$BASE/veritas/categories.json?auth=$TOKEN_USER"   # expect: Permission denied
 curl -s -X PUT  -d '{"role":"admin"}' \
      "$BASE/veritas/people/evil_test.json?auth=$TOKEN_USER"                     # expect: Permission denied
 curl -s "$BASE/veritas/people.json?auth=$TOKEN_USER"                           # expect: Permission denied (whole roster)
 
-# --- MODERATOR: can edit categories / acknowledge; cannot manage people ---
+# --- MODERATOR: can edit categories / acknowledge / manage ANY session; not people ---
 curl -s -X PUT -d '{"probe":{"id":"probe","name":"Probe"}}' \
      "$BASE/veritas/categories.json?auth=$TOKEN_MOD"                            # expect: written
+curl -s -X PATCH -d '{"category":"probe"}' \
+     "$BASE/veritas/sessions/$OTHER_SID.json?auth=$TOKEN_MOD"                   # expect: written (mod manages any post)
 curl -s -X PUT -d '{"role":"admin"}' \
      "$BASE/veritas/people/evil_test.json?auth=$TOKEN_MOD"                      # expect: Permission denied
 
