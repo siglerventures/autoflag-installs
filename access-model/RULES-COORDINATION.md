@@ -34,7 +34,7 @@ publishes last wins and silently reverts the other's work.**
 |---|---|---|
 | autoflag | ✅ hardened (role-based, per-customer isolation) | Pieces 1–3 done |
 | veritas | ✅ fully hardened + DEPLOYED 2026-05-31 | role-based (admin/moderator/user). people/categories/acknowledged + per-session ownership all live & verified against console. `sessions/$sid` write = author (`createdBy.uid`) or mod/root. Client Rev 6.17 |
-| taskboard | 🔒 root-UID only | safe; hardened by the Taskboard rollout |
+| taskboard | 🛠 rules ready in PIECE3 (PR) — pending console deploy | role-based (admin/moderator/user). Roster at **`taskboard/access/{emailKey}`** (NOT `taskboard/people`, which is assignee names). `taskboard/tasks` is a keyed map: members write `tasks/$taskId`, but a write at the `tasks` parent (destructive Import) is admin-only. Client Rev 6.6. Deploy PIECE3 + seed roster + probe-verify, then mark DEPLOYED. |
 | eats | 🔒 root-UID only | safe; harden when it gets real users |
 | command_center | 🔒 root-UID only | safe; harden when it gets real users |
 | philinity | 🔒 root-UID only | safe; harden when it gets real users |
