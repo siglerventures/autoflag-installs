@@ -99,3 +99,14 @@ staff — fine for internal tool), or (b) add `createdBy` to sessions and enforc
 > Data-modal restore needs it). Verify the client bounces non-roster users. Use
 > a branch + PR + staged rollout + probe verification like AutoFlag. Same
 > Firebase project (philinity-893d2).
+
+## Also required: email + password sign-in (sign-in standard)
+Per `access-model/SIGNIN-STANDARD.md`, Veritas must offer **email+password in
+addition to Google** (it's currently Google-only). Mirror AutoFlag's flow:
+`createUserWithEmailAndPassword` / `signInWithEmailAndPassword` /
+`sendPasswordResetEmail`, email+password fields on the auth gate, friendly error
+mapping. No rules/roster change — role resolution by email is unchanged.
+
+> Kickoff: "Add email+password sign-in to Veritas alongside Google, mirroring
+> AutoFlag's flow, per access-model/SIGNIN-STANDARD.md. Client-only; the
+> email-keyed roster/role logic is unchanged. Branch + PR; bump the rev pill."

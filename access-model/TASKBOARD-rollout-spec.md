@@ -84,3 +84,15 @@ Roles: **admin / moderator / user** (Taskboard); AutoFlag also has customer.
 > admin/moderator/user, client-side user filtering, in-app admin access modal,
 > hard-enforced roster gate + admin-only roster/Data-Manager in rules. Use a
 > branch + PR + staged rollout + verification like we did for AutoFlag.
+
+## Also required: email + password sign-in (sign-in standard)
+Per `access-model/SIGNIN-STANDARD.md`, Taskboard must offer **email+password in
+addition to Google** (it's currently Google-only). Mirror AutoFlag's flow:
+`createUserWithEmailAndPassword` / `signInWithEmailAndPassword` /
+`sendPasswordResetEmail`, email+password fields on the auth gate, friendly error
+mapping. No rules/roster change — role resolution by email is unchanged.
+
+> Kickoff: "Add email+password sign-in to Taskboard alongside Google, mirroring
+> AutoFlag's flow, per access-model/SIGNIN-STANDARD.md. Client-only; the
+> email-keyed access/role logic (taskboard/access/{emailKey}) is unchanged.
+> Branch + PR; bump the rev."

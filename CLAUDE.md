@@ -32,6 +32,33 @@ Two things live in this repo:
 - Deploy = paste the WHOLE PIECE3 file into the Firebase console (Realtime
   Database → Rules → Publish). Merging to `main` does NOT auto-deploy.
 
+## Access model (EVERY app — existing and new)
+- All apps use the same **role + roster** model. Full spec:
+  `access-model/ADOPTED-STANDARD.md`. Reference impl: AutoFlag's PIECE2/PIECE3.
+- Roster lives at `{app}/people/{emailKey}` (Taskboard uses `{app}/access/{emailKey}`
+  because `taskboard/people` already means assignee names). Record =
+  `{ email, role, … }`; `role ∈ admin | moderator | user | customer | installer`
+  (use only the roles an app needs).
+- `emailKey` = email lowercased with the **6× `.replace('.','_')`** chain in
+  rules (RTDB `.replace()` is first-occurrence-only — one call is NOT enough).
+  Keep it matched to the client's `emailToKey`.
+- Two ROOT admin UIDs hardcoded in client AND rules as lockout insurance:
+  `CuJigrzCbRfFFsM7uqe0mix46xH3`, `g4stabGPKiWAE23NTw6oUsqawWf1`.
+- Rules check role **inline** by reading the roster; **grant at the LEAF**, never
+  an app's top level (a parent grant cascades and can't be revoked). Per-tenant
+  isolation scopes reads at the `$id` level.
+- Client resolves its own role by reading its OWN roster record and **bounces
+  null-role users** (sign out anyone not root and not on the roster).
+- **New apps:** don't invent a model — copy AutoFlag's pattern, gate the data,
+  and follow `RULES-COORDINATION.md`.
+
+## Sign-in (EVERY app)
+- Offer **BOTH** Google **and** email+password, mirroring AutoFlag. Spec:
+  `access-model/SIGNIN-STANDARD.md`.
+- Access is email-keyed, so the sign-in method is interchangeable — adding
+  email+password is a CLIENT-only change; no rules/roster change. The
+  Email/Password provider is already enabled on `philinity-893d2`.
+
 ## Pull-request hygiene
 - Open a PR per unit of work and SHARE THE LINK as soon as you push.
 - Do NOT push commits expecting them to attach to an already-merged PR. If the
