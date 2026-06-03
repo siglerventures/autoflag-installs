@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.76" />
+<meta name="app-rev" content="2.77" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1004,7 +1004,7 @@
   </div>
 
   <div id="loginPending" style="display:none;margin-top:18px;color:var(--text-dim);font-size:13px;font-style:italic">📡 Signing you in…</div>
-  <div class="ver">AutoFlag© · v2.76</div>
+  <div class="ver">AutoFlag© · v2.77</div>
 </div>
 
 <!-- ==== App shell ==== -->
@@ -1084,7 +1084,7 @@
   <button class="fab" id="fabAddBtn" onclick="openAddMenu()" title="Add">+</button>
 
   <footer>
-    <span>v2.76</span>
+    <span>v2.77</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrDataLink" onclick="openDataModal()">📦 Data</span>
     <span class="ftr-sep ftr-admin-only">·</span> <span class="ftr-link ftr-admin-only" id="ftrHistoryLink" onclick="openHistoryModal()">📜 History</span>
     <span class="ftr-sep ftr-admin-only">·</span> <button class="icon-btn ftr-admin-only" id="peopleBtn" onclick="openPeopleModal()" title="Manage people" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn" id="customerPeopleBtn" onclick="openCustomerPeopleModal()" title="Manage your team" style="display:none;background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">👥</button><button class="icon-btn ftr-admin-only" id="proceduresBtn" onclick="openProceduresModal()" title="Edit install procedures" style="background:transparent;border:none;padding:0 4px;color:var(--text-dim);font-size:14px;vertical-align:middle;cursor:pointer">📋</button>
@@ -10557,7 +10557,7 @@ window.askAI = async () => {
   window.__lastAITurnPhotoUrls = photoUrls.slice();
 
   const photoNote = photoUrls.length
-    ? '\n\n[Attached ' + photoUrls.length + ' photo URL' + (photoUrls.length === 1 ? '' : 's') + ' — use in photos array when calling add_pole or update_pole, or refer to them by imageIndex 0,1,2... when calling propose_tb_action with operation=attach_image]:\n' + photoUrls.join('\n')
+    ? '\n\n[Attached ' + photoUrls.length + ' photo URL' + (photoUrls.length === 1 ? '' : 's') + ' — use in photos array when calling add_pole, update_pole, or add_issue, or refer to them by imageIndex 0,1,2... when calling propose_tb_action with operation=attach_image]:\n' + photoUrls.join('\n')
     : '';
   const fullMessage = q + photoNote;
 
@@ -10598,6 +10598,17 @@ Supported actions:
 { "action": "add_site", "customerId":"...", "name":"...", "address":"" }
 { "action": "update_site", "customerId":"...", "siteId":"...", "patch": { ...site fields to change (name, address, lat, lng, photos, contact, phone, notes)... } }
 { "action": "add_customer", "name":"...", "contact":"", "phone":"" }   // admin only
+{ "action": "add_issue", "customerId":"...", "siteId":"...", "poleId":"...", "title":"...", "description":"", "status":"open", "photos":["https://..."] }
+{ "action": "update_issue", "issueId":"...", "patch": { ...issue fields to change (status, title, description, resolution)... }, "note":"<what changed / why — logged to the issue history>" }
+
+ISSUES / REPAIR LOG (the issue tracker DOES exist — never tell the user it doesn't):
+- An "issue" is a field-service / repair ticket attached to exactly ONE pole. It lives in the 🚨 Issues view, drives the open-issue badge, and is linked into the pole's history. This is the correct home for things like "needs a steel backplate," "solar panel damaged," "unit broke in windstorm" — NOT the pole's notes field.
+- DO NOT log issues by appending warning text to a pole's notes. Use add_issue. Notes are for install context, not open tickets.
+- Each add_issue targets ONE pole. To raise the same issue across many poles, emit one add_issue per pole. Because this is a batch write, ALWAYS list the affected poles and get the user's explicit confirmation in plain text BEFORE emitting the action blocks.
+- title is required and should be short (e.g., "Install steel backplate"). Put detail in description.
+- Issue status enum: open | dispatched | in_progress | waiting_parts | waiting_customer | re_dispatched | resolved | cancelled. New issues default to "open". Only admins should resolve/cancel.
+- update_issue targets an existing issue by issueId (see _issues in the context). Use it to change status (e.g., resolve), retitle, or edit the description. The note is required when changing status and is written to the issue's history log.
+- The data context includes _issues — a compact list of current issues (id, pole, status, title). Use it to avoid filing duplicates and to find the issueId for update_issue.
 
 FIELD SEMANTICS (important — labels in UI differ from JSON keys):
 - "serial" = Flag Pole Height (e.g., "20 ft", "30 ft"). Standard heights: 15/20/25/30/35/40/45/50/60/70/80 ft.
@@ -10774,6 +10785,23 @@ function buildAIContext(){
     if(c) out._mechanicalBom[id] = c;
   });
 
+  // 2b) Issues / repair-log tickets. Compact list so the AI knows which issues
+  //     already exist (avoid duplicate filings) and can resolve the issueId for
+  //     update_issue. Placed before the customer tree so it survives truncation.
+  //     Terminal issues (resolved/cancelled) are kept but flagged so the AI can
+  //     tell open work from closed.
+  out._issues = {};
+  Object.entries(state.issues || {}).forEach(([id, iss]) => {
+    if(!iss) return;
+    out._issues[id] = {
+      id,
+      customerId: iss.customerId, siteId: iss.siteId, poleId: iss.poleId,
+      status: iss.status || "open",
+      title: iss.title || "",
+      ...(iss.filedAt ? { filedAt: new Date(iss.filedAt).toISOString().slice(0,10) } : {})
+    };
+  });
+
   // 3) Customer tree LAST. This is by far the largest section because of nested
   //    poles. If the context ever overflows, we lose poles from the bottom rather
   //    than losing all reference data.
@@ -10886,6 +10914,88 @@ async function executeAction(a){
     const sitePatch = {...safePatch, updatedAt: Date.now()};
     await patchNode(`autoflag/installs/customers/${a.customerId}/sites/${a.siteId}`, sitePatch);
     toast(`Updated site ${before.name || a.siteId}`);
+  }
+  // Rev 2.77: File a new issue / repair-log ticket against a pole. Mirrors
+  // submitNewIssue() — writes to the nested issues store, stamps filer
+  // attribution, optimistically updates state.issues, and links the issue into
+  // the pole's history. Replaces the old (wrong) behavior where the AI logged
+  // open work by appending warning text to a pole's notes.
+  else if(a.action==="add_issue"){
+    if(!validP(a.customerId,a.siteId,a.poleId)) return toast("Unknown pole ID", true);
+    const title = (a.title||"").trim();
+    if(!title) return toast("Issue needs a title", true);
+    const issueId = push(ref(db,"autoflag/issues")).key;
+    const filerKey = peopleEmailKeyForCurrentUser();
+    const filerName = state.user?.displayName || state.user?.email || "(unknown)";
+    const now = Date.now();
+    const issue = sanitizeIssue({
+      customerId:a.customerId, siteId:a.siteId, poleId:a.poleId,
+      status: a.status || "open",
+      title, description: a.description || "",
+      photos: Array.isArray(a.photos) ? a.photos : [],
+      filedBy: filerKey, filedByName: filerName,
+      filedByRole: state.userRole || "admin", filedAt: now,
+      updatedAt: now
+    }, issueId);
+    try {
+      await writeNode(issueNodePath(issueId, a.customerId), issue);
+    } catch(e){
+      return toast("Issue save failed: " + e.message, true);
+    }
+    // Optimistic local update (same rationale as submitNewIssue — mobile socket
+    // may be wedged and the subscription echo may never arrive).
+    state.issues = { ...state.issues, [issueId]: { ...issue, id: issueId } };
+    if(typeof updateIssueBadge === "function") updateIssueBadge();
+    if(typeof renderActive === "function") renderActive();
+    // Link the issue into the pole's history.
+    await appendPoleHistoryEntry(a.customerId, a.siteId, a.poleId, {
+      kind: "issue_filed", issueId, title, at: now, by: filerKey, byName: filerName
+    });
+    toast(`✓ Issue filed: ${title}`);
+  }
+  // Rev 2.77: Update an existing issue (status / title / description / resolution).
+  // Mirrors saveIssueProgress() for the fields the AI can touch: whitelists the
+  // patch, validates status, appends a history entry, and stamps resolution
+  // attribution when moving to "resolved".
+  else if(a.action==="update_issue"){
+    const iss = state.issues?.[a.issueId];
+    if(!iss) return toast("Unknown issue ID", true);
+    const allowed = ["status","title","description","resolution"];
+    const patch = {};
+    for(const k of allowed){
+      if(a.patch && Object.prototype.hasOwnProperty.call(a.patch, k)) patch[k] = a.patch[k];
+    }
+    if(patch.status && !ISSUE_STATUSES.find(s => s.key === patch.status)) return toast("Invalid issue status", true);
+    if((patch.status === "resolved" || patch.status === "cancelled") && !state.isAdmin) return toast("Only admins can resolve/cancel issues", true);
+    if(Object.keys(patch).length === 0) return toast("Nothing to update on the issue", true);
+    const now = Date.now();
+    const byKey = peopleEmailKeyForCurrentUser();
+    const byName = state.user?.displayName || state.user?.email || "(unknown)";
+    const newStatus = patch.status || iss.status || "open";
+    const note = (a.note || patch.resolution || "").trim();
+    const historyEntry = {
+      at: now, by: byKey, byName,
+      status: newStatus, statusFrom: iss.status || "open", note, photos: []
+    };
+    patch.history = Array.isArray(iss.history) ? [...iss.history, historyEntry] : [historyEntry];
+    patch.updatedAt = now;
+    if(newStatus === "resolved"){
+      if(patch.resolution == null) patch.resolution = note;
+      patch.resolvedBy = byKey; patch.resolvedByName = byName; patch.resolvedAt = now;
+    }
+    try {
+      await patchNode(issueNodePath(a.issueId, iss.customerId), patch);
+    } catch(e){
+      return toast("Issue update failed: " + e.message, true);
+    }
+    state.issues = { ...state.issues, [a.issueId]: { ...iss, ...patch, id: a.issueId } };
+    if(typeof updateIssueBadge === "function") updateIssueBadge();
+    if(typeof renderActive === "function") renderActive();
+    await appendPoleHistoryEntry(iss.customerId, iss.siteId, iss.poleId, {
+      kind: "issue_status", issueId: a.issueId, title: iss.title,
+      at: now, by: byKey, byName, status: newStatus, note
+    });
+    toast(`✓ Issue updated · ${statusLabel(newStatus)}`);
   }
   // Rev 2.06: Tools / BOM proposals — render a confirmation card, defer execution
   // until the admin taps Confirm. The actual write happens in confirmTbProposal().
