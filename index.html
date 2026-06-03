@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.79" />
+<meta name="app-rev" content="2.80" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1530,14 +1530,6 @@
             <button class="btn-secondary btn" onclick="cleanupLegacyFlatIssues()" style="opacity:.85">🧹 Step 2: Clean Up Old Copies</button>
           </div>
         </div>
-
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
-          <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px">🧹 Steel Backplate Cleanup <span style="color:var(--text-muted);font-size:11px">(one-time, admin)</span></div>
-          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Earlier the AI logged steel-backplate work by jamming <code style="color:var(--amber)">⚠️ OPEN ISSUE: Steel backplate…</code> into pole <strong>notes</strong> (before the issue tracker was wired up). This removes that line from every affected pole and files a proper <strong>"Install steel backplate"</strong> issue on each (skipping any pole that already has an open backplate issue). Safe to run more than once.</div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button class="btn-secondary btn" onclick="cleanupSteelBackplateNotes()">🧹 Clean Up & File Issues</button>
-          </div>
-        </div>
       </div>
 
       <div id="data-modal-status" style="margin-top:12px;font-size:11px;color:var(--text-muted);font-family:monospace"></div>
@@ -1988,95 +1980,6 @@ window.cleanupLegacyFlatIssues = async () => {
   _dataModalStatus(msg);
   toast(`Cleaned up ${del} issue(s)`);
   alert(msg);
-};
-
-// Rev 2.79: One-time cleanup for the steel-backplate notes the AI wrote into
-// pole notes before the issue tracker existed. For each pole whose notes contain
-// the marker line, strip that line and file a proper "Install steel backplate"
-// issue (skipping poles that already have an open backplate issue, so it's safe
-// to re-run). Files the issue BEFORE editing notes so a failed write doesn't
-// leave the work untracked.
-const STEEL_BACKPLATE_MARKER = "OPEN ISSUE: Steel backplate";
-
-async function fileSteelBackplateIssue(cid, sid, pid){
-  const issueId = push(ref(db, "autoflag/issues")).key;
-  const filerKey = peopleEmailKeyForCurrentUser();
-  const filerName = state.user?.displayName || state.user?.email || "(unknown)";
-  const now = Date.now();
-  const issue = sanitizeIssue({
-    customerId: cid, siteId: sid, poleId: pid, status: "open",
-    title: "Install steel backplate",
-    description: "Migrated from a pole-notes flag — steel backplate needs to be installed on this external unit.",
-    filedBy: filerKey, filedByName: filerName,
-    filedByRole: state.userRole || "admin", filedAt: now, updatedAt: now
-  }, issueId);
-  await writeNode(issueNodePath(issueId, cid), issue);
-  state.issues = { ...state.issues, [issueId]: { ...issue, id: issueId } };
-  await appendPoleHistoryEntry(cid, sid, pid, {
-    kind: "issue_filed", issueId, title: issue.title, at: now, by: filerKey, byName: filerName
-  });
-}
-
-window.cleanupSteelBackplateNotes = async () => {
-  if(!state.isAdmin) return toast("Admin only", true);
-  // Collect affected poles
-  const affected = [];
-  Object.entries(state.data.customers || {}).forEach(([cid, c]) => {
-    Object.entries(c.sites || {}).forEach(([sid, s]) => {
-      Object.entries(s.poles || {}).forEach(([pid, p]) => {
-        if(typeof p.notes === "string" && p.notes.includes(STEEL_BACKPLATE_MARKER)){
-          affected.push({ cid, sid, pid, pole: p });
-        }
-      });
-    });
-  });
-  if(affected.length === 0){
-    _dataModalStatus("No poles carry the steel-backplate note — nothing to clean up.");
-    return toast("Nothing to clean up");
-  }
-  if(!confirm(`Found ${affected.length} pole(s) with the "⚠️ OPEN ISSUE: Steel backplate" note.\n\nThis will:\n• remove that line from each pole's notes\n• file a proper "Install steel backplate" issue on each (skipping poles that already have an open one)\n\nProceed?`)) return;
-
-  let cleaned = 0, filed = 0, skippedIssue = 0, failed = 0;
-  for(const a of affected){
-    try {
-      // 1) File a proper issue first, unless an open backplate issue already exists.
-      const hasOpen = Object.values(state.issues || {}).some(iss =>
-        iss && iss.poleId === a.pid && /backplate/i.test(iss.title || "") &&
-        iss.status !== "resolved" && iss.status !== "cancelled");
-      if(hasOpen){ skippedIssue++; }
-      else { await fileSteelBackplateIssue(a.cid, a.sid, a.pid); filed++; }
-
-      // 2) Strip the marker line(s) from notes, collapsing leftover blank lines.
-      const before = a.pole;
-      const newNotes = (before.notes || "")
-        .split("\n")
-        .filter(ln => !ln.includes(STEEL_BACKPLATE_MARKER))
-        .join("\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-
-      // 3) Write the cleaned pole with a proper audit-history entry (mirrors update_pole).
-      const merged = sanitizePole({ ...before, notes: newNotes }, a.pid);
-      merged.updatedAt = Date.now();
-      merged.updatedBy = state.user.uid;
-      const changes = diffPole(before, merged);
-      if(changes.length > 0){
-        merged.history = [...(before.history || []), buildHistoryEntry(changes)].slice(-100);
-      }
-      await patchNode(`autoflag/installs/customers/${a.cid}/sites/${a.sid}/poles/${a.pid}`, merged);
-      cleaned++;
-      _dataModalStatus(`Cleaning… ${cleaned}/${affected.length} pole(s)`);
-    } catch(e){
-      failed++;
-      console.error("[backplate cleanup] failed for", a.pid, e?.message);
-    }
-  }
-  const msg = `🧹 Cleaned notes on ${cleaned} pole(s). Filed ${filed} new issue(s). Skipped (already had an open backplate issue): ${skippedIssue}. Failed: ${failed}.`;
-  _dataModalStatus(msg);
-  toast(`Cleaned ${cleaned} pole(s), filed ${filed} issue(s)`);
-  alert(msg);
-  if(typeof updateIssueBadge === "function") updateIssueBadge();
-  if(typeof renderActive === "function") renderActive();
 };
 
 // ==== Auth + role config ====
