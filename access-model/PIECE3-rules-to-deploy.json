@@ -67,8 +67,21 @@
       }
     },
     "eats": {
-      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')",
-      ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1')"
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'moderator' || root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'user')))",
+      ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+      "categories": {
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'moderator')))"
+      },
+      "$entryId": {
+        ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && (root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin' || root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'moderator' || root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'user')))"
+      }
+    },
+    "eats_access": {
+      ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+      ".write": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('eats_access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
+      "$emailKey": {
+        ".read": "auth != null && auth.token.email != null && $emailKey == auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')"
+      }
     },
     "taskboard": {
       ".read": "auth != null && (auth.uid == 'CuJigrzCbRfFFsM7uqe0mix46xH3' || auth.uid == 'g4stabGPKiWAE23NTw6oUsqawWf1' || (auth.token.email != null && root.child('taskboard/access').child(auth.token.email.toLowerCase().replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_').replace('.','_')).child('role').val() == 'admin'))",
