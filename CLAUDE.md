@@ -59,6 +59,23 @@ Two things live in this repo:
   email+password is a CLIENT-only change; no rules/roster change. The
   Email/Password provider is already enabled on `philinity-893d2`.
 
+## Rollout sequencing — DEFAULT (don't ask; follow this unless the app's spec says otherwise)
+When hardening an app's access (or any matched client+rules change), use the
+proven AutoFlag staging — and **do it in one session, full scope**:
+1. **Build the CLIENT** (roster gate / role resolution / role-gated UI / People
+   modal) and bump the rev. This is safe under the app's CURRENT rules — building
+   the gate doesn't lock anyone out.
+2. **Edit ONLY that app's block** in `PIECE3-rules-to-deploy.json`.
+3. Open ONE PR (client repo) + note the rules change; share the link.
+4. **Deploy order is the user's, and it's CLIENT → verify → RULES**: ship the
+   client live first, confirm all roles work, THEN paste the rules in the Firebase
+   console. NEVER deploy rules before the client gate is live (lockout risk).
+5. Probe-verify each role like AutoFlag did.
+- You (the bot) cannot deploy rules — that's the user's console paste. "Full
+  scope" = build client + edit the rules block; the user deploys.
+- Default to this. Only ask the user when the app's ROLES or DATA-SCOPING aren't
+  defined (no rollout spec) — that's a product decision, the staging is not.
+
 ## Pull-request hygiene
 - Open a PR per unit of work and SHARE THE LINK as soon as you push.
 - Do NOT push commits expecting them to attach to an already-merged PR. If the
