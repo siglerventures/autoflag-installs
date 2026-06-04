@@ -59,6 +59,13 @@ Two things live in this repo:
   email+password is a CLIENT-only change; no rules/roster change. The
   Email/Password provider is already enabled on `philinity-893d2`.
 
+## UI / footer (EVERY app)
+- Every app MUST match `access-model/UI-STANDARD.md`. Footer, exact format:
+  `v{REV} · 📦 Data · 📜 History · 👥 People · {Name} ★ · 🚪 Sign Out`
+  (version auto-injected from the meta tag; 📦 Data + 👥 People admin-only;
+  ★ shows for admins; Sign Out always). Plus the Google+email/password sign-in
+  screen and the 👥 People / 📦 Data / 📜 History surfaces.
+
 ## Rollout sequencing — DEFAULT (don't ask; follow this unless the app's spec says otherwise)
 When hardening an app's access (or any matched client+rules change), use the
 proven AutoFlag staging — and do it in one session, full scope:
