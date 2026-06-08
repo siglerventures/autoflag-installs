@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.83" />
+<meta name="app-rev" content="2.84" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -585,7 +585,7 @@
   .tb-total-stack .tb-total-footer{margin-top:0}
   .tb-total-row-install{background:linear-gradient(135deg,rgba(110,163,217,0.10),rgba(110,163,217,0.04));border-color:var(--blue)}
   .tb-total-row-install .tb-total-value{color:var(--blue)}
-  /* Rev 2.83: install-parts total is clickable to cycle install type. */
+  /* Rev 2.84: device/install totals link to their BOM view (see goToBomView). */
   .tb-total-row-clickable{cursor:pointer;transition:filter .12s,border-color .12s}
   .tb-total-row-clickable:hover{filter:brightness(1.18);border-color:var(--amber)}
   .tb-total-switch{font-size:10px;color:var(--text-muted);font-weight:normal;margin-left:8px;white-space:nowrap;vertical-align:middle}
@@ -7531,8 +7531,8 @@ function renderInstallBomView(){
       <span class="tb-total-value">$${totalInstallCost.toFixed(2)}</span>
       <span class="tb-total-meta">per install</span>
     </div>
-    <div class="tb-total-footer tb-total-row-device">
-      <span class="tb-total-label">Total Device Cost (Mechanical BOM)</span>
+    <div class="tb-total-footer tb-total-row-device tb-total-row-clickable" onclick="goToBomView('mechbom', event)" title="Open the Mechanical BOM">
+      <span class="tb-total-label">Total Device Cost (Mechanical BOM) <span class="tb-total-switch">→ open</span></span>
       <span class="tb-total-value">$${mechTotal.toFixed(2)}</span>
       <span class="tb-total-meta">per device</span>
     </div>
@@ -7637,8 +7637,8 @@ function renderMechBomView(){
       <span class="tb-total-value">$${totalDeviceCost.toFixed(2)}</span>
       <span class="tb-total-meta">per device</span>
     </div>
-    <div class="tb-total-footer tb-total-row-install tb-total-row-clickable" onclick="cycleMechInstallType(event)" title="Click to switch install type (External → Internal → Cylinder)">
-      <span class="tb-total-label">Total ${formatInstallType(activeInstall)} Install Parts Cost <span class="tb-total-switch">⇄ tap to switch</span></span>
+    <div class="tb-total-footer tb-total-row-install tb-total-row-clickable" onclick="goToBomView('${activeInstall}', event)" title="Open the ${formatInstallType(activeInstall)} Install BOM">
+      <span class="tb-total-label">Total ${formatInstallType(activeInstall)} Install Parts Cost <span class="tb-total-switch">→ open</span></span>
       <span class="tb-total-value">$${installTotal.toFixed(2)}</span>
       <span class="tb-total-meta">per install</span>
     </div>
@@ -7828,15 +7828,19 @@ window.setTbSort = (which, col) => {
   renderActive();
 };
 
-// Rev 2.83: On the Mechanical BOM view, the install-parts total line shows the
-// cost for one install type (state.bomTab). Clicking it cycles
-// External → Internal → Cylinder so the Grand Total can be compared per type
-// without leaving the Mech BOM view.
-window.cycleMechInstallType = (ev) => {
+// Rev 2.84: The device-cost and install-parts total lines link to their BOM.
+// From the Mechanical BOM view, the install line opens that Install BOM; from
+// an Install BOM view, the device line opens the Mechanical BOM. target is an
+// install type ("external"|"internal"|"cylinder") or "mechbom".
+window.goToBomView = (target, ev) => {
   if(ev) ev.stopPropagation();
-  const order = ["external", "internal", "cylinder"];
-  const cur = state.bomTab || "external";
-  state.bomTab = order[(order.indexOf(cur) + 1) % order.length];
+  if(target === "mechbom"){
+    state.installsTab = "mechbom";
+  } else {
+    state.bomTab = target;
+    state.installsTab = "installbom";
+  }
+  if(typeof renderInstallsSubTabsInline === "function") renderInstallsSubTabsInline();
   renderActive();
 };
 
