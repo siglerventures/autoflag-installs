@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.80" />
+<meta name="app-rev" content="2.81" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -10678,18 +10678,20 @@ WRITE — to modify a Tools/BOM item, emit a propose_tb_action JSON block. Admin
 { "action": "propose_tb_action", "operation": "update", "kind": "tool|part|mechpart", "installType": "external|internal|cylinder", "id": "<itemId>", "patch": { "field": newValue, ... }, "summary": "<one-line human description of what will change>" }
 
 Allowed patch fields:
-- Tools: name, price, category, notes
-- Install BOM parts: name, qty, packCost, qtyPerUnit, material, notes
-- Mechanical BOM parts: name, qty, packCost, qtyPerUnit, material, notes
+- Tools: name, price, category, notes, links
+- Install BOM parts: name, qty, packCost, qtyPerUnit, material, notes, links
+- Mechanical BOM parts: name, qty, packCost, qtyPerUnit, material, notes, links
+- "links" = the item's purchase/source list, shown in the UI as "Sources". It is an ARRAY of {label, url} objects — e.g. "links":[{"label":"goBilda","url":"https://www.gobilda.com/1309-series-sonic-hub-6mm-d-bore/"}]. Put the VENDOR/supplier name (label) + the purchase URL (url) HERE, never in notes. A SKU / part number can stay in notes. When adding a source, emit the FULL intended links array (include any existing ones you want to keep).
 
 For installType — REQUIRED only when kind="part" (Install BOM is per-install-type).
 
 Other operations:
 { "action": "propose_tb_action", "operation": "verify", "kind":"...", "id":"...", "installType":"...", "summary":"..." }
 { "action": "propose_tb_action", "operation": "delete", "kind":"...", "id":"...", "installType":"...", "summary":"..." }
-{ "action": "propose_tb_action", "operation": "add", "kind":"tool|part|mechpart", "installType":"...", "newItem": { "name":"...", ... }, "summary":"..." }
-{ "action": "propose_tb_action", "operation": "attach_image", "kind":"...", "id":"...", "installType":"...", "imageIndex": 0, "summary":"..." }
-   — imageIndex refers to the user's most recently attached photos in this turn (0 = first attached image). Use this when user attached one or more images and wants them routed to a specific item.
+{ "action": "propose_tb_action", "operation": "add", "kind":"tool|part|mechpart", "installType":"...", "newItem": { "name":"...", ... }, "imageIndex": 0, "summary":"..." }
+   — newItem may include any allowed field above (name, qty, packCost, qtyPerUnit, material, notes, links). Remember: vendor + purchase URL go in newItem.links as [{label,url}], NOT in notes. If the user ATTACHED a photo for this NEW item, add "imageIndex" (0 = first attached image) to the ADD proposal so the image is attached AT creation — do NOT emit a separate attach_image for a brand-new item (it has no id yet, so the attach would fail).
+{ "action": "propose_tb_action", "operation": "attach_image", "kind":"...", "id":"<existing itemId>", "installType":"...", "imageIndex": 0, "summary":"..." }
+   — attach_image is ONLY for an item that ALREADY EXISTS (you must have its real id from context). imageIndex refers to the user's most recently attached photos in this turn (0 = first). For a NEW item, use imageIndex on the add proposal instead.
 
 CRITICAL TOOLS/BOM RULES:
 - NEVER write directly. Always propose. The user MUST tap Confirm before the write happens.
@@ -11053,7 +11055,10 @@ function renderTbProposalCard(proposal){
   // Photos are uploaded to FB Storage *before* the AI call, so by the time we get
   // here the URLs are durable. We store URLs (not file refs) since the Confirm tap
   // may happen long after the upload.
-  const photoSnapshot = (proposal.operation === "attach_image" && Array.isArray(window.__lastAITurnPhotoUrls))
+  // Rev 2.81: snapshot photos for "add" too, so a brand-new item can attach an
+  // uploaded image AT creation (imageIndex on the add proposal). Attaching by id
+  // can't work for a new item — its id doesn't exist until Confirm runs.
+  const photoSnapshot = ((proposal.operation === "attach_image" || proposal.operation === "add") && Array.isArray(window.__lastAITurnPhotoUrls))
     ? window.__lastAITurnPhotoUrls.slice()
     : null;
   __pendingProposals[pid] = { ...proposal, photoSnapshot };
@@ -11083,10 +11088,23 @@ function renderTbProposalCard(proposal){
   } else if(op === "delete"){
     detailsHtml = `<div style="font-size:11px;color:var(--red);margin-top:6px">Soft-delete <strong>${escapeHtml(itemLabel)}</strong> (recoverable from history)</div>`;
   } else if(op === "add" && proposal.newItem){
+    // Rev 2.81: render links as readable "Sources", skip imageIndex (shown as a
+    // badge below), and JSON-stringify any other object so it isn't "[object Object]".
     const rows = Object.entries(proposal.newItem).map(([k, v]) => {
-      return `<tr><td style="color:var(--text-muted);padding:2px 8px 2px 0">${escapeHtml(k)}</td><td style="color:var(--green);padding:2px 0">${escapeHtml(String(v))}</td></tr>`;
+      if(k === "imageIndex") return "";
+      let disp = v;
+      if(k === "links" && Array.isArray(v)){
+        disp = v.map(l => `${l?.label || ""}${l?.url ? " (" + l.url + ")" : ""}`).join(", ");
+      } else if(v && typeof v === "object"){
+        disp = JSON.stringify(v);
+      }
+      return `<tr><td style="color:var(--text-muted);padding:2px 8px 2px 0">${escapeHtml(k === "links" ? "sources" : k)}</td><td style="color:var(--green);padding:2px 0">${escapeHtml(String(disp))}</td></tr>`;
     }).join("");
-    detailsHtml = `<table style="font-size:11px;font-family:monospace;margin-top:6px">${rows}</table>`;
+    const imgIdx = Number.isInteger(proposal.imageIndex) ? proposal.imageIndex
+                 : (Number.isInteger(proposal.newItem.imageIndex) ? proposal.newItem.imageIndex : null);
+    const imgNote = (imgIdx !== null && photoSnapshot && photoSnapshot[imgIdx])
+      ? `<div style="font-size:11px;color:var(--amber);margin-top:4px">📷 attaches 1 uploaded image</div>` : "";
+    detailsHtml = `<table style="font-size:11px;font-family:monospace;margin-top:6px">${rows}</table>${imgNote}`;
   } else if(op === "attach_image"){
     const count = photoSnapshot ? photoSnapshot.length : 0;
     detailsHtml = `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Attach ${count > 0 ? count + " image" + (count===1?'':'s') : "image"} to <strong>${escapeHtml(itemLabel)}</strong>${count===0 ? ' <span style="color:var(--red)">— no images attached to your message</span>' : ''}</div>`;
@@ -11260,7 +11278,15 @@ async function applyTbProposalDelete(p){
 }
 
 async function applyTbProposalAdd(p){
-  const newItem = p.newItem || {};
+  const newItem = { ...(p.newItem || {}) };
+  // Rev 2.81: attach an uploaded photo AT creation. imageIndex may arrive at the
+  // proposal top level or inside newItem; never persist it as an item field.
+  const imageIndex = Number.isInteger(p.imageIndex) ? p.imageIndex
+                   : (Number.isInteger(newItem.imageIndex) ? newItem.imageIndex : null);
+  delete newItem.imageIndex;
+  const createImageUrl = (imageIndex !== null && Array.isArray(p.photoSnapshot))
+    ? (p.photoSnapshot[imageIndex] || null)
+    : null;
   await withBomContext(p.installType, async () => {
     let path, id, base;
     if(p.kind === "tool"){
@@ -11292,11 +11318,13 @@ async function applyTbProposalAdd(p){
     }
     const item = {
       ...base, ...newItem,
+      ...(createImageUrl ? { imageUrl: createImageUrl } : {}),
       deletedAt: null,
       createdAt: Date.now(), createdBy: state.user.uid,
       updatedAt: Date.now(), updatedBy: state.user.uid,
       history: [buildHistoryEntry([
         { field: "_created", from: null, to: newItem.name || "(new)" },
+        ...(createImageUrl ? [{ field: "imageUrl", from: null, to: "(image)" }] : []),
         { field: "_aiInitiated", from: null, to: state.user.uid }
       ])]
     };
