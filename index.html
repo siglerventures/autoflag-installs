@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.81" />
+<meta name="app-rev" content="2.82" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -549,6 +549,10 @@
   .tb-verify-btn.verified{color:var(--green);border-color:var(--green)}
   .tb-delete-btn{background:transparent;border:1px solid var(--red);color:var(--red);font-size:11px;padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer}
   .tb-delete-btn:hover{background:var(--red);color:#fff}
+  /* Rev 2.82: Save & Close for the item detail panel — sits bottom-right (the
+     conventional save spot); Delete moved to the far left so it's hard to mis-tap. */
+  .tb-save-btn{background:var(--green);border:1px solid var(--green);color:#fff;font-size:12px;font-weight:600;padding:5px 18px;border-radius:var(--radius-sm);cursor:pointer}
+  .tb-save-btn:hover{filter:brightness(1.12)}
 
   /* Links subsection in detail panel */
   .tb-links-section{display:flex;flex-direction:column;gap:5px;width:100%}
@@ -7414,11 +7418,12 @@ function renderToolDetailPanel(id, item){
 
   if(adminEdit){
     html += `<div class="tb-detail-actions">
-      <div style="flex:1"></div>
       <div style="display:flex;gap:6px">
-        <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('tool','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}')">📜 History</button>
         <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('tool','${id}')">✕ Delete</button>
+        <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('tool','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}')">📜 History</button>
       </div>
+      <div style="flex:1"></div>
+      <button class="tb-save-btn" data-no-drag onclick="saveCloseTbRow('tool','${id}')">✓ Save</button>
     </div>`;
   }
 
@@ -7765,11 +7770,12 @@ function renderPartDetailPanel(id, item, kind = "part"){
 
   if(adminEdit){
     html += `<div class="tb-detail-actions">
-      <div style="flex:1"></div>
       <div style="display:flex;gap:6px">
-        <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('${kind}','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}'${kind==='part' ? ",'"+(state.bomTab||'external')+"'" : ''})">📜 History</button>
         <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('${kind}','${id}')">✕ Delete</button>
+        <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('${kind}','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}'${kind==='part' ? ",'"+(state.bomTab||'external')+"'" : ''})">📜 History</button>
       </div>
+      <div style="flex:1"></div>
+      <button class="tb-save-btn" data-no-drag onclick="saveCloseTbRow('${kind}','${id}')">✓ Save</button>
     </div>`;
   }
 
@@ -8044,6 +8050,23 @@ window.saveTbItem = async (kind, id) => {
 
   await writeNode(path, patch);
   delete __tbPendingChanges[key];
+};
+
+// Rev 2.82: Explicit Save & Close for the item detail panel. Edits already
+// auto-save (debounced on input), so this just flushes any in-flight change,
+// then collapses the row. Inputs use oninput, so pending changes are current.
+window.saveCloseTbRow = async (kind, id) => {
+  if(!state.isAdmin){ toast("Admin only", true); return; }
+  try {
+    await saveTbItem(kind, id);
+  } catch(e){
+    toast("Save failed: " + (e?.message || ""), true);
+    return;
+  }
+  state.expandedTbRows.delete(`${kind}:${id}`);
+  state.editingTbUrl = null;
+  toast("✓ Saved");
+  renderActive();
 };
 
 function tbItemPath(kind, id){
