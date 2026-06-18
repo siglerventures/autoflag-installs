@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.84" />
+<meta name="app-rev" content="2.85" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -10628,13 +10628,22 @@ window.askAI = async () => {
     document.getElementById("aiThinking").classList.add("visible");
     photoUrls = await uploadPendingAIPhotos();
   }
-  // Rev 2.06: Snapshot uploaded URLs for the current AI turn so a Tools/BOM
-  // attach_image proposal can reference them by index. Cleared on the next turn.
-  window.__lastAITurnPhotoUrls = photoUrls.slice();
+  // Rev 2.06 / Rev 2.85: Snapshot uploaded URLs so a Tools/BOM proposal can
+  // reference them by imageIndex. Photos now PERSIST across turns until consumed
+  // by a proposal — so "here's a photo" then a later "ok, add it" still attaches.
+  // Only overwrite when NEW photos were uploaded this turn; otherwise keep the
+  // previous turn's snapshot available (cleared after a proposal uses it).
+  if(photoUrls.length){
+    window.__lastAITurnPhotoUrls = photoUrls.slice();
+  }
+  const carriedPhotos = Array.isArray(window.__lastAITurnPhotoUrls) ? window.__lastAITurnPhotoUrls : [];
 
-  const photoNote = photoUrls.length
-    ? '\n\n[Attached ' + photoUrls.length + ' photo URL' + (photoUrls.length === 1 ? '' : 's') + ' — use in photos array when calling add_pole, update_pole, or add_issue, or refer to them by imageIndex 0,1,2... when calling propose_tb_action with operation=attach_image]:\n' + photoUrls.join('\n')
-    : '';
+  let photoNote = "";
+  if(photoUrls.length){
+    photoNote = '\n\n[Attached ' + photoUrls.length + ' photo URL' + (photoUrls.length === 1 ? '' : 's') + ' — use in photos array when calling add_pole, update_pole, or add_issue, or refer to them by imageIndex 0,1,2... when calling propose_tb_action (imageIndex on an add, or operation=attach_image)]:\n' + photoUrls.join('\n');
+  } else if(carriedPhotos.length){
+    photoNote = '\n\n[' + carriedPhotos.length + ' photo' + (carriedPhotos.length === 1 ? '' : 's') + ' attached earlier in this conversation ' + (carriedPhotos.length === 1 ? 'is' : 'are') + ' STILL AVAILABLE to attach — reference by imageIndex 0' + (carriedPhotos.length > 1 ? '..' + (carriedPhotos.length - 1) : '') + ' on a propose_tb_action add or attach_image.]';
+  }
   const fullMessage = q + photoNote;
 
   appendBubble(q + (photoUrls.length ? ' (📸 ' + photoUrls.length + ')' : ''), "user");
@@ -10735,7 +10744,7 @@ Other operations:
 { "action": "propose_tb_action", "operation": "add", "kind":"tool|part|mechpart", "installType":"...", "newItem": { "name":"...", ... }, "imageIndex": 0, "summary":"..." }
    — newItem may include any allowed field above (name, qty, packCost, qtyPerUnit, material, notes, links). Remember: vendor + purchase URL go in newItem.links as [{label,url}], NOT in notes. If the user ATTACHED a photo for this NEW item, add "imageIndex" (0 = first attached image) to the ADD proposal so the image is attached AT creation — do NOT emit a separate attach_image for a brand-new item (it has no id yet, so the attach would fail).
 { "action": "propose_tb_action", "operation": "attach_image", "kind":"...", "id":"<existing itemId>", "installType":"...", "imageIndex": 0, "summary":"..." }
-   — attach_image is ONLY for an item that ALREADY EXISTS (you must have its real id from context). imageIndex refers to the user's most recently attached photos in this turn (0 = first). For a NEW item, use imageIndex on the add proposal instead.
+   — attach_image is ONLY for an item that ALREADY EXISTS (you must have its real id from context). imageIndex refers to the most recently attached photo(s), which PERSIST across turns until used (0 = first) — so if the user attached a photo a message or two ago and now says "add it"/"attach it", that photo is still available; reference it by imageIndex. For a NEW item, use imageIndex on the add proposal instead.
 
 CRITICAL TOOLS/BOM RULES:
 - NEVER write directly. Always propose. The user MUST tap Confirm before the write happens.
@@ -11374,6 +11383,13 @@ async function applyTbProposalAdd(p){
     };
     await writeNode(path, item);
     toast(`Added ${item.name || "(new item)"}`);
+    // Rev 2.85: clear the carried photo once consumed so it isn't reused on a
+    // later unrelated action; warn loudly if an image was requested but missing.
+    if(createImageUrl){
+      window.__lastAITurnPhotoUrls = [];
+    } else if(imageIndex !== null){
+      toast("⚠ Added without a photo — none was available to attach", true);
+    }
   });
 }
 
@@ -11399,6 +11415,7 @@ async function applyTbProposalAttachImage(p){
       history: [...(item.history || []), entry].slice(-100)
     });
     toast(`✓ Image attached to ${item.name || p.id}`);
+    window.__lastAITurnPhotoUrls = []; // Rev 2.85: consumed — don't reuse later
   });
 }
 
