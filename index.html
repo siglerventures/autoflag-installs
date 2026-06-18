@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.85" />
+<meta name="app-rev" content="2.86" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -3800,7 +3800,7 @@ function renderProcSteps(){
 
         // Diagram preview + diagram action buttons
         if(dUrl){
-          html += `<div style="margin-bottom:8px"><img src="${dUrl}" style="max-width:100%;max-height:160px;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="window.open('${dUrl}','_blank')" /></div>`;
+          html += `<div style="margin-bottom:8px"><img src="${dUrl}" style="max-width:100%;max-height:160px;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border)" onclick="openImageLightbox('${dUrl}')" /></div>`;
         }
         html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
           <label class="btn-secondary btn" data-no-drag draggable="false" style="font-size:11px;padding:4px 8px;cursor:pointer" onclick="event.stopPropagation()">
@@ -3890,11 +3890,11 @@ function renderProcSteps(){
                 <div style="font-size:12px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap;cursor:text;min-height:18px" ondblclick="event.stopPropagation();editStepFieldInline(this,'${sec.id}','${st.id}','instructions')" title="Double-click to edit"><span data-field="instructions">${st.instructions ? escapeHtml(st.instructions) : '(double-click to add instructions)'}</span></div>
                 <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">
                   ${st.photoUrl?`<div style="position:relative">
-                    <img data-no-drag draggable="false" src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);display:block" onclick="event.stopPropagation();window.open('${st.photoUrl}','_blank')" title="Legacy reference photo" />
+                    <img data-no-drag draggable="false" src="${st.photoUrl}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);display:block" onclick="event.stopPropagation();openImageLightbox('${st.photoUrl}')" title="Legacy reference photo" />
                     <span data-no-drag style="position:absolute;top:1px;right:1px;background:rgba(0,0,0,0.6);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">legacy</span>
                   </div>`:''}
                   ${refPhotos.map(u=>`<div style="position:relative">
-                    <img data-no-drag draggable="false" src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);display:block" onclick="event.stopPropagation();window.open('${u}','_blank')" title="Reference photo (click to view)" />
+                    <img data-no-drag draggable="false" src="${u}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--border);display:block" onclick="event.stopPropagation();openImageLightbox('${u}')" title="Reference photo (click to view)" />
                     <button data-no-drag draggable="false" onclick="event.stopPropagation();removeStepReferencePhoto('${sec.id}','${st.id}','${u.replace(/'/g,"\\'")}')" style="position:absolute;top:1px;right:1px;background:rgba(178,40,40,0.85);color:#fff;border:none;font-size:11px;padding:0 5px;border-radius:3px;cursor:pointer;line-height:1.4" title="Remove">✕</button>
                   </div>`).join('')}
                   <!-- Rev 2.41: Full 4-source photo UI matching the Pole modal pattern.
@@ -6340,7 +6340,7 @@ function renderSiteDetail(c,s){
         ondragleave="this.classList.remove('drag-over')"
         ondrop="handleSiteDetailDrop(event,'${c.id}','${s.id}')">`;
       s.photos.forEach((url,i) => {
-        html += `<div class="site-detail-photo" onclick="window.open('${url}','_blank')">
+        html += `<div class="site-detail-photo" onclick="openImageLightbox('${url}')">
           <img src="${url}" />
           <button class="site-detail-photo-remove" onclick="event.stopPropagation();deleteSiteDetailPhoto('${c.id}','${s.id}',${i})" title="Remove">×</button>
         </div>`;
@@ -7202,7 +7202,7 @@ function renderInstalls(){
         ${badges.length ? `<div class="installs-step-badges">${badges.join('')}</div>` : ''}
         ${instrHtml ? `<div class="installs-step-instructions">${instrHtml}</div>` : ''}
         ${allPhotos.length ? `<div class="installs-step-photos">
-          ${allPhotos.map((u,i) => `<div class="installs-step-photo" onclick="window.open('${u}','_blank')"><img src="${u}" alt="step ${globalIdx+1} reference ${i+1}" /></div>`).join('')}
+          ${allPhotos.map((u,i) => `<div class="installs-step-photo" onclick="openImageLightbox('${u}')"><img src="${u}" alt="step ${globalIdx+1} reference ${i+1}" /></div>`).join('')}
         </div>` : ''}
       </div>`;
     });
@@ -7222,7 +7222,7 @@ function renderInstallsReferenceSection(sec, collapsed){
 
   let inner = "";
   if(diagramUrl){
-    inner += `<img class="installs-term-diagram" src="${diagramUrl}" alt="Reference diagram" onclick="window.open('${diagramUrl}','_blank')" />`;
+    inner += `<img class="installs-term-diagram" src="${diagramUrl}" alt="Reference diagram" onclick="openImageLightbox('${diagramUrl}')" />`;
   }
   if(terms.length){
     inner += `<div class="installs-terms-grid">`;
@@ -7897,7 +7897,7 @@ function renderTbDetailImage(id, item, kind, adminEdit){
   if(url){
     if(adminEdit){
       return `<div class="tb-detail-image" data-no-drag>
-        <img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" />
+        <img src="${url}" onclick="openImageLightbox('${url}')" alt="${escapeHtml(item.name || '')}" />
         <button class="tb-detail-image-remove" data-no-drag onclick="removeTbImage('${kind}','${id}')" title="Remove image">×</button>
         <label class="tb-detail-image-replace" data-no-drag style="cursor:pointer" title="Replace">
           📷
@@ -7905,7 +7905,7 @@ function renderTbDetailImage(id, item, kind, adminEdit){
         </label>
       </div>`;
     }
-    return `<div class="tb-detail-image"><img src="${url}" onclick="window.open('${url}','_blank')" alt="${escapeHtml(item.name || '')}" /></div>`;
+    return `<div class="tb-detail-image"><img src="${url}" onclick="openImageLightbox('${url}')" alt="${escapeHtml(item.name || '')}" /></div>`;
   }
   if(adminEdit){
     return `<label class="tb-detail-image empty" data-no-drag
@@ -9043,7 +9043,7 @@ function renderSitePhotos(existing){
   if(!grid) return;
   let html = "";
   existing.forEach((url,i) => {
-    html += `<div class="photo-thumb" onclick="window.open('${url}','_blank')"><img src="${url}" /><div class="remove" onclick="event.stopPropagation();removeExistingSitePhoto(${i})">×</div></div>`;
+    html += `<div class="photo-thumb" onclick="openImageLightbox('${url}')"><img src="${url}" /><div class="remove" onclick="event.stopPropagation();removeExistingSitePhoto(${i})">×</div></div>`;
   });
   state.siteTempPhotos.forEach((tp,i) => {
     html += `<div class="photo-thumb"><img src="${tp.url}" /><div class="remove" onclick="event.stopPropagation();removeTempSitePhoto(${i})">×</div></div>`;
@@ -9556,9 +9556,9 @@ function renderPoleChecklist(p){
         </div>
         <div class="checklist-step-body" id="body-${st.id}" style="display:${isNextUp ? '' : 'none'}">
           ${instrHtml ? `<div class="checklist-instructions">${instrHtml}</div>` : ''}
-          ${st.photoUrl ? `<div class="checklist-template-photo" onclick="window.open('${st.photoUrl}','_blank')"><img src="${st.photoUrl}" alt="reference" /><span class="checklist-photo-label">Reference</span></div>` : ''}
+          ${st.photoUrl ? `<div class="checklist-template-photo" onclick="openImageLightbox('${st.photoUrl}')"><img src="${st.photoUrl}" alt="reference" /><span class="checklist-photo-label">Reference</span></div>` : ''}
           ${(Array.isArray(st.referencePhotos) && st.referencePhotos.length)
-            ? st.referencePhotos.map((u, i) => `<div class="checklist-template-photo" onclick="window.open('${u}','_blank')"><img src="${u}" alt="ref ${i+1}" /><span class="checklist-photo-label">Ref ${i+1}</span></div>`).join('')
+            ? st.referencePhotos.map((u, i) => `<div class="checklist-template-photo" onclick="openImageLightbox('${u}')"><img src="${u}" alt="ref ${i+1}" /><span class="checklist-photo-label">Ref ${i+1}</span></div>`).join('')
             : ''}
           ${inputField ? `
             <div class="checklist-input-row">
@@ -9613,7 +9613,7 @@ function renderPoleChecklist(p){
                this step as the paste target so global Ctrl+V routes here. -->
           <div class="checklist-step-actions" style="flex-wrap:wrap;gap:6px">
             ${stepPhotoUrls.map((u, i) => `<div class="checklist-step-photo" style="position:relative">
-                <img src="${u}" onclick="window.open('${u}','_blank')" />
+                <img src="${u}" onclick="openImageLightbox('${u}')" />
                 <span class="checklist-photo-label">${i+1}/${stepPhotoUrls.length}</span>
                 <button onclick="event.stopPropagation();removeStepPhotoAt('${st.id}','${u.replace(/'/g,"\\'")}')" ${unlocked ? '' : 'disabled'} style="position:absolute;top:2px;right:2px;background:rgba(178,40,40,0.85);color:#fff;border:none;font-size:10px;width:18px;height:18px;border-radius:50%;cursor:pointer;line-height:1;padding:0" title="Remove">✕</button>
               </div>`).join('')}
@@ -9654,7 +9654,7 @@ function renderTerminologySection(sec, p){
 
   let inner = "";
   if(diagramUrl){
-    inner += `<img class="checklist-term-diagram" src="${diagramUrl}" alt="Reference diagram" onclick="window.open('${diagramUrl}','_blank')" />`;
+    inner += `<img class="checklist-term-diagram" src="${diagramUrl}" alt="Reference diagram" onclick="openImageLightbox('${diagramUrl}')" />`;
   }
   if(terms.length){
     inner += `<div class="checklist-terms-grid">`;
@@ -10012,7 +10012,7 @@ function renderPolePhotos(existing){
   const grid = document.getElementById("mp-photos");
   let html = "";
   existing.forEach((url,i) => {
-    html += `<div class="photo-thumb" onclick="window.open('${url}','_blank')"><img src="${url}" /><div class="remove" onclick="event.stopPropagation();removeExistingPhoto(${i})">×</div></div>`;
+    html += `<div class="photo-thumb" onclick="openImageLightbox('${url}')"><img src="${url}" /><div class="remove" onclick="event.stopPropagation();removeExistingPhoto(${i})">×</div></div>`;
   });
   state.poleTempPhotos.forEach((tp,i) => {
     html += `<div class="photo-thumb"><img src="${tp.url}" /><div class="remove" onclick="event.stopPropagation();removeTempPhoto(${i})">×</div></div>`;
@@ -13084,7 +13084,12 @@ window.startBulkImageImport = async () => {
       const safeName = m.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
       const path = `${storageBase}/${m.itemId}_${Date.now()}_${safeName}`;
       const sr = sref(storage, path);
-      await uploadBytes(sr, m.blob);
+      // Rev 2.86: set an image/* content-type from the file extension. ZIP blobs
+      // have no type, so without this Firebase stores application/octet-stream
+      // and the image downloads instead of displaying when opened directly.
+      const ext = (m.filename.split(".").pop() || "").toLowerCase();
+      const ctype = m.blob.type || ({ jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", gif:"image/gif", webp:"image/webp", bmp:"image/bmp", svg:"image/svg+xml", heic:"image/heic" })[ext] || "application/octet-stream";
+      await uploadBytes(sr, m.blob, { contentType: ctype });
       const url = await getDownloadURL(sr);
       const oldUrl = item.imageUrl || "";
       const entry = buildHistoryEntry([
@@ -13308,6 +13313,30 @@ function toast(msg, isErr){
   el._t = setTimeout(()=>el.classList.remove("show"), 2400);
 }
 window.toast = toast;
+
+// ==== Image lightbox (Rev 2.86) ====
+// View any image in an in-app overlay instead of window.open(url). Older images
+// (e.g. bulk-imported) were stored without an image/* content-type, so Firebase
+// served them as application/octet-stream and window.open DOWNLOADED them rather
+// than displaying — worse on mobile. An <img> renders the bytes inline
+// regardless of content-disposition, so the lightbox always shows the picture.
+// Only image thumbnails route here; vendor/source links and map links still
+// use window.open / <a target="_blank"> as before.
+window.openImageLightbox = (url) => {
+  if(!url) return;
+  let ov = document.getElementById("imgLightbox");
+  if(!ov){
+    ov = document.createElement("div");
+    ov.id = "imgLightbox";
+    ov.style.cssText = "position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out";
+    ov.addEventListener("click", () => { ov.style.display = "none"; ov.innerHTML = ""; });
+    document.body.appendChild(ov);
+  }
+  const safe = String(url).replace(/"/g, "&quot;");
+  ov.innerHTML = `<img src="${safe}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;box-shadow:0 6px 40px rgba(0,0,0,.7)" />
+    <div style="position:absolute;top:12px;right:18px;color:#fff;font-size:30px;line-height:1;cursor:pointer">×</div>`;
+  ov.style.display = "flex";
+};
 
 </script>
 
