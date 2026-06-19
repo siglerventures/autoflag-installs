@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.89" />
+<meta name="app-rev" content="2.90" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6484,6 +6484,7 @@ window.drillTo = (customerId, siteId) => {
     state.filter.customer = "all";
   }
   renderActive();
+  if(customerId || siteId) afArm();   // Rev 2.90: drilling IN is a back-able layer
 };
 // Rev 2.27: Wrapper for drilling out of the Issues view. Issues view doesn't
 // render drill state, so we have to flip back to Browse first or the click
@@ -6494,6 +6495,7 @@ window.drillToFromIssues = (customerId, siteId) => {
   if(state.view !== "browse") state.view = "browse";
   state.drillCustomer = customerId; state.drillSite = siteId;
   renderActive();
+  if(customerId || siteId) afArm();   // Rev 2.90
 };
 
 // Rev 2.29: Open the Pole modal directly from the Issues view. Switches to
@@ -8593,6 +8595,7 @@ window.switchView = v => {
   document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view===v));
   renderInstallsSubTabsInline();
   renderActive();
+  if(v !== "browse") afArm();   // Rev 2.90: leaving Browse is a back-able layer
 };
 
 // Rev 2.69: Customer-scoped view switch — used by the mini-tabs on the customer
@@ -8653,7 +8656,41 @@ function renderInstallsSubTabsInline(){
 
 // ==== Modal helpers ====
 window.closeModal = id => document.getElementById(id).classList.remove("open");
-function openModal(id){ document.getElementById(id).classList.add("open"); }
+function openModal(id){ document.getElementById(id).classList.add("open"); afArm(); }
+
+// Rev 2.90: In-app Back button. This is a single-page app with no router, so the
+// browser/mobile Back button used to leave the site (or close the app). We keep
+// ONE history "guard" entry while the user is inside a screen layer; pressing
+// Back consumes it and we unwind ONE layer — top modal → AI panel → drilldown
+// → non-Browse view — instead of leaving. A guard is re-armed while any layer
+// remains, so Back keeps stepping outward and only leaves once you're back at
+// the Browse home with nothing open.
+let _afArmed = false;
+function afArm(){
+  if(_afArmed) return;
+  try { history.pushState({ afGuard: true }, ""); _afArmed = true; } catch(_){}
+}
+function afIsDeep(){
+  return !!document.querySelector(".modal-overlay.open")
+      || !!document.getElementById("aiPanel")?.classList.contains("open")
+      || !!state.drillSite || !!state.drillCustomer
+      || (!!state.view && state.view !== "browse");
+}
+function afUnwindOne(){
+  const modal = [...document.querySelectorAll(".modal-overlay.open")].pop();
+  if(modal){ modal.classList.remove("open"); return true; }
+  const ai = document.getElementById("aiPanel");
+  if(ai && ai.classList.contains("open")){ ai.classList.remove("open"); return true; }
+  if(state.drillSite){ state.drillSite = null; renderActive(); return true; }
+  if(state.drillCustomer){ state.drillCustomer = null; renderActive(); return true; }
+  if(state.view && state.view !== "browse"){ switchView("browse"); return true; }
+  return false;
+}
+window.addEventListener("popstate", () => {
+  _afArmed = false;            // the guard we had was just consumed by this Back
+  afUnwindOne();
+  if(afIsDeep()) afArm();      // still inside the app → keep catching Back
+});
 // Esc key (per 6.3.12: NO overlay-click-to-close)
 document.addEventListener("keydown", e => {
   if(e.key !== "Escape") return;
