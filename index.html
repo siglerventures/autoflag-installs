@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.87" />
+<meta name="app-rev" content="2.88" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1487,6 +1487,12 @@
       <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Backup · Export · Restore</div>
 
       <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:linear-gradient(135deg,rgba(110,163,217,0.14),rgba(110,163,217,0.05));border:1px solid var(--blue);border-radius:var(--radius);padding:14px">
+          <div style="font-size:14px;font-weight:600;color:var(--blue);margin-bottom:3px">🗄️ App Backup (everything) <span style="color:var(--text-muted);font-size:11px;font-weight:normal">admin</span></div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">One ZIP with the <strong>entire database</strong> (customers, issues, tools &amp; BOMs, procedures, people, AI chats, suggestions), the <strong>app itself</strong> (index.html), and restore instructions — everything needed to rebuild the app. Photos/Storage and rules are noted in the README.</div>
+          <button class="btn" onclick="appBackup()">⬇️ Download App Backup (.zip)</button>
+        </div>
+
         <div style="background:linear-gradient(135deg,rgba(212,134,10,0.1),rgba(212,134,10,0.05));border:1px solid var(--amber-dim);border-radius:var(--radius);padding:14px">
           <div style="font-size:14px;font-weight:500;color:var(--amber-bright);margin-bottom:3px">📦 Full Backup (JSON)</div>
           <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Download all customers, sites, poles, and photos URLs</div>
@@ -2715,6 +2721,31 @@ function normalizeCustomerSnapshot(val){
   return val;
 }
 
+// Rev 2.88: Don't rebuild the background view while the user has a form control
+// focused (e.g. the Status <select> open in the Pole modal). A background
+// re-render — fired by live data echoes or the 30s REST poll — closes an open
+// native dropdown, which is why Status (the field users deliberate over, so the
+// dropdown stays open longest) was the one that needed several clicks. Defer the
+// render until focus leaves the control, then flush it.
+let _deferredBgRender = false;
+function isEditingFormControl(){
+  const ae = document.activeElement;
+  const tag = ae && ae.tagName;
+  return tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA";
+}
+function renderActiveDeferrable(source){
+  if(isEditingFormControl()){ _deferredBgRender = true; return; }
+  _deferredBgRender = false;
+  try { renderActive(); }
+  catch(e){ console.error(`renderActive THREW after ${source}:`, e?.message, e?.stack); }
+}
+document.addEventListener("focusout", () => {
+  setTimeout(() => {
+    if(isEditingFormControl()) return;            // user just moved to another field
+    if(_deferredBgRender){ _deferredBgRender = false; try { renderActive(); } catch(_){} }
+  }, 60);
+});
+
 function applyCustomerSnapshot(raw, source){
   if(raw === null || raw === undefined){
     console.warn(`AutoFlag data: ${source} got null — keeping existing ${Object.keys(state.data.customers||{}).length} customers`);
@@ -2771,11 +2802,7 @@ function applyCustomerSnapshot(raw, source){
     }
   });
   state.data.customers = customers;
-  try {
-    renderActive();
-  } catch(e){
-    console.error(`renderActive THREW after ${source}:`, e?.message, e?.stack);
-  }
+  renderActiveDeferrable(source);
   return true;
 }
 
@@ -13241,6 +13268,154 @@ window.exportJSON = () => {
   a.href = url; a.download = `autoflag-installs-backup-${new Date().toISOString().slice(0,10)}.json`;
   a.click(); URL.revokeObjectURL(url);
   setStatus("✓ Backup downloaded");
+};
+
+// Rev 2.88: Full App Backup — everything needed to rebuild the app from scratch:
+// the ENTIRE Firebase database (every autoflag subtree), the app itself
+// (index.html as currently served), and restore instructions, bundled in a ZIP.
+async function ensureJSZip(){
+  if(typeof JSZip !== "undefined") return;
+  await new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js";
+    s.onload = res;
+    s.onerror = () => rej(new Error("Failed to load JSZip from CDN"));
+    document.head.appendChild(s);
+  });
+}
+
+window.appBackup = async () => {
+  if(!state.isAdmin) return toast("Admin only", true);
+  setStatus("Building app backup… loading ZIP library");
+  try {
+    await ensureJSZip();
+    // 1) Read every autoflag RTDB subtree. Reads happen at the LEAF (the rules
+    //    grant admins there; there is intentionally no readable autoflag root).
+    const subtrees = {
+      "installs/customers": "autoflag/installs/customers",
+      "issues": "autoflag/issues",
+      "people": "autoflag/people",
+      "tools": "autoflag/tools",
+      "parts/external": "autoflag/parts/external",
+      "parts/internal": "autoflag/parts/internal",
+      "parts/cylinder": "autoflag/parts/cylinder",
+      "mechanical-parts": "autoflag/mechanical-parts",
+      "procedures/external": "autoflag/procedures/external",
+      "procedures/internal": "autoflag/procedures/internal",
+      "procedures/cylinder": "autoflag/procedures/cylinder",
+      "ai/conversations": "autoflag/ai/conversations",
+      "suggestions": "autoflag/suggestions",
+      "misc": "autoflag/misc"
+    };
+    const read = {};
+    let failures = 0;
+    for(const [key, path] of Object.entries(subtrees)){
+      setStatus(`Backing up ${key}…`);
+      try { read[key] = await readNode(path); }
+      catch(e){ read[key] = null; failures++; console.warn("[appBackup] read failed:", path, e?.message); }
+    }
+    // Re-shape into the exact autoflag subtree so it can be re-imported in one
+    // shot at the `autoflag` node in the Firebase console (Import JSON).
+    const autoflagTree = {
+      installs: { customers: read["installs/customers"] || {} },
+      issues: read["issues"] || {},
+      people: read["people"] || {},
+      tools: read["tools"] || {},
+      parts: {
+        external: read["parts/external"] || {},
+        internal: read["parts/internal"] || {},
+        cylinder: read["parts/cylinder"] || {}
+      },
+      "mechanical-parts": read["mechanical-parts"] || {},
+      procedures: {
+        external: read["procedures/external"] || {},
+        internal: read["procedures/internal"] || {},
+        cylinder: read["procedures/cylinder"] || {}
+      },
+      ai: { conversations: read["ai/conversations"] || {} },
+      suggestions: read["suggestions"] || {},
+      misc: read["misc"] || {}
+    };
+
+    // 2) The app itself, as currently served.
+    setStatus("Backing up the app (index.html)…");
+    let appHtml = "";
+    try {
+      appHtml = await (await fetch(window.location.pathname + "?_appbackup=" + Date.now(), { cache: "no-store" })).text();
+    } catch(e){
+      appHtml = `<!-- index.html could not be fetched for this backup: ${e?.message || e} -->`;
+      failures++;
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const appRev = document.querySelector('meta[name="app-rev"]')?.content || "?";
+    const readme =
+`AutoFlag — APP BACKUP
+=====================
+Created:  ${new Date().toISOString()}
+App rev:  v${appRev}
+Project:  philinity-893d2
+
+This ZIP contains everything needed to rebuild AutoFlag-Installs.
+
+FILES
+-----
+1. firebase-autoflag-${stamp}.json
+   The ENTIRE autoflag database (installs/customers, issues, people, tools,
+   parts, mechanical-parts, procedures, ai/conversations, suggestions, misc),
+   shaped to match the "autoflag" node exactly.
+
+2. index.html
+   The app exactly as it was served when this backup ran (v${appRev}).
+
+3. RESTORE-README.txt  (this file)
+
+HOW TO RESTORE
+--------------
+A) The app (front-end):
+   Put index.html back in the GitHub Pages repo (siglerventures/autoflag-installs)
+   and push. GitHub Pages serves it; the cache-bust bootstrap pulls the new rev.
+
+B) The database (Firebase Realtime Database):
+   Firebase console → philinity-893d2 → Realtime Database → navigate to the
+   "autoflag" node → ⋮ menu → "Import JSON" → choose firebase-autoflag-${stamp}.json.
+   NOTE: importing REPLACES the autoflag node with the file's contents. It only
+   touches "autoflag" — other apps in the shared database are untouched.
+
+C) Security rules (NOT in this backup):
+   The Realtime Database rules are version-controlled in the repo at
+   access-model/PIECE3-rules-to-deploy.json. Restore them by pasting that file
+   into Firebase console → Realtime Database → Rules → Publish.
+
+D) Storage (photos): image files in Firebase Storage are NOT included (too large
+   for an in-app export). The database stores their URLs; if Storage is intact
+   the images keep working. Back Storage up separately from the Firebase console
+   if you need the binaries.
+${failures ? `\n⚠ ${failures} item(s) could not be read during this backup — check the JSON for empty sections and re-run.\n` : ""}`;
+
+    // 3) Zip it up.
+    setStatus("Compressing…");
+    const zip = new JSZip();
+    zip.file(`firebase-autoflag-${stamp}.json`, JSON.stringify(autoflagTree, null, 2));
+    zip.file(`index.html`, appHtml);
+    zip.file(`RESTORE-README.txt`, readme);
+    const blob = await zip.generateAsync({ type: "blob" });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `autoflag-APP-BACKUP-${stamp}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const msg = failures ? `✓ App backup downloaded (with ${failures} read warning${failures===1?'':'s'} — see README)` : "✓ App backup downloaded";
+    setStatus(msg);
+    toast(msg, failures > 0);
+  } catch(e){
+    console.error("[appBackup] failed:", e);
+    setStatus("App backup failed: " + (e?.message || ""));
+    toast("App backup failed: " + (e?.message || ""), true);
+  }
 };
 
 window.exportCSV = () => {
