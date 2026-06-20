@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.90" />
+<meta name="app-rev" content="2.91" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -821,6 +821,14 @@
        inline with the customer name without crowding it. */
     .tree-row-customer .tree-stat-remaining{min-height:24px;padding:3px 8px;font-size:10px;letter-spacing:.3px}
     .tree-row-customer .tree-stat{min-height:24px;padding:3px 8px;font-size:10px}
+
+    /* Rev 2.91: Mobile — drop the customer's chips to their OWN line below the
+       name so long names (e.g. "Boise Firefighter Stations") show in full
+       instead of truncating to make room for chips on the same row. */
+    .tree-row-customer{flex-wrap:wrap;align-items:center}
+    .tree-row-customer .tree-name-customer{max-width:none;flex:1 1 auto;white-space:normal;overflow:visible;text-overflow:clip;margin-right:0}
+    .tree-row-customer .tree-stats{flex-basis:100%;width:100%;justify-content:flex-start;margin-left:0;padding-left:28px;margin-top:6px}
+    .tree-row-customer .tree-row-spacer{display:none}
 
     /* Hide redundant "↗" arrow on customer/site rows — DETAILS button does the same job */
     .tree-row .tree-action{display:none}
@@ -8688,9 +8696,20 @@ function afUnwindOne(){
 }
 window.addEventListener("popstate", () => {
   _afArmed = false;            // the guard we had was just consumed by this Back
-  afUnwindOne();
-  if(afIsDeep()) afArm();      // still inside the app → keep catching Back
+  if(afUnwindOne()){
+    afArm();                   // closed a layer — keep a guard for the next Back
+    return;
+  }
+  // Nothing left to close (Browse home) — confirm before leaving the app.
+  if(confirm("Leave AutoFlag?")){
+    history.back();            // go past our guard for real
+  } else {
+    afArm();                   // stay put; re-establish the guard
+  }
 });
+// Rev 2.91: arm a guard on first load so even the very first Back from the
+// Browse home is caught and prompts "Leave AutoFlag?" instead of exiting.
+afArm();
 // Esc key (per 6.3.12: NO overlay-click-to-close)
 document.addEventListener("keydown", e => {
   if(e.key !== "Escape") return;
