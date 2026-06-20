@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.2" />
+<meta name="app-rev" content="3.3" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -7018,7 +7018,18 @@ function fmtHalyardFt(ft){
   const totalIn = Math.round(ft * 12);
   const whole = Math.floor(totalIn / 12);
   const inches = totalIn % 12;
-  return `${whole}' - ${inches}"`;
+  return inches === 0 ? `${whole}'` : `${whole}' - ${inches}"`;
+}
+// Limit-switch gap below the lowest flag. Normally 4", but for 8'+ flags it steps
+// up 6" per flag size: 8x12=18", 10x15=24", 12x18=30", 15x25=36", 20x30=42", 30x60=48".
+const HALYARD_SWITCH_GAP_TIERS = [
+  {ft:8,gap:18},{ft:10,gap:24},{ft:12,gap:30},{ft:15,gap:36},{ft:20,gap:42},{ft:30,gap:48}
+];
+function halyardSwitchGapIn(lowestFlagFt){
+  if(lowestFlagFt == null || lowestFlagFt < 8) return 4;
+  let gap = HALYARD_SWITCH_GAP_TIERS[0].gap;
+  for(const t of HALYARD_SWITCH_GAP_TIERS){ if(lowestFlagFt >= t.ft) gap = t.gap; }
+  return gap;
 }
 function computeHalyardCutsheet(src){
   if(!src) return null;
@@ -7048,7 +7059,7 @@ function computeHalyardCutsheet(src){
   // from top, bottom clip at the bottom of flag 1); the switch drops past the
   // extra flags then the gap: (sum of flag heights − flag 1) + gap.
   const lowestFlagFt = parseFlagHeightFt(flagSizes[flagSizes.length - 1]);
-  const switchGapIn = (lowestFlagFt != null && lowestFlagFt >= 8) ? 18 : 4;
+  const switchGapIn = halyardSwitchGapIn(lowestFlagFt);
   const extraBelowIn = (flag1In != null && totalFlagIn != null) ? (totalFlagIn - flag1In) : 0;
   const slackTxt = `${AUTOFLAG_HALYARD_SLACK_FT} ft slack${extraFlagFt ? ` + ${extraFlagFt} ft for ${flagSizes.length} flags` : ''}`;
   return {
@@ -7083,7 +7094,7 @@ function halyardCutsheetSwitchLine(cs, plain){
   if(cs.flagCount > 1){
     note = `(${cs.switchGapIn}" below the lowest flag — flag ${cs.flagCount})`;
   } else if(cs.lowestFlagTall){
-    note = `(8'+ flag → 18")`;
+    note = `(8'+ flag)`;
   }
   if(plain) return `${v}" below the bottom swivel clip${note ? ' ' + note : ''}`;
   return `<strong>${v}"</strong> below the bottom swivel clip${note ? ` <span style="color:var(--text-muted)">${escapeHtml(note)}</span>` : ''}`;
