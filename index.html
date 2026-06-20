@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.93" />
+<meta name="app-rev" content="2.94" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6959,6 +6959,29 @@ function renderSites(){
   return html;
 }
 
+// Rev 2.94: Halyard prep status for a pole, derived from the "Halyard Setup"
+// section of its procedure template (single source of truth — no separate flag).
+// Returns {done,total} or null when the install type has no halyard section
+// (e.g. cylinder), so callers can render "—".
+function poleHalyardStatus(p){
+  if(!p || !p.installType) return null;
+  const tpl = state.procedures[p.installType];
+  if(!tpl) return null;
+  const sec = getTemplateSections(tpl).find(s => s.id === "halyardSetup");
+  if(!sec || !Array.isArray(sec.steps) || sec.steps.length === 0) return null;
+  const cl = p.checklist || {};
+  const total = sec.steps.length;
+  const done = sec.steps.filter(st => cl[st.id]?.checked).length;
+  return { done, total };
+}
+function halyardCellHtml(p){
+  const h = poleHalyardStatus(p);
+  if(!h) return '<span style="color:var(--text-muted)">—</span>';
+  if(h.done >= h.total) return '<span style="color:var(--green);white-space:nowrap" title="Halyard prep complete">🪢 ✓ Done</span>';
+  if(h.done === 0) return `<span style="color:var(--text-muted);white-space:nowrap" title="Halyard prep not started">🪢 0/${h.total}</span>`;
+  return `<span style="color:var(--amber);white-space:nowrap" title="Halyard prep in progress">🪢 ${h.done}/${h.total}</span>`;
+}
+
 function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return renderViewHeaderStrip() + `<div class="empty">No poles match.</div>`;
@@ -7034,7 +7057,7 @@ function renderList(){
     <div class="list-print-meta">${allPoles.length} poles · printed ${new Date().toLocaleString()}</div>
   </div>`;
   html += `<table class="list-table"><thead><tr>
-    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
+    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}<th style="white-space:nowrap">🪢 Halyard</th>${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
   sorted.forEach(({c,s,p}) => {
     // Each filterable cell is wrapped in a clickable span. event.stopPropagation()
@@ -7051,6 +7074,7 @@ function renderList(){
       <td>${s.name}</td>
       <td>${p.installType?`<span class="list-cell-clickable ${typeActive?'active':''}" onclick="event.stopPropagation();setInstallTypeFilter('${p.installType}')" title="Filter to ${formatInstallType(p.installType)}">${formatInstallType(p.installType)}</span>`:'—'}</td>
       <td><span class="status-badge status-${p.status} list-cell-clickable ${statusActive?'active':''}" onclick="event.stopPropagation();setStatusFilter('${p.status}')" title="Filter to ${STATUS_LABELS[p.status]||p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
+      <td>${halyardCellHtml(p)}</td>
       <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
