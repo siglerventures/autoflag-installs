@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.91" />
+<meta name="app-rev" content="2.92" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -5993,7 +5993,7 @@ function renderBrowse(){
 
     // Mobile + expanded: render the full chip cluster as a separate row below the customer row
     if(isMobile && cExpanded){
-      const expandedChipCluster = `${chipSites}${chipPoles}${chipExternal}${chipInternal}${chipCylinder}${chipInReview}${chipInProgress}${chipCompleted}${chipVerified}<button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="View customer details">Details</button>`;
+      const expandedChipCluster = `${chipSites}${chipPoles}${chipExternal}${chipInternal}${chipCylinder}${chipInReview}${chipInProgress}${chipCompleted}${chipVerified}<button class="tree-details-btn" onclick="event.stopPropagation();drillTo('${c.id}',null)" title="View customer details">Details</button><button class="tree-details-btn" style="border-color:var(--blue);color:var(--blue)" onclick="event.stopPropagation();switchCustomerScopedView('map','${c.id}')" title="Map of this customer's poles">🗺️ Map</button>`;
       html += `<div class="mobile-chip-cluster" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 8px 32px;border-bottom:1px solid var(--border);background:var(--surface)">${expandedChipCluster}</div>`;
     }
 
@@ -6307,6 +6307,7 @@ function renderCustomerDetail(c){
       <button class="mini-tab active" onclick="switchCustomerScopedView('browse','${c.id}')">📋 Browse</button>
       <button class="mini-tab" onclick="switchCustomerScopedView('kanban','${c.id}')">📊 Kanban</button>
       <button class="mini-tab" onclick="switchCustomerScopedView('list','${c.id}')">📑 List</button>
+      <button class="mini-tab" onclick="switchCustomerScopedView('map','${c.id}')">🗺️ Map</button>
     </div>
   </div>`;
   // Rev 2.70: Render all contacts (auto-migrates legacy contact/phone field)
@@ -6374,8 +6375,17 @@ function renderSiteDetail(c,s){
   </div>`;
   if(s.address || s.notes || (s.photos && s.photos.length)){
     html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">`;
-    if(s.address) html += `<div>📍 ${s.address}</div>`;
-    if(s.lat && s.lng) html += `<div style="color:var(--text-muted);font-size:11px;margin-top:3px">${s.lat}, ${s.lng}</div>`;
+    // Rev 2.92: address is clickable + a 🗺️ Map button → directions (installers).
+    if(s.address){
+      html += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span onclick="openMapToSite('${c.id}','${s.id}')" title="Get directions" style="cursor:pointer;color:var(--blue);text-decoration:underline dotted">📍 ${escapeHtml(s.address)}</span>
+        <button class="icon-btn" onclick="openMapToSite('${c.id}','${s.id}')" title="Get directions" style="border:1px solid var(--blue);color:var(--blue);padding:2px 10px;font-size:12px;min-height:0">🗺️ Map</button>
+      </div>`;
+    }
+    if(s.lat && s.lng){
+      const coordsClickable = !s.address;   // no address → coords become the directions link
+      html += `<div style="color:var(--text-muted);font-size:11px;margin-top:3px${coordsClickable?';cursor:pointer;color:var(--blue)':''}" ${coordsClickable?`onclick="openMapToSite('${c.id}','${s.id}')" title="Get directions"`:''}>${s.lat}, ${s.lng}${coordsClickable?' 🗺️':''}</div>`;
+    }
     if(s.notes) html += `<div style="color:var(--text-dim);margin-top:6px">${s.notes}</div>`;
     if(s.photos && s.photos.length){
       html += `<div style="margin-top:10px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
@@ -6563,6 +6573,7 @@ function renderKanban(){
         <button class="mini-tab" onclick="switchCustomerScopedView('browse','${scopedCust.id}')">📋 Browse</button>
         <button class="mini-tab active" onclick="switchCustomerScopedView('kanban','${scopedCust.id}')">📊 Kanban</button>
         <button class="mini-tab" onclick="switchCustomerScopedView('list','${scopedCust.id}')">📑 List</button>
+        <button class="mini-tab" onclick="switchCustomerScopedView('map','${scopedCust.id}')">🗺️ Map</button>
       </div>
     </div>`;
   } else {
@@ -6986,6 +6997,7 @@ function renderList(){
         <button class="mini-tab" onclick="switchCustomerScopedView('browse','${scopedCust.id}')">📋 Browse</button>
         <button class="mini-tab" onclick="switchCustomerScopedView('kanban','${scopedCust.id}')">📊 Kanban</button>
         <button class="mini-tab active" onclick="switchCustomerScopedView('list','${scopedCust.id}')">📑 List</button>
+        <button class="mini-tab" onclick="switchCustomerScopedView('map','${scopedCust.id}')">🗺️ Map</button>
       </div>
     </div>`;
   } else {
