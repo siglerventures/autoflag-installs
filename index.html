@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.97" />
+<meta name="app-rev" content="2.98" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6966,7 +6966,8 @@ function renderSites(){
 //   • Clip / limit-switch positions are measured from the TOP of the folded
 //     halyard (which sits at the top of the pole).
 // Returns null when there's nothing to cut (cylinder, or no height captured yet).
-const AUTOFLAG_MOUNT_FT = 8.5; // AutoFlag device mount height above grade (8'-6")
+const AUTOFLAG_MOUNT_FT = 8.5;       // AutoFlag device mount height above grade (8'-6")
+const AUTOFLAG_HALYARD_SLACK_FT = 1; // extra so the cut is never short (swivel clips + "just in case")
 function parseHeightFt(v){
   const n = parseFloat(String(v||"").replace(/[^0-9.]/g,""));
   return (isFinite(n) && n > 0) ? n : null;
@@ -6976,20 +6977,31 @@ function parseFlagHeightFt(flagSize){
   const m = String(flagSize||"").match(/(\d+(?:\.\d+)?)\s*[xX]/);
   return m ? parseFloat(m[1]) : null;
 }
+// Format a length in feet as feet-inches (e.g. 32.5 → 32' 6", 33 → 33 ft).
+function fmtHalyardFt(ft){
+  const whole = Math.floor(ft + 1e-9);
+  let inches = Math.round((ft - whole) * 12);
+  if(inches === 12){ return `${whole + 1} ft`; }
+  return inches === 0 ? `${whole} ft` : `${whole}' ${inches}"`;
+}
 function computeHalyardCutsheet(src){
   if(!src) return null;
   const type = src.installType || "";
   if(type !== "external" && type !== "internal") return null; // no halyard to cut
   const poleFt = parseHeightFt(src.serial);
   if(!poleFt) return null; // need the pole height for the cut length
-  // Round the single run UP to the whole foot so a cut is never short (slack is fine).
-  const runFt = poleFt - AUTOFLAG_MOUNT_FT;
-  const singleRunFt = Math.max(0, Math.ceil(runFt));
-  const totalCutFt = singleRunFt * 2;
+  // CONTINUOUS LOOP system: the halyard runs UP the pole and back DOWN (≈ 2× pole
+  // height), minus the device-mount height (we don't run below the 8'-6" mount),
+  // plus a foot of slack for the swivel clips and "just in case". Subtract the
+  // mount ONCE (not per side) — the loop only stops short on the working side.
+  const loopFt = poleFt * 2;
+  const totalCutFt = Math.max(0, loopFt - AUTOFLAG_MOUNT_FT + AUTOFLAG_HALYARD_SLACK_FT);
   const flagFt = parseFlagHeightFt(src.flagSize);
   const flagIn = (flagFt != null) ? Math.round(flagFt * 12) : null;
   return {
-    poleFt, mountFt: AUTOFLAG_MOUNT_FT, runFt, singleRunFt, totalCutFt,
+    poleFt, mountFt: AUTOFLAG_MOUNT_FT, slackFt: AUTOFLAG_HALYARD_SLACK_FT,
+    loopFt, totalCutFt, totalCutStr: fmtHalyardFt(totalCutFt),
+    breakdown: `continuous loop: 2 × ${poleFt} ft pole − ${AUTOFLAG_MOUNT_FT} ft device mount + ${AUTOFLAG_HALYARD_SLACK_FT} ft slack`,
     flagSize: src.flagSize || "", flagFt, flagIn,
     topClipIn: 4,                  // top swivel clip 4" from top of folded halyard
     bottomClipBelowTopIn: flagIn,  // bottom swivel clip one flag-height below top clip
@@ -7010,14 +7022,13 @@ function halyardCutsheetBottomLine(cs, plain){
 // halyard has been built & labeled, so we collapse to a compact one-line summary.
 function halyardCutsheetHtml(cs, made){
   if(!cs) return "";
-  const runStr = Number.isInteger(cs.runFt) ? `${cs.runFt}` : cs.runFt.toFixed(1);
   const bottomShort = cs.bottomClipBelowTopIn != null ? `${cs.bottomClipBelowTopIn}"` : "—";
   // Collapsed: once the halyard is made & labeled, show a one-line bar (click to reopen).
   if(made){
     return `<div class="halyard-cutsheet" style="border:1px solid var(--green);border-radius:var(--radius-sm);background:rgba(60,160,90,0.08);padding:8px 12px;margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="togglePoleHalyardMade()" title="Halyard made & labeled — click to reopen the cutsheet">
       <input type="checkbox" checked onclick="event.stopPropagation();togglePoleHalyardMade()" style="width:16px;height:16px;flex-shrink:0" />
       <span style="font-size:12px;font-weight:700;color:var(--green)">🪢 Halyard made &amp; labeled</span>
-      <span style="font-size:11px;color:var(--text-muted)">Cut ${cs.totalCutFt} ft · top 4" · bottom ${bottomShort} · switch 4"</span>
+      <span style="font-size:11px;color:var(--text-muted)">Cut ${cs.totalCutStr} · top 4" · bottom ${bottomShort} · switch 4"</span>
     </div>`;
   }
   return `<div class="halyard-cutsheet" style="border:1px solid var(--amber);border-radius:var(--radius-sm);background:rgba(212,134,10,0.06);padding:10px 12px;margin:0 0 10px">
@@ -7025,8 +7036,8 @@ function halyardCutsheetHtml(cs, made){
       <span style="font-size:12px;font-weight:700;color:var(--amber-bright);flex:1">🪢 Halyard Cutsheet</span>
       <button class="btn-secondary btn no-print" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();printHalyardCutsheet()" title="Print this cutsheet">🖨️ Print</button>
     </div>
-    <div style="font-size:15px;color:var(--text-bright);margin-bottom:2px">Cut <strong style="color:var(--amber-bright)">${cs.totalCutFt} ft</strong> of halyard</div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${cs.singleRunFt} ft per side, folded in half · pole ${cs.poleFt} ft − ${cs.mountFt} ft device mount = ${runStr} ft → ${cs.singleRunFt} ft</div>
+    <div style="font-size:15px;color:var(--text-bright);margin-bottom:2px">Cut <strong style="color:var(--amber-bright)">${cs.totalCutStr}</strong> of halyard</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${cs.breakdown} = ${cs.totalCutStr}</div>
     <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.7">
       <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
       <li>Top swivel clip: <strong>${cs.topClipIn}"</strong> from the top of the folded halyard.</li>
@@ -7068,7 +7079,6 @@ window.printHalyardCutsheet = () => {
   const w = window.open("", "_blank", "width=540,height=680");
   if(!w){ toast("Allow pop-ups to print the cutsheet"); return; }
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const runStr = Number.isInteger(cs.runFt) ? `${cs.runFt}` : cs.runFt.toFixed(1);
   w.document.write(`<!doctype html><html><head><meta charset="utf-8">
   <title>Halyard Cutsheet — ${esc(label)}</title>
   <style>
@@ -7084,8 +7094,8 @@ window.printHalyardCutsheet = () => {
   </style></head><body>
     <h1>🪢 Halyard Cutsheet</h1>
     <div class="meta">${esc(label)} · ${esc(src.serial)} pole · ${esc(flagTxt)} · ${new Date().toLocaleDateString()}</div>
-    <div class="cut">Cut ${cs.totalCutFt} ft of halyard</div>
-    <div class="sub">${cs.singleRunFt} ft per side, folded in half · pole ${cs.poleFt} ft − ${cs.mountFt} ft device mount = ${runStr} ft → ${cs.singleRunFt} ft</div>
+    <div class="cut">Cut ${cs.totalCutStr} of halyard</div>
+    <div class="sub">${cs.breakdown} = ${cs.totalCutStr}</div>
     <ol>
       <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
       <li>Top swivel clip: <b>${cs.topClipIn}"</b> from the top of the folded halyard.</li>
@@ -7152,7 +7162,7 @@ function halyardCellHtml(p){
   const cs = computeHalyardCutsheet(p);
   // Rev 2.95: surface the halyard cut length alongside the prep status.
   const cutSpan = cs
-    ? `<span style="color:var(--text-muted);white-space:nowrap" title="Halyard cut length (${cs.singleRunFt} ft × 2)">✂ ${cs.totalCutFt} ft</span>`
+    ? `<span style="color:var(--text-muted);white-space:nowrap" title="Halyard cut length — ${cs.breakdown}">✂ ${cs.totalCutStr}</span>`
     : "";
   let status;
   if(!h) status = "";
