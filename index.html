@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.98" />
+<meta name="app-rev" content="2.99" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1225,20 +1225,48 @@
           <option value="70 ft">70 ft</option>
           <option value="80 ft">80 ft</option>
         </select></div>
-        <div class="form-row"><label>Flag Size</label><select id="mp-flagSize">
-          <option value="">—</option>
-          <option value="2x3">2x3</option>
-          <option value="3x5">3x5</option>
-          <option value="4x6">4x6</option>
-          <option value="5x8">5x8</option>
-          <option value="6x10">6x10</option>
-          <option value="8x12">8x12</option>
-          <option value="10x15">10x15</option>
-          <option value="12x18">12x18</option>
-          <option value="15x25">15x25</option>
-          <option value="20x30">20x30</option>
-          <option value="30x60">30x60</option>
-        </select></div>
+        <div class="form-row"><label>Flag Size</label>
+          <div style="display:flex;gap:6px;align-items:flex-start">
+            <select id="mp-flagSize" style="flex:1">
+              <option value="">—</option>
+              <option value="2x3">2x3</option>
+              <option value="3x5">3x5</option>
+              <option value="4x6">4x6</option>
+              <option value="5x8">5x8</option>
+              <option value="6x10">6x10</option>
+              <option value="8x12">8x12</option>
+              <option value="10x15">10x15</option>
+              <option value="12x18">12x18</option>
+              <option value="15x25">15x25</option>
+              <option value="20x30">20x30</option>
+              <option value="30x60">30x60</option>
+            </select>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:4px" title="Add a 2nd flag on this pole">
+                <input type="checkbox" id="mp-flag2-on" onchange="syncFlagFields()" style="width:15px;height:15px" />
+                <span style="font-weight:700;font-size:13px;color:var(--text-muted)">2</span>
+                <select id="mp-flagSize2" disabled style="font-size:12px;padding:3px">
+                  <option value="">—</option>
+                  <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
+                  <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
+                  <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
+                  <option value="20x30">20x30</option><option value="30x60">30x60</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px" title="Add a 3rd flag on this pole">
+                <input type="checkbox" id="mp-flag3-on" onchange="syncFlagFields()" style="width:15px;height:15px" />
+                <span style="font-weight:700;font-size:13px;color:var(--text-muted)">3</span>
+                <select id="mp-flagSize3" disabled style="font-size:12px;padding:3px">
+                  <option value="">—</option>
+                  <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
+                  <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
+                  <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
+                  <option value="20x30">20x30</option><option value="30x60">30x60</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="form-row"><label>Install type *</label><select id="mp-installType">
           <option value="">— Select —</option>
           <option value="external">External halyard</option>
@@ -3222,7 +3250,7 @@ async function _restRead(path){
 }
 
 // ==== Audit log helpers ====
-const TRACKED_FIELDS = ["label","status","installType","serial","flagSize","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
+const TRACKED_FIELDS = ["label","status","installType","serial","flagSize","flagSize2","flagSize3","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
 
 function diffPole(before, after){
   const changes = [];
@@ -3276,7 +3304,7 @@ function fmtHistoryValue(v){
 function fmtHistoryField(f){
   const labels = {
     label:"Label", status:"Status", installType:"Install Type",
-    serial:"Flag Pole Height", flagSize:"Flag Size", sim:"SIM", fw:"Serial #", plan:"Plan", saas:"SaaS",
+    serial:"Flag Pole Height", flagSize:"Flag Size", flagSize2:"Flag Size (2nd)", flagSize3:"Flag Size (3rd)", sim:"SIM", fw:"Serial #", plan:"Plan", saas:"SaaS",
     lat:"Latitude", lng:"Longitude",
     expectedInstallDate:"Expected Install Date",
     completedDate:"Completed Date",
@@ -6996,27 +7024,44 @@ function computeHalyardCutsheet(src){
   // mount ONCE (not per side) — the loop only stops short on the working side.
   const loopFt = poleFt * 2;
   const totalCutFt = Math.max(0, loopFt - AUTOFLAG_MOUNT_FT + AUTOFLAG_HALYARD_SLACK_FT);
-  const flagFt = parseFlagHeightFt(src.flagSize);
-  const flagIn = (flagFt != null) ? Math.round(flagFt * 12) : null;
+  // Multi-flag (Rev 2.99): a pole can carry up to 3 flags stacked down the halyard.
+  const flagSizes = [src.flagSize, src.flagSize2, src.flagSize3].map(s => String(s||"").trim()).filter(Boolean);
+  const flag1Ft = parseFlagHeightFt(flagSizes[0]);
+  const flag1In = (flag1Ft != null) ? Math.round(flag1Ft * 12) : null;
+  let totalFlagIn = null;
+  flagSizes.forEach(fs => { const f = parseFlagHeightFt(fs); if(f != null){ totalFlagIn = (totalFlagIn || 0) + Math.round(f * 12); } });
+  // The limit switch sits 4" below the LOWEST flag. Clip positions are unchanged
+  // (top clip 4" from top, bottom clip at the bottom of flag 1); the switch just
+  // drops past the extra flags: (sum of all flag heights − flag 1) + 4".
+  const extraBelowIn = (flag1In != null && totalFlagIn != null) ? (totalFlagIn - flag1In) : 0;
   return {
     poleFt, mountFt: AUTOFLAG_MOUNT_FT, slackFt: AUTOFLAG_HALYARD_SLACK_FT,
     loopFt, totalCutFt, totalCutStr: fmtHalyardFt(totalCutFt),
     breakdown: `continuous loop: 2 × ${poleFt} ft pole − ${AUTOFLAG_MOUNT_FT} ft device mount + ${AUTOFLAG_HALYARD_SLACK_FT} ft slack`,
-    flagSize: src.flagSize || "", flagFt, flagIn,
-    topClipIn: 4,                  // top swivel clip 4" from top of folded halyard
-    bottomClipBelowTopIn: flagIn,  // bottom swivel clip one flag-height below top clip
-    limitSwitchBelowBottomIn: 4    // magnetic limit switch actuator 4" below bottom clip
+    flagSizes, flagCount: flagSizes.length,
+    flagSize: flagSizes.join(" + "), flag1Size: flagSizes[0] || "",
+    flagFt: flag1Ft, flagIn: flag1In, totalFlagIn,
+    topClipIn: 4,                            // top swivel clip 4" from top of folded halyard
+    bottomClipBelowTopIn: flag1In,           // bottom swivel clip at the bottom of flag 1 (unchanged)
+    limitSwitchBelowBottomIn: (flag1In != null ? extraBelowIn + 4 : 4) // 4" below the lowest flag
   };
 }
 // Compact run-of-text used in both the on-screen panel and the print sheet.
 function halyardCutsheetBottomLine(cs, plain){
   if(cs.bottomClipBelowTopIn != null){
-    const note = `(flag height — ${cs.flagSize})`;
+    const note = `(flag height — ${cs.flag1Size})`;
     return plain
       ? `${cs.bottomClipBelowTopIn}" below the top clip ${note}`
       : `<strong>${cs.bottomClipBelowTopIn}"</strong> below the top clip <span style="color:var(--text-muted)">${escapeHtml(note)}</span>`;
   }
   return plain ? `set Flag Size to compute` : `<span style="color:var(--amber)">set Flag Size to compute</span>`;
+}
+// Limit-switch line. With multiple flags the switch drops below the LOWEST flag.
+function halyardCutsheetSwitchLine(cs, plain){
+  const v = cs.limitSwitchBelowBottomIn;
+  const note = cs.flagCount > 1 ? `(4" below the lowest flag — flag ${cs.flagCount})` : "";
+  if(plain) return `${v}" below the bottom swivel clip${note ? ' ' + note : ''}`;
+  return `<strong>${v}"</strong> below the bottom swivel clip${note ? ` <span style="color:var(--text-muted)">${escapeHtml(note)}</span>` : ''}`;
 }
 // On-screen panel shown under the Halyard Setup section. When `made` is true the
 // halyard has been built & labeled, so we collapse to a compact one-line summary.
@@ -7038,11 +7083,12 @@ function halyardCutsheetHtml(cs, made){
     </div>
     <div style="font-size:15px;color:var(--text-bright);margin-bottom:2px">Cut <strong style="color:var(--amber-bright)">${cs.totalCutStr}</strong> of halyard</div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${cs.breakdown} = ${cs.totalCutStr}</div>
+    ${cs.flagCount > 1 ? `<div style="font-size:11px;color:var(--amber-bright);margin-bottom:8px">🚩 ${cs.flagCount} flags: ${escapeHtml(cs.flagSizes.join(" + "))} (top → bottom)</div>` : ''}
     <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.7">
       <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
       <li>Top swivel clip: <strong>${cs.topClipIn}"</strong> from the top of the folded halyard.</li>
       <li>Bottom swivel clip: ${halyardCutsheetBottomLine(cs, false)}.</li>
-      <li>Magnetic limit switch actuator: <strong>${cs.limitSwitchBelowBottomIn}"</strong> below the bottom swivel clip.</li>
+      <li>Magnetic limit switch actuator: ${halyardCutsheetSwitchLine(cs, false)}.</li>
     </ol>
     <label class="no-print" style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;cursor:pointer">
       <input type="checkbox" onclick="togglePoleHalyardMade()" style="width:16px;height:16px;flex-shrink:0" />
@@ -7070,12 +7116,14 @@ window.printHalyardCutsheet = () => {
   const src = {
     installType: document.getElementById("mp-installType")?.value || "",
     serial: document.getElementById("mp-serial")?.value || "",
-    flagSize: document.getElementById("mp-flagSize")?.value || ""
+    flagSize: document.getElementById("mp-flagSize")?.value || "",
+    flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2")?.value || "") : "",
+    flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3")?.value || "") : ""
   };
   const cs = computeHalyardCutsheet(src);
   if(!cs){ toast("Set install type + flag pole height first"); return; }
   const label = (document.getElementById("mp-label")?.value || "").trim() || "Pole";
-  const flagTxt = src.flagSize ? `${src.flagSize} flag` : "flag size not set";
+  const flagTxt = cs.flagCount ? `${cs.flagSizes.join(" + ")} flag${cs.flagCount > 1 ? "s" : ""}` : "flag size not set";
   const w = window.open("", "_blank", "width=540,height=680");
   if(!w){ toast("Allow pop-ups to print the cutsheet"); return; }
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -7095,12 +7143,12 @@ window.printHalyardCutsheet = () => {
     <h1>🪢 Halyard Cutsheet</h1>
     <div class="meta">${esc(label)} · ${esc(src.serial)} pole · ${esc(flagTxt)} · ${new Date().toLocaleDateString()}</div>
     <div class="cut">Cut ${cs.totalCutStr} of halyard</div>
-    <div class="sub">${cs.breakdown} = ${cs.totalCutStr}</div>
+    <div class="sub">${cs.breakdown} = ${cs.totalCutStr}${cs.flagCount > 1 ? ` · 🚩 ${esc(cs.flagSizes.join(" + "))} (top → bottom)` : ''}</div>
     <ol>
       <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
       <li>Top swivel clip: <b>${cs.topClipIn}"</b> from the top of the folded halyard.</li>
       <li>Bottom swivel clip: ${esc(halyardCutsheetBottomLine(cs, true))}.</li>
-      <li>Magnetic limit switch actuator: <b>${cs.limitSwitchBelowBottomIn}"</b> below the bottom swivel clip.</li>
+      <li>Magnetic limit switch actuator: ${esc(halyardCutsheetSwitchLine(cs, true))}.</li>
     </ol>
     <div class="foot">AutoFlag mounts 8'-6" above grade; halyard runs through 3 pulleys folded in half.</div>
     <script>window.onload=function(){window.print();}<\/script>
@@ -9567,6 +9615,12 @@ window.openPoleModal = (pid, cid, sid) => {
   document.getElementById("mp-installType").value = p?.installType || "";
   document.getElementById("mp-serial").value = p?.serial || "";
   document.getElementById("mp-flagSize").value = p?.flagSize || "";
+  // Rev 2.99: multi-flag — flags 2 & 3 are optional (checkbox-gated) extra flags.
+  document.getElementById("mp-flagSize2").value = p?.flagSize2 || "";
+  document.getElementById("mp-flagSize3").value = p?.flagSize3 || "";
+  document.getElementById("mp-flag2-on").checked = !!(p?.flagSize2);
+  document.getElementById("mp-flag3-on").checked = !!(p?.flagSize3);
+  syncFlagFields(true);
   document.getElementById("mp-sim").value = p?.sim || "";
   document.getElementById("mp-fw").value = p?.fw || "";
   document.getElementById("mp-plan").value = p?.plan || "";
@@ -10001,7 +10055,9 @@ function renderPoleChecklist(p){
       html += halyardCutsheetHtml(computeHalyardCutsheet({
         installType: liveType,
         serial: document.getElementById("mp-serial")?.value || p?.serial || "",
-        flagSize: document.getElementById("mp-flagSize")?.value || p?.flagSize || ""
+        flagSize: document.getElementById("mp-flagSize")?.value || p?.flagSize || "",
+        flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2")?.value || "") : (p?.flagSize2 || ""),
+        flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3")?.value || "") : (p?.flagSize3 || "")
       }), !!(p && p.halyardMade));
     }
     runningStepIdx += secSteps.length;
@@ -10354,10 +10410,28 @@ window.removeStepPhoto = async (stepId) => {
   renderPoleChecklist({ ...p, checklist: newChecklist });
 };
 
+// Rev 2.99: enable/disable the extra-flag dropdowns from their checkboxes, enforce
+// "flag 3 implies flag 2", and refresh the cutsheet. Called on checkbox change and
+// when the modal opens (pass skipRender=true before the checklist is rendered).
+window.syncFlagFields = (skipRender) => {
+  const c2 = document.getElementById("mp-flag2-on"), c3 = document.getElementById("mp-flag3-on");
+  const s2 = document.getElementById("mp-flagSize2"), s3 = document.getElementById("mp-flagSize3");
+  if(!c2 || !c3 || !s2 || !s3) return;
+  if(c3.checked) c2.checked = true;        // a 3rd flag requires a 2nd
+  s2.disabled = !c2.checked;
+  s3.disabled = !c3.checked;
+  if(!c2.checked) s2.value = "";
+  if(!c3.checked) s3.value = "";
+  if(skipRender) return;
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  const p = (cid && sid && pid) ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
+  renderPoleChecklist(p);
+};
+
 // Re-render checklist when install type changes mid-edit
 document.addEventListener("change", e => {
-  // Rev 2.95: also re-render on height/flag-size so the halyard cutsheet tracks edits.
-  if(e.target?.id === "mp-installType" || e.target?.id === "mp-serial" || e.target?.id === "mp-flagSize"){
+  // Rev 2.95/2.99: re-render on height/flag-size (incl. extra flags) so the halyard cutsheet tracks edits.
+  if(["mp-installType","mp-serial","mp-flagSize","mp-flagSize2","mp-flagSize3"].includes(e.target?.id)){
     const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
     const p = (cid && sid && pid) ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
     renderPoleChecklist(p);
@@ -10659,6 +10733,8 @@ window.savePole = async () => {
     installType: document.getElementById("mp-installType").value,
     serial: document.getElementById("mp-serial").value.trim(),
     flagSize: document.getElementById("mp-flagSize").value,
+    flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2").value || "") : "",
+    flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3").value || "") : "",
     sim: document.getElementById("mp-sim").value.trim(),
     fw: document.getElementById("mp-fw").value.trim(),
     plan: document.getElementById("mp-plan").value,
@@ -10692,7 +10768,8 @@ window.savePole = async () => {
 
   // Rev 2.97: Auto-complete the Pre-Install Measurements section from the
   // structured Flag Pole Height (→ A) and Flag Size (→ B). Additive + idempotent.
-  const autoCl = autoCompletePreInstall(patch.installType, before?.checklist, patch.serial, patch.flagSize);
+  const combinedFlag = [patch.flagSize, patch.flagSize2, patch.flagSize3].filter(Boolean).join(" + ");
+  const autoCl = autoCompletePreInstall(patch.installType, before?.checklist, patch.serial, combinedFlag);
   const extraChanges = [];
   if(autoCl){
     patch.checklist = autoCl;
