@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.99" />
+<meta name="app-rev" content="3.0" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6995,7 +6995,7 @@ function renderSites(){
 //     halyard (which sits at the top of the pole).
 // Returns null when there's nothing to cut (cylinder, or no height captured yet).
 const AUTOFLAG_MOUNT_FT = 8.5;       // AutoFlag device mount height above grade (8'-6")
-const AUTOFLAG_HALYARD_SLACK_FT = 1; // extra so the cut is never short (swivel clips + "just in case")
+const AUTOFLAG_HALYARD_SLACK_FT = 2; // extra rope, trimmed after setup (slack + swivel clips + margin)
 function parseHeightFt(v){
   const n = parseFloat(String(v||"").replace(/[^0-9.]/g,""));
   return (isFinite(n) && n > 0) ? n : null;
@@ -7005,12 +7005,12 @@ function parseFlagHeightFt(flagSize){
   const m = String(flagSize||"").match(/(\d+(?:\.\d+)?)\s*[xX]/);
   return m ? parseFloat(m[1]) : null;
 }
-// Format a length in feet as feet-inches (e.g. 32.5 → 32' 6", 33 → 33 ft).
+// Format a length in feet as feet-inches with a dash, e.g. 55 → 55' - 0", 27.5 → 27' - 6".
 function fmtHalyardFt(ft){
-  const whole = Math.floor(ft + 1e-9);
-  let inches = Math.round((ft - whole) * 12);
-  if(inches === 12){ return `${whole + 1} ft`; }
-  return inches === 0 ? `${whole} ft` : `${whole}' ${inches}"`;
+  const totalIn = Math.round(ft * 12);
+  const whole = Math.floor(totalIn / 12);
+  const inches = totalIn % 12;
+  return `${whole}' - ${inches}"`;
 }
 function computeHalyardCutsheet(src){
   if(!src) return null;
@@ -7018,12 +7018,15 @@ function computeHalyardCutsheet(src){
   if(type !== "external" && type !== "internal") return null; // no halyard to cut
   const poleFt = parseHeightFt(src.serial);
   if(!poleFt) return null; // need the pole height for the cut length
-  // CONTINUOUS LOOP system: the halyard runs UP the pole and back DOWN (≈ 2× pole
-  // height), minus the device-mount height (we don't run below the 8'-6" mount),
-  // plus a foot of slack for the swivel clips and "just in case". Subtract the
-  // mount ONCE (not per side) — the loop only stops short on the working side.
+  // CONTINUOUS LOOP system: the halyard runs UP the pole and back DOWN (2× pole
+  // height). Both sides stop at the device-mount height, so subtract the 8'-6"
+  // mount TWICE (= 17 ft), then add slack that's trimmed after setup.
+  //   total = 2 × pole − (2 × mount) + slack
+  // The rope is folded in half to build it, so each side is half the total —
+  // installers only need ~half the working space.
   const loopFt = poleFt * 2;
-  const totalCutFt = Math.max(0, loopFt - AUTOFLAG_MOUNT_FT + AUTOFLAG_HALYARD_SLACK_FT);
+  const totalCutFt = Math.max(0, loopFt - (AUTOFLAG_MOUNT_FT * 2) + AUTOFLAG_HALYARD_SLACK_FT);
+  const perSideFt = totalCutFt / 2;
   // Multi-flag (Rev 2.99): a pole can carry up to 3 flags stacked down the halyard.
   const flagSizes = [src.flagSize, src.flagSize2, src.flagSize3].map(s => String(s||"").trim()).filter(Boolean);
   const flag1Ft = parseFlagHeightFt(flagSizes[0]);
@@ -7037,7 +7040,8 @@ function computeHalyardCutsheet(src){
   return {
     poleFt, mountFt: AUTOFLAG_MOUNT_FT, slackFt: AUTOFLAG_HALYARD_SLACK_FT,
     loopFt, totalCutFt, totalCutStr: fmtHalyardFt(totalCutFt),
-    breakdown: `continuous loop: 2 × ${poleFt} ft pole − ${AUTOFLAG_MOUNT_FT} ft device mount + ${AUTOFLAG_HALYARD_SLACK_FT} ft slack`,
+    perSideFt, perSideStr: fmtHalyardFt(perSideFt),
+    breakdown: `continuous loop: 2 × ${poleFt} ft pole − ${AUTOFLAG_MOUNT_FT * 2} ft device mount (${AUTOFLAG_MOUNT_FT}' × 2) + ${AUTOFLAG_HALYARD_SLACK_FT} ft slack`,
     flagSizes, flagCount: flagSizes.length,
     flagSize: flagSizes.join(" + "), flag1Size: flagSizes[0] || "",
     flagFt: flag1Ft, flagIn: flag1In, totalFlagIn,
@@ -7063,17 +7067,21 @@ function halyardCutsheetSwitchLine(cs, plain){
   if(plain) return `${v}" below the bottom swivel clip${note ? ' ' + note : ''}`;
   return `<strong>${v}"</strong> below the bottom swivel clip${note ? ` <span style="color:var(--text-muted)">${escapeHtml(note)}</span>` : ''}`;
 }
-// On-screen panel shown under the Halyard Setup section. When `made` is true the
-// halyard has been built & labeled, so we collapse to a compact one-line summary.
-function halyardCutsheetHtml(cs, made){
+// On-screen panel shown under the Halyard Setup section. When the pole's halyard
+// is marked made & labeled, collapse to a compact one-line summary showing WHO built it.
+function halyardCutsheetHtml(cs, pole){
   if(!cs) return "";
   const bottomShort = cs.bottomClipBelowTopIn != null ? `${cs.bottomClipBelowTopIn}"` : "—";
+  const made = !!(pole && pole.halyardMade);
+  const byName = pole?.halyardMadeByName || "";
+  const at = pole?.halyardMadeAt ? new Date(pole.halyardMadeAt).toLocaleDateString() : "";
+  const madeByTxt = byName ? ` by ${escapeHtml(byName)}${at ? ' · ' + at : ''}` : "";
   // Collapsed: once the halyard is made & labeled, show a one-line bar (click to reopen).
   if(made){
     return `<div class="halyard-cutsheet" style="border:1px solid var(--green);border-radius:var(--radius-sm);background:rgba(60,160,90,0.08);padding:8px 12px;margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="togglePoleHalyardMade()" title="Halyard made & labeled — click to reopen the cutsheet">
       <input type="checkbox" checked onclick="event.stopPropagation();togglePoleHalyardMade()" style="width:16px;height:16px;flex-shrink:0" />
-      <span style="font-size:12px;font-weight:700;color:var(--green)">🪢 Halyard made &amp; labeled</span>
-      <span style="font-size:11px;color:var(--text-muted)">Cut ${cs.totalCutStr} · top 4" · bottom ${bottomShort} · switch 4"</span>
+      <span style="font-size:12px;font-weight:700;color:var(--green)">🪢 Halyard made &amp; labeled${madeByTxt}</span>
+      <span style="font-size:11px;color:var(--text-muted)">Cut ${cs.totalCutStr} (${cs.perSideStr}/side) · top 4" · bottom ${bottomShort} · switch 4"</span>
     </div>`;
   }
   return `<div class="halyard-cutsheet" style="border:1px solid var(--amber);border-radius:var(--radius-sm);background:rgba(212,134,10,0.06);padding:10px 12px;margin:0 0 10px">
@@ -7081,7 +7089,7 @@ function halyardCutsheetHtml(cs, made){
       <span style="font-size:12px;font-weight:700;color:var(--amber-bright);flex:1">🪢 Halyard Cutsheet</span>
       <button class="btn-secondary btn no-print" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();printHalyardCutsheet()" title="Print this cutsheet">🖨️ Print</button>
     </div>
-    <div style="font-size:15px;color:var(--text-bright);margin-bottom:2px">Cut <strong style="color:var(--amber-bright)">${cs.totalCutStr}</strong> of halyard</div>
+    <div style="font-size:15px;color:var(--text-bright);margin-bottom:2px">Cut <strong style="color:var(--amber-bright)">${cs.totalCutStr}</strong> of halyard <span style="font-size:12px;color:var(--text-muted);font-weight:normal">(${cs.perSideStr} folded rope on each side)</span></div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${cs.breakdown} = ${cs.totalCutStr}</div>
     ${cs.flagCount > 1 ? `<div style="font-size:11px;color:var(--amber-bright);margin-bottom:8px">🚩 ${cs.flagCount} flags: ${escapeHtml(cs.flagSizes.join(" + "))} (top → bottom)</div>` : ''}
     <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.7">
@@ -7103,12 +7111,20 @@ window.togglePoleHalyardMade = async () => {
   const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
   if(!p) return;
   const made = !p.halyardMade;
-  const historyEntry = buildHistoryEntry([{ field:"halyardMade", from: p.halyardMade?"made":"not made", to: made?"made & labeled":"not made" }]);
+  const who = state.user?.displayName || state.user?.email || "(unknown)";
+  // Rev 3.0: stamp WHO built the halyard + when, so a second installer can see at a
+  // glance it's already done and doesn't start building a duplicate.
+  const madeBy = made ? state.user.uid : null;
+  const madeByName = made ? who : null;
+  const madeAt = made ? Date.now() : null;
+  const historyEntry = buildHistoryEntry([{ field:"halyardMade", from: p.halyardMade?"made":"not made", to: made?`made & labeled by ${who}`:"not made" }]);
   const newHistory = [...(p.history || []), historyEntry].slice(-100);
-  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
-    halyardMade: made, history: newHistory, updatedAt: Date.now(), updatedBy: state.user.uid
-  });
-  renderPoleChecklist({ ...p, halyardMade: made, history: newHistory });
+  const patch = {
+    halyardMade: made, halyardMadeBy: madeBy, halyardMadeByName: madeByName, halyardMadeAt: madeAt,
+    history: newHistory, updatedAt: Date.now(), updatedBy: state.user.uid
+  };
+  await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, patch);
+  renderPoleChecklist({ ...p, ...patch });
 };
 // Print a clean, self-contained cutsheet for the pole currently open in the modal.
 // Reads the LIVE form values so it matches what the installer sees on screen.
@@ -7143,6 +7159,7 @@ window.printHalyardCutsheet = () => {
     <h1>🪢 Halyard Cutsheet</h1>
     <div class="meta">${esc(label)} · ${esc(src.serial)} pole · ${esc(flagTxt)} · ${new Date().toLocaleDateString()}</div>
     <div class="cut">Cut ${cs.totalCutStr} of halyard</div>
+    <div class="sub" style="font-weight:600;color:#333;margin-bottom:6px">${cs.perSideStr} folded rope on each side</div>
     <div class="sub">${cs.breakdown} = ${cs.totalCutStr}${cs.flagCount > 1 ? ` · 🚩 ${esc(cs.flagSizes.join(" + "))} (top → bottom)` : ''}</div>
     <ol>
       <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
@@ -7217,6 +7234,12 @@ function halyardCellHtml(p){
   else if(h.done >= h.total) status = '<span style="color:var(--green);white-space:nowrap" title="Halyard prep complete">🪢 ✓ Done</span>';
   else if(h.done === 0) status = `<span style="color:var(--text-muted);white-space:nowrap" title="Halyard prep not started">🪢 0/${h.total}</span>`;
   else status = `<span style="color:var(--amber);white-space:nowrap" title="Halyard prep in progress">🪢 ${h.done}/${h.total}</span>`;
+  // Rev 3.0: an explicit "made & labeled" stamp wins — shows it's built (and by whom)
+  // so a second installer doesn't start a duplicate.
+  if(p.halyardMade){
+    const first = (p.halyardMadeByName || "").split(/\s+/)[0] || "";
+    status = `<span style="color:var(--green);white-space:nowrap" title="Halyard made &amp; labeled${p.halyardMadeByName ? ' by ' + escapeHtml(p.halyardMadeByName) : ''}">🪢 ✓ Made${first ? ' · ' + escapeHtml(first) : ''}</span>`;
+  }
   if(!status && !cutSpan) return '<span style="color:var(--text-muted)">—</span>';
   return [status, cutSpan].filter(Boolean).join(' <span style="color:var(--text-muted)">·</span> ');
 }
@@ -10058,7 +10081,7 @@ function renderPoleChecklist(p){
         flagSize: document.getElementById("mp-flagSize")?.value || p?.flagSize || "",
         flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2")?.value || "") : (p?.flagSize2 || ""),
         flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3")?.value || "") : (p?.flagSize3 || "")
-      }), !!(p && p.halyardMade));
+      }), p);
     }
     runningStepIdx += secSteps.length;
   });
