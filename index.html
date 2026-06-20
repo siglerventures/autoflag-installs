@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.3" />
+<meta name="app-rev" content="3.5" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -275,6 +275,11 @@
   .modal-header{position:sticky;top:0;background:var(--surface);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;z-index:1}
   .modal-header h2{margin:0;font-size:17px;color:var(--amber-bright)}
   .modal-body{padding:16px}
+  /* Rev 3.5: The pole editor opens FULL-SCREEN (not a floating window) so it uses
+     all the real estate and needs far less scrolling — especially on mobile.
+     Scoped to #modalPole; every other modal stays a centered window. */
+  #modalPole{padding:0;align-items:stretch}
+  #modalPole>.modal{max-width:none;width:100%;min-height:100vh;max-height:100vh;margin:0;border:none;border-radius:0;box-shadow:none}
   .modal-close{font-size:22px;color:var(--text-dim);background:none;border:none;padding:0 6px}
   .modal-close:hover{color:var(--amber)}
 
@@ -7046,11 +7051,12 @@ function computeHalyardCutsheet(src){
   // CONTINUOUS LOOP system: the halyard runs UP the pole and back DOWN (2× pole
   // height). Both sides stop at the device-mount height, so subtract the 8'-6"
   // mount TWICE (= 17 ft), then add slack that's trimmed after setup. Stacked
-  // flags eat extra rope: +1 ft for 2 flags, +2 ft for 3.
+  // flags eat extra rope (extra clips at 9" each + handling): +2 ft for 2 flags,
+  // +4 ft for 3 flags.
   //   total = 2 × pole − (2 × mount) + slack + extra-for-flags
   // The rope is folded in half to build it, so each side is half the total —
   // installers only need ~half the working space.
-  const extraFlagFt = flagSizes.length >= 3 ? 2 : (flagSizes.length === 2 ? 1 : 0);
+  const extraFlagFt = flagSizes.length >= 3 ? 4 : (flagSizes.length === 2 ? 2 : 0);
   const loopFt = poleFt * 2;
   const totalCutFt = Math.max(0, loopFt - (AUTOFLAG_MOUNT_FT * 2) + AUTOFLAG_HALYARD_SLACK_FT + extraFlagFt);
   const perSideFt = totalCutFt / 2;
