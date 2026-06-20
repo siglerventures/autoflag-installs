@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.1" />
+<meta name="app-rev" content="3.3" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -7018,7 +7018,18 @@ function fmtHalyardFt(ft){
   const totalIn = Math.round(ft * 12);
   const whole = Math.floor(totalIn / 12);
   const inches = totalIn % 12;
-  return `${whole}' - ${inches}"`;
+  return inches === 0 ? `${whole}'` : `${whole}' - ${inches}"`;
+}
+// Limit-switch gap below the lowest flag. Normally 4", but for 8'+ flags it steps
+// up 6" per flag size: 8x12=18", 10x15=24", 12x18=30", 15x25=36", 20x30=42", 30x60=48".
+const HALYARD_SWITCH_GAP_TIERS = [
+  {ft:8,gap:18},{ft:10,gap:24},{ft:12,gap:30},{ft:15,gap:36},{ft:20,gap:42},{ft:30,gap:48}
+];
+function halyardSwitchGapIn(lowestFlagFt){
+  if(lowestFlagFt == null || lowestFlagFt < 8) return 4;
+  let gap = HALYARD_SWITCH_GAP_TIERS[0].gap;
+  for(const t of HALYARD_SWITCH_GAP_TIERS){ if(lowestFlagFt >= t.ft) gap = t.gap; }
+  return gap;
 }
 function computeHalyardCutsheet(src){
   if(!src) return null;
@@ -7026,36 +7037,43 @@ function computeHalyardCutsheet(src){
   if(type !== "external" && type !== "internal") return null; // no halyard to cut
   const poleFt = parseHeightFt(src.serial);
   if(!poleFt) return null; // need the pole height for the cut length
-  // CONTINUOUS LOOP system: the halyard runs UP the pole and back DOWN (2× pole
-  // height). Both sides stop at the device-mount height, so subtract the 8'-6"
-  // mount TWICE (= 17 ft), then add slack that's trimmed after setup.
-  //   total = 2 × pole − (2 × mount) + slack
-  // The rope is folded in half to build it, so each side is half the total —
-  // installers only need ~half the working space.
-  const loopFt = poleFt * 2;
-  const totalCutFt = Math.max(0, loopFt - (AUTOFLAG_MOUNT_FT * 2) + AUTOFLAG_HALYARD_SLACK_FT);
-  const perSideFt = totalCutFt / 2;
-  // Multi-flag (Rev 2.99): a pole can carry up to 3 flags stacked down the halyard.
+  // Flags first — the flag count affects how much extra halyard we cut.
   const flagSizes = [src.flagSize, src.flagSize2, src.flagSize3].map(s => String(s||"").trim()).filter(Boolean);
   const flag1Ft = parseFlagHeightFt(flagSizes[0]);
   const flag1In = (flag1Ft != null) ? Math.round(flag1Ft * 12) : null;
   let totalFlagIn = null;
   flagSizes.forEach(fs => { const f = parseFlagHeightFt(fs); if(f != null){ totalFlagIn = (totalFlagIn || 0) + Math.round(f * 12); } });
-  // The limit switch sits 4" below the LOWEST flag. Clip positions are unchanged
-  // (top clip 4" from top, bottom clip at the bottom of flag 1); the switch just
-  // drops past the extra flags: (sum of all flag heights − flag 1) + 4".
+  // CONTINUOUS LOOP system: the halyard runs UP the pole and back DOWN (2× pole
+  // height). Both sides stop at the device-mount height, so subtract the 8'-6"
+  // mount TWICE (= 17 ft), then add slack that's trimmed after setup. Stacked
+  // flags eat extra rope: +1 ft for 2 flags, +2 ft for 3.
+  //   total = 2 × pole − (2 × mount) + slack + extra-for-flags
+  // The rope is folded in half to build it, so each side is half the total —
+  // installers only need ~half the working space.
+  const extraFlagFt = flagSizes.length >= 3 ? 2 : (flagSizes.length === 2 ? 1 : 0);
+  const loopFt = poleFt * 2;
+  const totalCutFt = Math.max(0, loopFt - (AUTOFLAG_MOUNT_FT * 2) + AUTOFLAG_HALYARD_SLACK_FT + extraFlagFt);
+  const perSideFt = totalCutFt / 2;
+  // The limit switch sits below the LOWEST flag. The gap is 4" normally, but 18"
+  // when that flag is 8' or taller. Clip positions are unchanged (top clip 4"
+  // from top, bottom clip at the bottom of flag 1); the switch drops past the
+  // extra flags then the gap: (sum of flag heights − flag 1) + gap.
+  const lowestFlagFt = parseFlagHeightFt(flagSizes[flagSizes.length - 1]);
+  const switchGapIn = halyardSwitchGapIn(lowestFlagFt);
   const extraBelowIn = (flag1In != null && totalFlagIn != null) ? (totalFlagIn - flag1In) : 0;
+  const slackTxt = `${AUTOFLAG_HALYARD_SLACK_FT} ft slack${extraFlagFt ? ` + ${extraFlagFt} ft for ${flagSizes.length} flags` : ''}`;
   return {
-    poleFt, mountFt: AUTOFLAG_MOUNT_FT, slackFt: AUTOFLAG_HALYARD_SLACK_FT,
+    poleFt, mountFt: AUTOFLAG_MOUNT_FT, slackFt: AUTOFLAG_HALYARD_SLACK_FT, extraFlagFt,
     loopFt, totalCutFt, totalCutStr: fmtHalyardFt(totalCutFt),
     perSideFt, perSideStr: fmtHalyardFt(perSideFt),
-    breakdown: `continuous loop: 2 × ${poleFt} ft pole − ${AUTOFLAG_MOUNT_FT * 2} ft device mount (${AUTOFLAG_MOUNT_FT}' × 2) + ${AUTOFLAG_HALYARD_SLACK_FT} ft slack`,
+    breakdown: `continuous loop: 2 × ${poleFt} ft pole − ${AUTOFLAG_MOUNT_FT * 2} ft device mount (${AUTOFLAG_MOUNT_FT}' × 2) + ${slackTxt}`,
     flagSizes, flagCount: flagSizes.length,
     flagSize: flagSizes.join(" + "), flag1Size: flagSizes[0] || "",
     flagFt: flag1Ft, flagIn: flag1In, totalFlagIn,
     topClipIn: 4,                            // top swivel clip 4" from top of folded halyard
     bottomClipBelowTopIn: flag1In,           // bottom swivel clip at the bottom of flag 1 (unchanged)
-    limitSwitchBelowBottomIn: (flag1In != null ? extraBelowIn + 4 : 4) // 4" below the lowest flag
+    switchGapIn, lowestFlagTall: switchGapIn === 18,
+    limitSwitchBelowBottomIn: (flag1In != null ? extraBelowIn + switchGapIn : switchGapIn) // gap below the lowest flag
   };
 }
 // Compact run-of-text used in both the on-screen panel and the print sheet.
@@ -7068,10 +7086,16 @@ function halyardCutsheetBottomLine(cs, plain){
   }
   return plain ? `set Flag Size to compute` : `<span style="color:var(--amber)">set Flag Size to compute</span>`;
 }
-// Limit-switch line. With multiple flags the switch drops below the LOWEST flag.
+// Limit-switch line. The switch drops below the LOWEST flag; the gap is 4" but
+// becomes 18" when that flag is 8' or taller.
 function halyardCutsheetSwitchLine(cs, plain){
   const v = cs.limitSwitchBelowBottomIn;
-  const note = cs.flagCount > 1 ? `(4" below the lowest flag — flag ${cs.flagCount})` : "";
+  let note = "";
+  if(cs.flagCount > 1){
+    note = `(${cs.switchGapIn}" below the lowest flag — flag ${cs.flagCount})`;
+  } else if(cs.lowestFlagTall){
+    note = `(8'+ flag)`;
+  }
   if(plain) return `${v}" below the bottom swivel clip${note ? ' ' + note : ''}`;
   return `<strong>${v}"</strong> below the bottom swivel clip${note ? ` <span style="color:var(--text-muted)">${escapeHtml(note)}</span>` : ''}`;
 }
