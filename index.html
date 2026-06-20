@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.95" />
+<meta name="app-rev" content="2.96" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -9706,6 +9706,21 @@ function renderPoleChecklist(p){
   const hasA = flatSteps.some(s => s.inputField?.name === "A");
   const hasB = flatSteps.some(s => s.inputField?.name === "B");
   let html = "";
+  // Rev 2.96: Compute customer-view here. renderPoleChecklist is called outside
+  // openPoleModal (live field edits, issue-filing refresh), so referencing
+  // openPoleModal's local `isCustomerView` threw a ReferenceError and the modal
+  // never opened (regression from the Rev 2.93 free-order toggle). Mirror the
+  // same logic used in openPoleModal.
+  const isCustomerRole = state.userRole === "customer";
+  let customerCanEdit = false;
+  if(isCustomerRole){
+    if(!p){ customerCanEdit = true; }
+    else {
+      const myKey = peopleEmailKeyForCurrentUser();
+      customerCanEdit = (p.status || "in_review") === "in_review" && p.requestedBy === myKey;
+    }
+  }
+  const isCustomerView = isCustomerRole && !customerCanEdit;
   // Rev 2.93: Free-order toggle (admins + installers). Lets steps be checked in
   // ANY order — each step still must be acknowledged/checked, and its photo or
   // measurement requirements still apply. Used to pre-make halyards etc.
