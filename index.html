@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.92" />
+<meta name="app-rev" content="2.93" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -2123,6 +2123,10 @@ function sanitizePole(p, id){
     survey: stripHTML(p.survey||""), notes: stripHTML(p.notes||""),
     photos: Array.isArray(p.photos) ? p.photos.filter(x=>typeof x==="string" && /^https:\/\//.test(x)) : [],
     checklist: (p.checklist && typeof p.checklist === "object") ? p.checklist : {},
+    // Rev 2.93: when true, the install checklist can be completed in ANY order
+    // (each step still has to be checked/acknowledged) — lets installers do
+    // things like pre-make halyards ahead of the rest of the install.
+    freeOrder: !!p.freeOrder,
     history: Array.isArray(p.history) ? p.history.slice(-100) : [],
     kanbanOrder: typeof p.kanbanOrder === "number" ? p.kanbanOrder : null,
     createdAt: p.createdAt || Date.now(), updatedAt: p.updatedAt || Date.now(),
@@ -9547,7 +9551,9 @@ function renderPoleChecklist(p){
     }
   }
   const allDone = (firstUnlockedIdx === -1);
-  const stepUnlocked = (idx) => allDone || idx <= firstUnlockedIdx || !!checklist[flatSteps[idx].id]?.checked;
+  // Rev 2.93: free-order poles unlock every step (each still must be checked).
+  const freeOrder = !!(p && p.freeOrder);
+  const stepUnlocked = (idx) => freeOrder || allDone || idx <= firstUnlockedIdx || !!checklist[flatSteps[idx].id]?.checked;
 
   // ===== Reference pill (A/B captured) =====
   const Aval = getPoleMeasurement(p, "A");
@@ -9557,6 +9563,17 @@ function renderPoleChecklist(p){
   const hasA = flatSteps.some(s => s.inputField?.name === "A");
   const hasB = flatSteps.some(s => s.inputField?.name === "B");
   let html = "";
+  // Rev 2.93: Free-order toggle (admins + installers). Lets steps be checked in
+  // ANY order — each step still must be acknowledged/checked, and its photo or
+  // measurement requirements still apply. Used to pre-make halyards etc.
+  if(!isCustomerView){
+    const fo = freeOrder;
+    const canToggle = !!state.editing.poleId;
+    html += `<label class="checklist-freeorder" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border:1px solid ${fo?'var(--amber)':'var(--border)'};border-radius:var(--radius-sm);background:${fo?'rgba(212,134,10,0.08)':'var(--surface2)'};font-size:12px;cursor:${canToggle?'pointer':'not-allowed'}">
+      <input type="checkbox" ${fo?'checked':''} ${canToggle?'':'disabled'} onclick="event.stopPropagation();togglePoleFreeOrder()" style="width:16px;height:16px;flex-shrink:0" />
+      <span>${fo?'🔓':'🔒'} Free order — do steps in any order ${canToggle?'(each step still must be checked)':'· save the pole first'}</span>
+    </label>`;
+  }
   if(hasA || hasB){
     const aPart = hasA
       ? (Aval
@@ -9822,6 +9839,25 @@ window.toggleStepDetails = (stepId) => {
   caret.textContent = open ? "▶" : "▼";
 };
 
+// Rev 2.93: Flip a pole's free-order flag. When on, the install checklist can be
+// completed in any order (each step still requires its own check + any photo/
+// measurement). Persisted on the pole so it sticks across opens.
+window.togglePoleFreeOrder = async () => {
+  const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
+  if(!cid || !sid || !pid) return toast("Save the pole first", true);
+  const p = state.data.customers[cid]?.sites[sid]?.poles[pid];
+  if(!p) return;
+  const next = !p.freeOrder;
+  try {
+    await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`, {
+      freeOrder: next, updatedAt: Date.now(), updatedBy: state.user.uid
+    });
+  } catch(e){ return toast("Save failed: " + (e?.message||""), true); }
+  p.freeOrder = next;  // optimistic — subscription echo will confirm
+  toast(next ? "🔓 Free order on — check steps in any order" : "🔒 Forced order on");
+  renderPoleChecklist(p);
+};
+
 window.toggleChecklistStep = async (stepId) => {
   const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
   if(!cid || !sid || !pid) return toast("Save the pole first, then check off steps", true);
@@ -9840,7 +9876,7 @@ window.toggleChecklistStep = async (stepId) => {
 
   // Forced sequencing: server-side belt-and-suspenders. UI already grays out
   // locked steps; this guards against direct DOM tampering or stale event handlers.
-  if(newlyChecked){
+  if(newlyChecked && !p.freeOrder){
     const stepIdx = allSteps.findIndex(s => s.id === stepId);
     const cl = p.checklist || {};
     for(let i = 0; i < stepIdx; i++){
