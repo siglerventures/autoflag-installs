@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="2.93" />
+<meta name="app-rev" content="2.95" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6959,6 +6959,148 @@ function renderSites(){
   return html;
 }
 
+// Rev 2.95: Halyard cutsheet — turns a pole's Flag Pole Height + Flag Size into
+// the bench-prep numbers an installer cuts to before going onsite.
+//   • AutoFlag mounts 8'-6" above grade and the halyard runs through the device's
+//     3 pulleys folded in half, so the rope is cut to twice the (pole − mount) run.
+//   • Clip / limit-switch positions are measured from the TOP of the folded
+//     halyard (which sits at the top of the pole).
+// Returns null when there's nothing to cut (cylinder, or no height captured yet).
+const AUTOFLAG_MOUNT_FT = 8.5; // AutoFlag device mount height above grade (8'-6")
+function parseHeightFt(v){
+  const n = parseFloat(String(v||"").replace(/[^0-9.]/g,""));
+  return (isFinite(n) && n > 0) ? n : null;
+}
+function parseFlagHeightFt(flagSize){
+  // Flag size is "HxW" (e.g. "5x8"); the first number is the flag's height in feet.
+  const m = String(flagSize||"").match(/(\d+(?:\.\d+)?)\s*[xX]/);
+  return m ? parseFloat(m[1]) : null;
+}
+function computeHalyardCutsheet(src){
+  if(!src) return null;
+  const type = src.installType || "";
+  if(type !== "external" && type !== "internal") return null; // no halyard to cut
+  const poleFt = parseHeightFt(src.serial);
+  if(!poleFt) return null; // need the pole height for the cut length
+  // Round the single run UP to the whole foot so a cut is never short (slack is fine).
+  const runFt = poleFt - AUTOFLAG_MOUNT_FT;
+  const singleRunFt = Math.max(0, Math.ceil(runFt));
+  const totalCutFt = singleRunFt * 2;
+  const flagFt = parseFlagHeightFt(src.flagSize);
+  const flagIn = (flagFt != null) ? Math.round(flagFt * 12) : null;
+  return {
+    poleFt, mountFt: AUTOFLAG_MOUNT_FT, runFt, singleRunFt, totalCutFt,
+    flagSize: src.flagSize || "", flagFt, flagIn,
+    topClipIn: 4,                  // top swivel clip 4" from top of folded halyard
+    bottomClipBelowTopIn: flagIn,  // bottom swivel clip one flag-height below top clip
+    limitSwitchBelowBottomIn: 4    // magnetic limit switch actuator 4" below bottom clip
+  };
+}
+// Compact run-of-text used in both the on-screen panel and the print sheet.
+function halyardCutsheetBottomLine(cs, plain){
+  if(cs.bottomClipBelowTopIn != null){
+    const note = `(flag height — ${cs.flagSize})`;
+    return plain
+      ? `${cs.bottomClipBelowTopIn}" below the top clip ${note}`
+      : `<strong>${cs.bottomClipBelowTopIn}"</strong> below the top clip <span style="color:var(--text-muted)">${escapeHtml(note)}</span>`;
+  }
+  return plain ? `set Flag Size to compute` : `<span style="color:var(--amber)">set Flag Size to compute</span>`;
+}
+// On-screen panel shown at the top of the pole checklist (installer + admin views).
+function halyardCutsheetHtml(cs){
+  if(!cs) return "";
+  const runStr = Number.isInteger(cs.runFt) ? `${cs.runFt}` : cs.runFt.toFixed(1);
+  return `<div class="halyard-cutsheet" style="border:1px solid var(--amber);border-radius:var(--radius-sm);background:rgba(212,134,10,0.06);padding:10px 12px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:700;color:var(--amber-bright);flex:1">🪢 Halyard Cutsheet</span>
+      <button class="btn-secondary btn no-print" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();printHalyardCutsheet()" title="Print this cutsheet">🖨️ Print</button>
+    </div>
+    <div style="font-size:15px;color:var(--text-bright);margin-bottom:2px">Cut <strong style="color:var(--amber-bright)">${cs.totalCutFt} ft</strong> of halyard</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${cs.singleRunFt} ft per side, folded in half · pole ${cs.poleFt} ft − ${cs.mountFt} ft device mount = ${runStr} ft → ${cs.singleRunFt} ft</div>
+    <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.7">
+      <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
+      <li>Top swivel clip: <strong>${cs.topClipIn}"</strong> from the top of the folded halyard.</li>
+      <li>Bottom swivel clip: ${halyardCutsheetBottomLine(cs, false)}.</li>
+      <li>Magnetic limit switch actuator: <strong>${cs.limitSwitchBelowBottomIn}"</strong> below the bottom swivel clip.</li>
+    </ol>
+  </div>`;
+}
+// Print a clean, self-contained cutsheet for the pole currently open in the modal.
+// Reads the LIVE form values so it matches what the installer sees on screen.
+window.printHalyardCutsheet = () => {
+  const src = {
+    installType: document.getElementById("mp-installType")?.value || "",
+    serial: document.getElementById("mp-serial")?.value || "",
+    flagSize: document.getElementById("mp-flagSize")?.value || ""
+  };
+  const cs = computeHalyardCutsheet(src);
+  if(!cs){ toast("Set install type + flag pole height first"); return; }
+  const label = (document.getElementById("mp-label")?.value || "").trim() || "Pole";
+  const flagTxt = src.flagSize ? `${src.flagSize} flag` : "flag size not set";
+  const w = window.open("", "_blank", "width=540,height=680");
+  if(!w){ toast("Allow pop-ups to print the cutsheet"); return; }
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const runStr = Number.isInteger(cs.runFt) ? `${cs.runFt}` : cs.runFt.toFixed(1);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8">
+  <title>Halyard Cutsheet — ${esc(label)}</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;margin:28px;line-height:1.5}
+    h1{font-size:20px;margin:0 0 2px}
+    .meta{font-size:12px;color:#555;margin-bottom:18px;border-bottom:1px solid #ccc;padding-bottom:12px}
+    .cut{font-size:26px;font-weight:800;margin:0 0 2px}
+    .sub{font-size:12px;color:#555;margin-bottom:18px}
+    ol{font-size:15px;padding-left:22px;line-height:2}
+    .foot{margin-top:24px;font-size:10px;color:#888;border-top:1px solid #ccc;padding-top:10px}
+    @media print{ body{margin:0.5in} }
+  </style></head><body>
+    <h1>🪢 Halyard Cutsheet</h1>
+    <div class="meta">${esc(label)} · ${esc(src.serial)} pole · ${esc(flagTxt)} · ${new Date().toLocaleDateString()}</div>
+    <div class="cut">Cut ${cs.totalCutFt} ft of halyard</div>
+    <div class="sub">${cs.singleRunFt} ft per side, folded in half · pole ${cs.poleFt} ft − ${cs.mountFt} ft device mount = ${runStr} ft → ${cs.singleRunFt} ft</div>
+    <ol>
+      <li>Fold the halyard in half — the fold is the top (top of the pole).</li>
+      <li>Top swivel clip: <b>${cs.topClipIn}"</b> from the top of the folded halyard.</li>
+      <li>Bottom swivel clip: ${esc(halyardCutsheetBottomLine(cs, true))}.</li>
+      <li>Magnetic limit switch actuator: <b>${cs.limitSwitchBelowBottomIn}"</b> below the bottom swivel clip.</li>
+    </ol>
+    <div class="foot">AutoFlag mounts 8'-6" above grade; halyard runs through 3 pulleys folded in half.</div>
+    <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+};
+
+// Rev 2.94: Halyard prep status for a pole, derived from the "Halyard Setup"
+// section of its procedure template (single source of truth — no separate flag).
+// Returns {done,total} or null when the install type has no halyard section
+// (e.g. cylinder), so callers can render "—".
+function poleHalyardStatus(p){
+  if(!p || !p.installType) return null;
+  const tpl = state.procedures[p.installType];
+  if(!tpl) return null;
+  const sec = getTemplateSections(tpl).find(s => s.id === "halyardSetup");
+  if(!sec || !Array.isArray(sec.steps) || sec.steps.length === 0) return null;
+  const cl = p.checklist || {};
+  const total = sec.steps.length;
+  const done = sec.steps.filter(st => cl[st.id]?.checked).length;
+  return { done, total };
+}
+function halyardCellHtml(p){
+  const h = poleHalyardStatus(p);
+  const cs = computeHalyardCutsheet(p);
+  // Rev 2.95: surface the halyard cut length alongside the prep status.
+  const cutSpan = cs
+    ? `<span style="color:var(--text-muted);white-space:nowrap" title="Halyard cut length (${cs.singleRunFt} ft × 2)">✂ ${cs.totalCutFt} ft</span>`
+    : "";
+  let status;
+  if(!h) status = "";
+  else if(h.done >= h.total) status = '<span style="color:var(--green);white-space:nowrap" title="Halyard prep complete">🪢 ✓ Done</span>';
+  else if(h.done === 0) status = `<span style="color:var(--text-muted);white-space:nowrap" title="Halyard prep not started">🪢 0/${h.total}</span>`;
+  else status = `<span style="color:var(--amber);white-space:nowrap" title="Halyard prep in progress">🪢 ${h.done}/${h.total}</span>`;
+  if(!status && !cutSpan) return '<span style="color:var(--text-muted)">—</span>';
+  return [status, cutSpan].filter(Boolean).join(' <span style="color:var(--text-muted)">·</span> ');
+}
+
 function renderList(){
   const allPoles = collectPoles();
   if(allPoles.length===0) return renderViewHeaderStrip() + `<div class="empty">No poles match.</div>`;
@@ -7034,7 +7176,7 @@ function renderList(){
     <div class="list-print-meta">${allPoles.length} poles · printed ${new Date().toLocaleString()}</div>
   </div>`;
   html += `<table class="list-table"><thead><tr>
-    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
+    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}<th style="white-space:nowrap">🪢 Halyard</th>${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
   sorted.forEach(({c,s,p}) => {
     // Each filterable cell is wrapped in a clickable span. event.stopPropagation()
@@ -7051,6 +7193,7 @@ function renderList(){
       <td>${s.name}</td>
       <td>${p.installType?`<span class="list-cell-clickable ${typeActive?'active':''}" onclick="event.stopPropagation();setInstallTypeFilter('${p.installType}')" title="Filter to ${formatInstallType(p.installType)}">${formatInstallType(p.installType)}</span>`:'—'}</td>
       <td><span class="status-badge status-${p.status} list-cell-clickable ${statusActive?'active':''}" onclick="event.stopPropagation();setStatusFilter('${p.status}')" title="Filter to ${STATUS_LABELS[p.status]||p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
+      <td>${halyardCellHtml(p)}</td>
       <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
       <td>${p.serial||'—'}</td>
       <td>${p.plan?p.plan.toUpperCase():'—'}</td>
@@ -9589,6 +9732,15 @@ function renderPoleChecklist(p){
     html += `<div class="checklist-ref-pill" title="Pre-install measurements">📏 ${aPart}${sep}${bPart}</div>`;
   }
 
+  // ===== Halyard cutsheet (Rev 2.95) =====
+  // Derived from the LIVE Flag Pole Height + Flag Size + install type so it tracks
+  // edits in the modal. Renders nothing for cylinder or when height isn't set yet.
+  html += halyardCutsheetHtml(computeHalyardCutsheet({
+    installType: liveType,
+    serial: document.getElementById("mp-serial")?.value || p?.serial || "",
+    flagSize: document.getElementById("mp-flagSize")?.value || p?.flagSize || ""
+  }));
+
   // ===== Render sections =====
   // Continuous step numbering across sections (1, 2, 3, ... through every steps section).
   let runningStepIdx = 0;
@@ -10115,7 +10267,8 @@ window.removeStepPhoto = async (stepId) => {
 
 // Re-render checklist when install type changes mid-edit
 document.addEventListener("change", e => {
-  if(e.target?.id === "mp-installType"){
+  // Rev 2.95: also re-render on height/flag-size so the halyard cutsheet tracks edits.
+  if(e.target?.id === "mp-installType" || e.target?.id === "mp-serial" || e.target?.id === "mp-flagSize"){
     const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
     const p = (cid && sid && pid) ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
     renderPoleChecklist(p);
