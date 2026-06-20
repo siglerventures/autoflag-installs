@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.4" />
+<meta name="app-rev" content="3.5" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -275,6 +275,11 @@
   .modal-header{position:sticky;top:0;background:var(--surface);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;z-index:1}
   .modal-header h2{margin:0;font-size:17px;color:var(--amber-bright)}
   .modal-body{padding:16px}
+  /* Rev 3.5: The pole editor opens FULL-SCREEN (not a floating window) so it uses
+     all the real estate and needs far less scrolling — especially on mobile.
+     Scoped to #modalPole; every other modal stays a centered window. */
+  #modalPole{padding:0;align-items:stretch}
+  #modalPole>.modal{max-width:none;width:100%;min-height:100vh;max-height:100vh;margin:0;border:none;border-radius:0;box-shadow:none}
   .modal-close{font-size:22px;color:var(--text-dim);background:none;border:none;padding:0 6px}
   .modal-close:hover{color:var(--amber)}
 
