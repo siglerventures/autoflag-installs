@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.7" />
+<meta name="app-rev" content="3.8" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -9931,6 +9931,9 @@ function renderPoleChecklist(p){
   }
 
   const checklist = (p && p.checklist) || {};
+  // Rev 3.8: pole considered "done" once completed (or admin-verified) — used to
+  // hide the Halyard Cutsheet, which is only useful while prepping.
+  const poleIsDone = !!(p && (p.status === "completed" || p.status === "verified"));
   const total = flatSteps.length;
   const checked = flatSteps.filter(st => checklist[st.id]?.checked).length;
   progressEl.textContent = `(${checked}/${total} done)`;
@@ -10045,6 +10048,19 @@ function renderPoleChecklist(p){
     if(sec.id === freeOrderSecId && freeOrderHtml && !freeOrderInserted){
       html += freeOrderHtml;
       freeOrderInserted = true;
+    }
+
+    // Rev 3.8: Halyard Cutsheet now lives INSIDE the Halyard Setup section (was a
+    // floating block between sections). Derived from the LIVE Flag Pole Height +
+    // Flag Size so it tracks modal edits. Hidden once the pole is completed.
+    if(sec.id === "halyardSetup" && !poleIsDone){
+      html += halyardCutsheetHtml(computeHalyardCutsheet({
+        installType: liveType,
+        serial: document.getElementById("mp-serial")?.value || p?.serial || "",
+        flagSize: document.getElementById("mp-flagSize")?.value || p?.flagSize || "",
+        flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2")?.value || "") : (p?.flagSize2 || ""),
+        flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3")?.value || "") : (p?.flagSize3 || "")
+      }), p);
     }
 
     secSteps.forEach((st, sIdx) => {
@@ -10192,19 +10208,6 @@ function renderPoleChecklist(p){
     });
 
     html += `</div></div>`;
-
-    // Rev 2.97: Halyard Cutsheet sits directly UNDER the Halyard Setup section.
-    // Derived from the LIVE Flag Pole Height + Flag Size so it tracks modal edits.
-    // Collapses to a one-line bar once the halyard is marked made & labeled.
-    if(sec.id === "halyardSetup"){
-      html += halyardCutsheetHtml(computeHalyardCutsheet({
-        installType: liveType,
-        serial: document.getElementById("mp-serial")?.value || p?.serial || "",
-        flagSize: document.getElementById("mp-flagSize")?.value || p?.flagSize || "",
-        flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2")?.value || "") : (p?.flagSize2 || ""),
-        flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3")?.value || "") : (p?.flagSize3 || "")
-      }), p);
-    }
     runningStepIdx += secSteps.length;
   });
 
