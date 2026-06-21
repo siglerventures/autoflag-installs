@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.9" />
+<meta name="app-rev" content="3.10" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6058,8 +6058,12 @@ function renderBrowse(){
       : '';
 
     // Choose what to render on the customer row based on viewport
+    // Rev 3.10: On mobile a COLLAPSED customer row shows the name only — the
+    // status chips (scheduled / issues / remaining) were appearing under every
+    // name on load and read like the row was already expanded. They now show
+    // only once the customer is expanded. Desktop is unchanged (full chip set).
     const rowChipsHTML = isMobile
-      ? `${chipScheduled}${chipIssues}${chipRemaining}`  // Mobile: scheduled + issues + remaining
+      ? (cExpanded ? `${chipScheduled}${chipIssues}${chipRemaining}` : "")  // Mobile: chips only when expanded
       : `${chipSites}${chipPoles}${chipExternal}${chipInternal}${chipCylinder}${chipInReview}${chipScheduled}${chipInProgress}${chipCompleted}${chipVerified}${chipIssues}${chipRemaining}`;  // Desktop: full set
 
     // DETAILS button shown only on desktop (mobile gets it in the expanded cluster below)
