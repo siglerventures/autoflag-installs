@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.8" />
+<meta name="app-rev" content="3.9" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1043,7 +1043,7 @@
 <div id="app" style="display:none">
   <header>
     <div class="logo" onclick="goHome()">AutoFlag<small>Installs</small></div>
-    <input class="header-search" id="searchInput" placeholder="Search customers, sites, poles, parts, tools..." oninput="renderActive()" />
+    <input class="header-search" id="searchInput" autocomplete="off" placeholder="Search customers, sites, poles, parts, tools..." oninput="renderActive()" />
     <!-- Rev 2.63: AI elements tagged .header-ai-el so they can all be hidden
          together for customer role. AI context includes all customers + tool/BOM
          prices + procedures — internal data customers shouldn't see. -->
@@ -2667,6 +2667,15 @@ onAuthStateChanged(auth, async user => {
 
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("app").style.display="";
+  // Rev 3.9: browsers restore the previous text in the search box across a
+  // refresh. The first renderActive() then saw a non-empty input with an empty
+  // state.search and treated it as "search just started" — auto-expanding EVERY
+  // customer on load. Clear the box (and keep state.search empty) so a fresh
+  // load always starts fully collapsed. (autocomplete="off" on the input helps,
+  // but this is the guarantee.)
+  const _si = document.getElementById("searchInput");
+  if(_si) _si.value = "";
+  state.search = "";
   document.getElementById("userPill").innerHTML =
     `<img src="${user.photoURL||""}" alt=""><span>${user.displayName||user.email}</span>` +
     (state.isAdmin ? ' <span style="color:var(--amber)">★</span>' : '');
