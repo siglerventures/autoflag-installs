@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.5" />
+<meta name="app-rev" content="3.6" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -295,6 +295,16 @@
   @media (max-width:500px){.form-grid-3{grid-template-columns:1fr}}
   .form-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
   @media (max-width:700px){.form-grid-4{grid-template-columns:1fr 1fr}}
+  /* Rev 3.6: Compact, process-ordered field rows for the full-screen pole editor.
+     Controls size to their natural width and wrap instead of every box eating a
+     full grid cell — far less scrolling, and it still collapses cleanly on a
+     phone. Width is set by flex-basis utility classes below. */
+  .form-flow{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:12px}
+  .form-flow>.form-row{margin-bottom:0;flex:1 1 150px;min-width:0}
+  .form-flow>.f-wide{flex:3 1 240px}
+  .form-flow>.f-med{flex:1 1 190px}
+  .form-flow>.f-sm{flex:1 1 120px}
+  .form-flow>.f-btn{flex:0 1 118px}
 
   /* Rev 2.23: Assigned-installers dropdown — click-to-open multi-select.
      Mirrors the visual weight of a native <select> so it sits alongside the
@@ -1201,22 +1211,37 @@
            helper (Rev 2.39) which falls back to address when lat/lng absent.
            Reads cid/sid from state.editing at click time so we don't need to
            pre-bind values during render. -->
-      <button class="ai-icon-btn" id="mp-directions-btn" onclick="openMapForCurrentPole()" title="Get directions to this site" style="margin-left:auto;margin-right:8px;border-color:var(--blue);color:var(--blue);display:none">🗺️</button>
+      <!-- Rev 3.6: 📜 History button surfaced in the (sticky) header. The full
+           history panel already lives at the bottom of the modal — it records
+           who did what & when plus every issue filed/dispatched/resolved — but
+           on the full-screen editor it was a long scroll away. This button
+           expands that same panel and scrolls to it. -->
+      <button class="btn-secondary btn" id="mp-history-btn" onclick="openPoleHistory()" title="See who did what & when, plus issues filed" style="margin-left:auto;margin-right:8px;font-size:12px;padding:6px 12px;border-color:var(--amber-dim);color:var(--amber)">📜 History</button>
+      <button class="ai-icon-btn" id="mp-directions-btn" onclick="openMapForCurrentPole()" title="Get directions to this site" style="margin-right:8px;border-color:var(--blue);color:var(--blue);display:none">🗺️</button>
       <button class="modal-close" onclick="closeModal('modalPole')">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-grid-2">
-        <div class="form-row"><label>Pole label *</label><input id="mp-label" placeholder="Pole 1, Lobby, Flagpole A..." /></div>
-        <div class="form-row"><label>Status</label><select id="mp-status">
-          <option value="in_review">📝 In Review</option>
-          <option value="scheduled">📅 Scheduled</option>
-          <option value="in_progress">🔧 In Progress</option>
-          <option value="completed">✅ Completed</option>
-          <option value="verified" id="mp-status-verified">⭐ Verified (admin only)</option>
-        </select></div>
+      <!-- Rev 3.6: Compact, process-ordered layout for the full-screen editor.
+           Fields wrap to their natural width (see .form-flow) instead of each
+           control hogging a full grid cell, so the whole record fits with far
+           less scrolling and still collapses cleanly on mobile. Order follows
+           the on-site flow: identity/location → hardware/SaaS → schedule/crew/
+           status → narrative. Every id and handler is unchanged. -->
+
+      <!-- Identity & location -->
+      <div class="form-flow">
+        <div class="form-row f-wide"><label>Pole label *</label><input id="mp-label" placeholder="Pole 1, Lobby, Flagpole A..." /></div>
+        <div class="form-row f-wide"><label>Address (site-level)</label><input id="mp-address" type="text" placeholder="123 Main St, City, ST 12345" /></div>
+        <div class="form-row f-sm"><label>Latitude</label><input id="mp-lat" type="number" step="0.000001" /></div>
+        <div class="form-row f-sm"><label>Longitude</label><input id="mp-lng" type="number" step="0.000001" /></div>
+        <div class="form-row f-btn"><label>&nbsp;</label><button class="btn-secondary btn" type="button" onclick="usePhoneGPS()" style="font-size:11px;padding:8px 6px;width:100%" title="Use My Phone's GPS">📱 Phone GPS</button></div>
+        <div class="form-row f-btn"><label>&nbsp;</label><button class="btn-secondary btn" type="button" onclick="useSiteCoords()" style="font-size:11px;padding:8px 6px;width:100%" title="Reset to Site Location">📍 Site Loc</button></div>
       </div>
-      <div class="form-grid-3">
-        <div class="form-row"><label>Flag Pole Height</label><select id="mp-serial">
+      <div id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:10px;min-height:14px"></div>
+
+      <!-- Hardware & SaaS -->
+      <div class="form-flow">
+        <div class="form-row f-sm"><label>Flag Pole Height</label><select id="mp-serial">
           <option value="">—</option>
           <option value="15 ft">15 ft</option>
           <option value="20 ft">20 ft</option>
@@ -1230,7 +1255,7 @@
           <option value="70 ft">70 ft</option>
           <option value="80 ft">80 ft</option>
         </select></div>
-        <div class="form-row"><label>Flag Size</label>
+        <div class="form-row f-med"><label>Flag Size</label>
           <div style="display:flex;gap:6px;align-items:flex-start">
             <select id="mp-flagSize" style="flex:1">
               <option value="">—</option>
@@ -1272,51 +1297,49 @@
             </div>
           </div>
         </div>
-        <div class="form-row"><label>Install type *</label><select id="mp-installType">
+        <div class="form-row f-sm"><label>Install type *</label><select id="mp-installType">
           <option value="">— Select —</option>
           <option value="external">External halyard</option>
           <option value="internal">Internal halyard</option>
           <option value="cylinder">Cylinder</option>
         </select></div>
-      </div>
-      <div class="form-grid-3">
-        <div class="form-row"><label>Serial #</label><input id="mp-fw" /></div>
-        <div class="form-row"><label>SaaS plan</label><select id="mp-plan">
+        <div class="form-row f-sm"><label>Serial #</label><input id="mp-fw" /></div>
+        <div class="form-row f-med"><label>SIM / ICCID</label><input id="mp-sim" /></div>
+        <div class="form-row f-sm"><label>SaaS plan</label><select id="mp-plan">
           <option value="">—</option>
           <option value="lte">LTE ($199/yr)</option>
           <option value="wifi">Wi-Fi ($149/yr)</option>
         </select></div>
-        <div class="form-row"><label>SIM / ICCID</label><input id="mp-sim" /></div>
-      </div>
-      <div class="form-row"><label>Address (site-level)</label><input id="mp-address" type="text" placeholder="123 Main St, City, ST 12345" /></div>
-      <div class="form-grid-4">
-        <div class="form-row"><label>Latitude</label><input id="mp-lat" type="number" step="0.000001" /></div>
-        <div class="form-row"><label>Longitude</label><input id="mp-lng" type="number" step="0.000001" /></div>
-        <div class="form-row"><label>&nbsp;</label><button class="btn-secondary btn" type="button" onclick="usePhoneGPS()" style="font-size:11px;padding:8px 6px;width:100%" title="Use My Phone's GPS">📱 Phone GPS</button></div>
-        <div class="form-row"><label>&nbsp;</label><button class="btn-secondary btn" type="button" onclick="useSiteCoords()" style="font-size:11px;padding:8px 6px;width:100%" title="Reset to Site Location">📍 Site Loc</button></div>
-      </div>
-      <div id="mp-gps-status" style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:10px;min-height:14px"></div>
-      <div class="form-grid-4">
-        <div class="form-row"><label>Expected Install</label><input id="mp-expected-date" type="date" onclick="this.showPicker?.()" /></div>
-        <div class="form-row"><label>Completed Date</label><input id="mp-completed-date" type="date" onclick="this.showPicker?.()" /></div>
-        <div class="form-row"><label>SaaS active</label><select id="mp-saas">
+        <div class="form-row f-sm"><label>SaaS active</label><select id="mp-saas">
           <option value="">—</option>
           <option value="pending">Pending</option>
           <option value="active">Active</option>
           <option value="failed">Failed</option>
         </select></div>
-        <div class="form-row"><label>Completed By</label><select id="mp-completed-by">
+        <div class="form-row f-sm"><label>Completed By</label><select id="mp-completed-by">
           <option value="">—</option>
         </select></div>
       </div>
 
+      <!-- Schedule, crew & status -->
       <!-- Rev 2.21: Assigned Installers — multi-select; pole-level (not customer-level).
            Lead + helper or any combination. Used for visibility filtering: installer-role
            users only see poles where their UID is in this list. Auto-suggests as default
            for Completed By when the pole is marked completed. -->
-      <div class="form-row">
-        <label>Assigned Installers <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— pick lead + any helpers</span></label>
-        <div id="mp-assigned-installers" class="assigned-installer-grid"></div>
+      <div class="form-flow">
+        <div class="form-row f-sm"><label>Expected Install</label><input id="mp-expected-date" type="date" onclick="this.showPicker?.()" /></div>
+        <div class="form-row f-sm"><label>Completed Date</label><input id="mp-completed-date" type="date" onclick="this.showPicker?.()" /></div>
+        <div class="form-row f-wide">
+          <label>Assigned Installers <span style="color:var(--text-muted);font-weight:normal;font-size:11px;text-transform:none;letter-spacing:0">— pick lead + any helpers</span></label>
+          <div id="mp-assigned-installers" class="assigned-installer-grid"></div>
+        </div>
+        <div class="form-row f-sm"><label>Status</label><select id="mp-status">
+          <option value="in_review">📝 In Review</option>
+          <option value="scheduled">📅 Scheduled</option>
+          <option value="in_progress">🔧 In Progress</option>
+          <option value="completed">✅ Completed</option>
+          <option value="verified" id="mp-status-verified">⭐ Verified (admin only)</option>
+        </select></div>
       </div>
 
       <div class="section-h">Pre-install survey</div>
@@ -9842,6 +9865,18 @@ window.toggleHistory = () => {
   const c = document.getElementById("mp-history-caret");
   if(w.style.display === "none"){ w.style.display = ""; c.textContent = "▼"; }
   else { w.style.display = "none"; c.textContent = "▶"; }
+};
+
+// Rev 3.6: Header "📜 History" button. The history panel already lives at the
+// bottom of the modal; on the full-screen editor that's a long scroll, so this
+// always expands it (never collapses) and scrolls it into view.
+window.openPoleHistory = () => {
+  const w = document.getElementById("mp-history");
+  const c = document.getElementById("mp-history-caret");
+  if(!w) return;
+  w.style.display = "";
+  if(c) c.textContent = "▼";
+  w.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
 function renderPoleChecklist(p){
