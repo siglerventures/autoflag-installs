@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.6" />
+<meta name="app-rev" content="3.7" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1216,9 +1216,12 @@
            who did what & when plus every issue filed/dispatched/resolved — but
            on the full-screen editor it was a long scroll away. This button
            expands that same panel and scrolls to it. -->
-      <button class="btn-secondary btn" id="mp-history-btn" onclick="openPoleHistory()" title="See who did what & when, plus issues filed" style="margin-left:auto;margin-right:8px;font-size:12px;padding:6px 12px;border-color:var(--amber-dim);color:var(--amber)">📜 History</button>
+      <!-- Rev 3.7: History + Directions sit right after the pole title (was far
+           right). margin-left:auto on the close button pushes only the × to the
+           far right; the two action buttons stay grouped next to the name. -->
+      <button class="btn-secondary btn" id="mp-history-btn" onclick="openPoleHistory()" title="See who did what & when, plus issues filed" style="margin-left:12px;margin-right:8px;font-size:12px;padding:6px 12px;border-color:var(--amber-dim);color:var(--amber)">📜 History</button>
       <button class="ai-icon-btn" id="mp-directions-btn" onclick="openMapForCurrentPole()" title="Get directions to this site" style="margin-right:8px;border-color:var(--blue);color:var(--blue);display:none">🗺️</button>
-      <button class="modal-close" onclick="closeModal('modalPole')">×</button>
+      <button class="modal-close" onclick="closeModal('modalPole')" style="margin-left:auto">×</button>
     </div>
     <div class="modal-body">
       <!-- Rev 3.6: Compact, process-ordered layout for the full-screen editor.
@@ -5612,6 +5615,10 @@ function matchesSearch(c, s, p){
   };
   const statusLabel = p?.status ? (STATUS_LABELS?.[p.status] || p.status) : "";
   const installerName = p?.completedBy ? (typeof getCompletedByName === "function" ? getCompletedByName(p.completedBy) : "") : "";
+  // Rev 3.7: make number-of-flags searchable, e.g. "2 flags" finds every pole
+  // with two flags on the pole. Counts the filled flag-size slots.
+  const flagCnt = p ? [p.flagSize, p.flagSize2, p.flagSize3].filter(v => v && String(v).trim()).length : 0;
+  const flagCountToken = flagCnt ? `${flagCnt} flag${flagCnt > 1 ? "s" : ""}` : "";
   // Rev 2.70: Flatten multi-contact data into searchable haystack
   const allContacts = c ? (Array.isArray(c.contacts) ? c.contacts : []) : [];
   const contactSearchTokens = allContacts.flatMap(ct => [ct?.name, ct?.title, ct?.phone, ct?.email, ct?.type]);
@@ -5620,7 +5627,7 @@ function matchesSearch(c, s, p){
     ...contactSearchTokens,
     s?.name, s?.address, s?.notes, s?.contact, s?.phone,
     p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes,
-    p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.saas,
+    p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.flagSize2, p?.flagSize3, flagCountToken, p?.saas,
     installerName,
     fmtDate(p?.expectedInstallDate), fmtDate(p?.completedDate), fmtDate(p?.updatedAt)
   ].filter(v => v != null && v !== "").join(" ").toLowerCase();
@@ -7292,6 +7299,18 @@ function poleHalyardStatus(p){
   const done = sec.steps.filter(st => cl[st.id]?.checked).length;
   return { done, total };
 }
+// Rev 3.7: number of flags on a pole = filled flag-size slots (1–3).
+function poleFlagCount(p){
+  return p ? [p.flagSize, p.flagSize2, p.flagSize3].filter(v => v && String(v).trim()).length : 0;
+}
+// List-view cell: 🚩 N, with the actual sizes in the tooltip. Sortable via the
+// "flags" column so you can group all 1-flag / 2-flag / 3-flag poles together.
+function flagsCellHtml(p){
+  const sizes = p ? [p.flagSize, p.flagSize2, p.flagSize3].map(v => String(v || "").trim()).filter(Boolean) : [];
+  if(!sizes.length) return '<span style="color:var(--text-muted)">—</span>';
+  return `<span style="white-space:nowrap" title="${escapeHtml(sizes.join(' + '))}">🚩 ${sizes.length}</span>`;
+}
+
 function halyardCellHtml(p){
   // Rev 3.0: once the halyard is made & labeled, show WHO completed it (✅) IN PLACE
   // OF the prep count + cut dimensions — so the team sees at a glance it's done and
@@ -7329,6 +7348,7 @@ function renderList(){
       case "customer":  va = a.c.name||"";  vb = b.c.name||"";  break;
       case "site":      va = a.s.name||"";  vb = b.s.name||"";  break;
       case "type":      va = a.p.installType||""; vb = b.p.installType||""; break;
+      case "flags":     va = poleFlagCount(a.p); vb = poleFlagCount(b.p); break;
       case "status":    va = a.p.status||""; vb = b.p.status||""; break;
       case "date":      va = getDisplayDate(a.p)||""; vb = getDisplayDate(b.p)||""; break;
       case "serial":    va = a.p.serial||""; vb = b.p.serial||""; break;
@@ -7391,7 +7411,7 @@ function renderList(){
     <div class="list-print-meta">${allPoles.length} poles · printed ${new Date().toLocaleString()}</div>
   </div>`;
   html += `<table class="list-table"><thead><tr>
-    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("status","Status")}<th style="white-space:nowrap">🪢 Halyard</th>${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
+    ${th("pole","Pole")}${th("customer","Customer")}${th("site","Site")}${th("type","Type")}${th("flags","🚩 Flags")}${th("status","Status")}<th style="white-space:nowrap">🪢 Halyard</th>${th("date","Date")}${th("serial","Height")}${th("plan","Plan")}${th("completedBy","Completed By")}${th("updated","Updated")}
   </tr></thead><tbody>`;
   sorted.forEach(({c,s,p}) => {
     // Each filterable cell is wrapped in a clickable span. event.stopPropagation()
@@ -7407,6 +7427,7 @@ function renderList(){
       <td><span class="list-cell-clickable ${customerActive?'active':''}" onclick="event.stopPropagation();setCustomerFilter('${c.id}')" title="Filter to this customer">${c.name}</span></td>
       <td>${s.name}</td>
       <td>${p.installType?`<span class="list-cell-clickable ${typeActive?'active':''}" onclick="event.stopPropagation();setInstallTypeFilter('${p.installType}')" title="Filter to ${formatInstallType(p.installType)}">${formatInstallType(p.installType)}</span>`:'—'}</td>
+      <td>${flagsCellHtml(p)}</td>
       <td><span class="status-badge status-${p.status} list-cell-clickable ${statusActive?'active':''}" onclick="event.stopPropagation();setStatusFilter('${p.status}')" title="Filter to ${STATUS_LABELS[p.status]||p.status}">${STATUS_LABELS[p.status]||p.status}</span></td>
       <td>${halyardCellHtml(p)}</td>
       <td>${getDisplayDate(p)?fmtShortDate(getDisplayDate(p)):'—'}</td>
@@ -9957,14 +9978,25 @@ function renderPoleChecklist(p){
   // Rev 2.93: Free-order toggle (admins + installers). Lets steps be checked in
   // ANY order — each step still must be acknowledged/checked, and its photo or
   // measurement requirements still apply. Used to pre-make halyards etc.
+  // Rev 3.7: This toggle no longer sits on the main checklist surface. It's built
+  // into a string here and injected INTO the "Onsite installation" section (just
+  // above its first step) so it's out of the way until you're actually on-site.
+  // Font is muted grey to match the section text instead of bright white.
+  let freeOrderHtml = "";
   if(!isCustomerView){
     const fo = freeOrder;
     const canToggle = !!state.editing.poleId;
-    html += `<label class="checklist-freeorder" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border:1px solid ${fo?'var(--amber)':'var(--border)'};border-radius:var(--radius-sm);background:${fo?'rgba(212,134,10,0.08)':'var(--surface2)'};font-size:12px;cursor:${canToggle?'pointer':'not-allowed'}">
+    freeOrderHtml = `<label class="checklist-freeorder" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border:1px solid ${fo?'var(--amber)':'var(--border)'};border-radius:var(--radius-sm);background:${fo?'rgba(212,134,10,0.08)':'var(--surface2)'};font-size:12px;color:var(--text-muted);cursor:${canToggle?'pointer':'not-allowed'}">
       <input type="checkbox" ${fo?'checked':''} ${canToggle?'':'disabled'} onclick="event.stopPropagation();togglePoleFreeOrder()" style="width:16px;height:16px;flex-shrink:0" />
       <span>${fo?'🔓':'🔒'} Free order — do steps in any order ${canToggle?'(each step still must be checked)':'· save the pole first'}</span>
     </label>`;
   }
+  // Pick where the toggle lands: the "Onsite installation" steps section if there
+  // is one, else the first steps section as a fallback so it's never lost.
+  const _stepsSections = sections.filter(sec => sec.kind === "steps" && Array.isArray(sec.steps) && sec.steps.length);
+  const _onsiteSec = _stepsSections.find(sec => String(sec.title || "").toLowerCase().includes("onsite"));
+  const freeOrderSecId = (_onsiteSec || _stepsSections[0])?.id || null;
+  let freeOrderInserted = false;
   if(hasA || hasB){
     const aPart = hasA
       ? (Aval
@@ -10008,6 +10040,12 @@ function renderPoleChecklist(p){
         <span class="checklist-section-caret">${collapsed ? '▶' : '▼'}</span>
       </div>
       <div class="checklist-section-body">`;
+
+    // Rev 3.7: free-order toggle lives at the top of the Onsite section body.
+    if(sec.id === freeOrderSecId && freeOrderHtml && !freeOrderInserted){
+      html += freeOrderHtml;
+      freeOrderInserted = true;
+    }
 
     secSteps.forEach((st, sIdx) => {
       const globalIdx = runningStepIdx + sIdx;
