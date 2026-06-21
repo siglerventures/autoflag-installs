@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push*)",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"PUSH CHECK (mandatory): A git push just ran. Before you say ANYTHING to the user: (1) Use the GitHub MCP tools to check whether the PR previously associated with this branch is already MERGED or CLOSED. (2) If it is merged/closed, the commits you just pushed did NOT attach to it — open a NEW pull request for them now. (3) Always report the correct OPEN PR number/URL to the user; never cite a merged/closed PR as the destination of a fresh push.\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}
