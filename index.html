@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.12" />
+<meta name="app-rev" content="3.13" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -9862,6 +9862,18 @@ window.openPoleModal = (pid, cid, sid) => {
   document.getElementById("mp-delete").style.display = p ? "" : "none";
   renderPolePhotos(p?.photos || []);
   renderPoleHistory(p?.history || []);
+  // Rev 3.13: If the halyard is already made & labeled but its Halyard Setup
+  // steps aren't all checked yet, reconcile + persist right here on open — so the
+  // steps show checked and the Onsite section unlocks without needing a manual
+  // Save or a re-toggle. One-time per pole (idempotent: no write once in sync).
+  if(p && p.halyardMade && pid){
+    const reconciled = autoCompleteHalyardSetup(p.installType, p.checklist, true);
+    if(reconciled){
+      p.checklist = reconciled;
+      patchNode(`autoflag/installs/customers/${cid}/sites/${sid}/poles/${pid}`,
+        { checklist: reconciled, updatedAt: Date.now(), updatedBy: state.user?.uid || null }).catch(()=>{});
+    }
+  }
   renderPoleChecklist(p);
   // Reset history collapsed state on every open
   document.getElementById("mp-history").style.display = "none";
