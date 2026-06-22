@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.13" />
+<meta name="app-rev" content="3.14" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -9156,6 +9156,15 @@ window.addEventListener("popstate", () => {
 // Rev 2.91: arm a guard on first load so even the very first Back from the
 // Browse home is caught and prompts "Leave AutoFlag?" instead of exiting.
 afArm();
+// Rev 3.14: Mobile regression fix. Mobile browsers restore the page from the
+// back/forward cache (bfcache) WITHOUT re-running this script, and the restored
+// history can no longer have our guard entry ahead of it — so the next Back left
+// the app with no prompt. On a bfcache restore, force a fresh guard so Back is
+// caught again. (e.persisted is true only for bfcache restores, so normal loads
+// keep their single load-time guard above.)
+window.addEventListener("pageshow", (e) => {
+  if(e.persisted){ _afArmed = false; afArm(); }
+});
 // Esc key (per 6.3.12: NO overlay-click-to-close)
 document.addEventListener("keydown", e => {
   if(e.key !== "Escape") return;
