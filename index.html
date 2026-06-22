@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.10" />
+<meta name="app-rev" content="3.11" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -7204,6 +7204,10 @@ window.togglePoleHalyardMade = async () => {
     halyardMade: made, halyardMadeBy: madeBy, halyardMadeByName: madeByName, halyardMadeAt: madeAt,
     history: newHistory, updatedAt: Date.now(), updatedBy: state.user.uid
   };
+  // Rev 3.11: marking the halyard made checks off every Halyard Setup step (and
+  // un-marking clears them) so the section reflects the rollup automatically.
+  const autoCl = autoCompleteHalyardSetup(p.installType, p.checklist, made);
+  if(autoCl) patch.checklist = autoCl;
   // Optimistic: update local state + UI FIRST so the cutsheet collapses and the
   // list shows the maker instantly, even if the write is slow (mobile sockets can
   // hang — see _writeWithFallback). Then persist; surface a clear error if it fails.
@@ -7263,18 +7267,22 @@ window.printHalyardCutsheet = () => {
   w.document.close();
 };
 
-// Rev 2.97: Auto-complete the "Pre-Install Measurements" section from the
+// Rev 2.97 / 3.11: Auto-complete the "Pre-Install Measurements" section from the
 // structured Flag Pole Height (→ A) and Flag Size (→ B) fields, so installers
-// don't re-enter the same data as measurements. When BOTH fields are set, fills
-// the A/B input steps and checks every step in the preInstall section. Additive
-// only — never unchecks, and idempotent (returns null when nothing changes).
-// Returns a NEW checklist object to persist, or null.
+// don't re-enter the same data as measurements. Per-field: height alone checks
+// the A step, flag alone checks the B step, and when BOTH are known there's no
+// reason to do any more pre-install measurements so the WHOLE section is checked.
+// Additive only — never unchecks — and idempotent (returns null when nothing
+// changes). Returns a NEW checklist object to persist, or null.
 function autoCompletePreInstall(installType, currentChecklist, heightVal, flagVal){
-  if(!heightVal || !flagVal) return null;            // need BOTH before auto-completing
+  heightVal = heightVal && String(heightVal).trim() ? heightVal : "";
+  flagVal   = flagVal   && String(flagVal).trim()   ? flagVal   : "";
+  if(!heightVal && !flagVal) return null;            // need at least one
   const tpl = state.procedures[installType];
   if(!tpl) return null;
   const sec = getTemplateSections(tpl).find(s => s.id === "preInstall");
   if(!sec || !Array.isArray(sec.steps) || sec.steps.length === 0) return null;
+  const both = !!heightVal && !!flagVal;
   const cl = { ...(currentChecklist || {}) };
   const now = Date.now();
   let changed = false;
@@ -7283,11 +7291,14 @@ function autoCompletePreInstall(installType, currentChecklist, heightVal, flagVa
     let next = cur;
     const nm = st.inputField?.name;
     const want = nm === "A" ? heightVal : (nm === "B" ? flagVal : null);
-    if(want != null && (cur.inputValue || "") !== want){
+    if(want != null && want !== "" && (cur.inputValue || "") !== want){
       next = { ...next, inputValue: want };
       changed = true;
     }
-    if(!next.checked){
+    // Check when we have BOTH (skip the whole section), or this is the A step and
+    // we have the height, or the B step and we have the flag size.
+    const shouldCheck = both || (nm === "A" && !!heightVal) || (nm === "B" && !!flagVal);
+    if(shouldCheck && !next.checked){
       next = { ...next, checked: true, checkedBy: state.user?.uid || null,
                checkedByName: state.user?.displayName || state.user?.email || "(auto)", checkedAt: now };
       changed = true;
@@ -7296,6 +7307,33 @@ function autoCompletePreInstall(installType, currentChecklist, heightVal, flagVa
   });
   return changed ? cl : null;
 }
+
+// Rev 3.11: "Halyard made & labeled" is the rollup of the Halyard Setup section,
+// so marking it made checks every step in that section, and un-marking it clears
+// them again (keeps the flag and the per-step state in sync). Returns a NEW
+// checklist to persist, or null when nothing changes.
+function autoCompleteHalyardSetup(installType, currentChecklist, makeChecked){
+  const tpl = state.procedures[installType];
+  if(!tpl) return null;
+  const sec = getTemplateSections(tpl).find(s => s.id === "halyardSetup");
+  if(!sec || !Array.isArray(sec.steps) || sec.steps.length === 0) return null;
+  const cl = { ...(currentChecklist || {}) };
+  const now = Date.now();
+  let changed = false;
+  sec.steps.forEach(st => {
+    const cur = cl[st.id] || {};
+    if(makeChecked && !cur.checked){
+      cl[st.id] = { ...cur, checked: true, checkedBy: state.user?.uid || null,
+                    checkedByName: state.user?.displayName || state.user?.email || "(auto)", checkedAt: now };
+      changed = true;
+    } else if(!makeChecked && cur.checked){
+      cl[st.id] = { ...cur, checked: false, checkedBy: null, checkedByName: null, checkedAt: null };
+      changed = true;
+    }
+  });
+  return changed ? cl : null;
+}
+
 
 // Rev 2.94: Halyard prep status for a pole, derived from the "Halyard Setup"
 // section of its procedure template (single source of truth — no separate flag).
