@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.11" />
+<meta name="app-rev" content="3.12" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -10973,6 +10973,18 @@ window.savePole = async () => {
   if(autoCl){
     patch.checklist = autoCl;
     extraChanges.push({ field:"checklist", from:"", to:"Auto-completed Pre-Install Measurements (A = Flag Pole Height, B = Flag Size)" });
+  }
+
+  // Rev 3.12: If this pole's halyard is already marked made & labeled, make sure
+  // every Halyard Setup step is checked off on save too. Catches halyards that
+  // were marked made before the auto-check existed (the toggle only fires on
+  // click) so the Onsite steps unlock. Additive — never unchecks here.
+  if(before?.halyardMade){
+    const halyardCl = autoCompleteHalyardSetup(patch.installType, patch.checklist || before?.checklist, true);
+    if(halyardCl){
+      patch.checklist = halyardCl;
+      extraChanges.push({ field:"checklist", from:"", to:"Auto-checked Halyard Setup (halyard already made & labeled)" });
+    }
   }
 
   // Build audit log entry
