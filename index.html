@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.16" />
+<meta name="app-rev" content="3.17" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -5657,7 +5657,7 @@ function searchTbItems(query){
   // an item by its price ("169" → Atomic 20V Max at $169) or by per-install cost
   // ("$6.50" → Adam Tech keylock at $6.50/device).
   const matchItem = (item, extras = []) => {
-    if(!item || item.deletedAt) return false;
+    if(!item || item.deletedAt || item.archived) return false;
     const hay = [
       item.name, item.category, item.material, item.notes,
       ...(Array.isArray(item.links) ? item.links.map(l => `${l?.label||""} ${l?.url||""}`) : []),
@@ -7767,10 +7767,12 @@ function renderInstallsReferenceSection(sec, collapsed){
 // Both render as editable card grids with drag-to-reorder, image upload, multi-source links.
 // Computed costs (costPerUnit, costPerAssembly, totals) are NEVER stored — derived at render.
 
-// Sort items by displayOrder (ascending), filter out soft-deleted.
-function sortAndFilterItems(itemsObj){
+// Sort items by displayOrder (ascending), filter out soft-deleted (and archived
+// unless includeArchived is set). Rev 3.17: archived items are excluded here so
+// they never count toward cost rollups or appear in the normal BOM lists.
+function sortAndFilterItems(itemsObj, includeArchived = false){
   return Object.entries(itemsObj || {})
-    .filter(([_, item]) => item && item.deletedAt == null)
+    .filter(([_, item]) => item && item.deletedAt == null && (includeArchived || !item.archived))
     .sort((a, b) => (a[1].displayOrder ?? 9999) - (b[1].displayOrder ?? 9999));
 }
 
@@ -7787,6 +7789,9 @@ function bomItemCost(item){
 function bomTotalForItems(itemsObj){
   return sortAndFilterItems(itemsObj).reduce((sum, [_, p]) => sum + bomItemCost(p), 0);
 }
+
+// Rev 3.17: toggle the BOM views between active items and the archived list.
+window.toggleShowArchivedBom = () => { state.showArchivedBom = !state.showArchivedBom; renderActive(); };
 
 // Returns next displayOrder for inserting at the end (last + 10, or 10 if empty).
 function nextDisplayOrder(itemsObj){
@@ -7954,9 +7959,14 @@ function renderToolDetailPanel(id, item){
 function renderInstallBomView(){
   const installType = state.bomTab || "external";
   const itemsObj = state.parts[installType] || {};
-  const itemsArr = sortAndFilterItems(itemsObj);
+  // Rev 3.17: split active vs archived. Cost is ALWAYS the active set; the list
+  // shows archived only when the user toggles into the archived view.
+  const showingArchived = !!state.showArchivedBom;
+  const activeArr = sortAndFilterItems(itemsObj);
+  const archivedArr = sortAndFilterItems(itemsObj, true).filter(([_, p]) => p.archived);
+  const itemsArr = showingArchived ? archivedArr : activeArr;
 
-  const totalInstallCost = itemsArr.reduce((sum, [_, p]) => {
+  const totalInstallCost = activeArr.reduce((sum, [_, p]) => {
     const qty = Number(p.qty) || 1;
     const packCost = Number(p.packCost) || 0;
     const qtyPerUnit = Number(p.qtyPerUnit) || 1;
@@ -7990,9 +8000,10 @@ function renderInstallBomView(){
   </div>`;
 
   html += `<div class="tb-toolbar">
-    <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} · <strong>$${totalInstallCost.toFixed(2)}</strong> per install${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
-    ${state.isAdmin ? `<button class="tb-add-btn" onclick="addPartItem()">+ Add Part</button>
+    <div class="tb-summary">${showingArchived ? `<span style="color:var(--amber-bright)">📦 Archived</span> · <strong>${archivedArr.length}</strong> item${archivedArr.length===1?'':'s'}` : `<strong>${activeArr.length}</strong> part${activeArr.length===1?'':'s'} · <strong>$${totalInstallCost.toFixed(2)}</strong> per install`}${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
+    ${state.isAdmin && !showingArchived ? `<button class="tb-add-btn" onclick="addPartItem()">+ Add Part</button>
       <button class="tb-bulk-img-btn" onclick="openBulkImageImport('part')" title="Bulk-upload images from a ZIP">🖼️ Import</button>` : ''}
+    ${(archivedArr.length || showingArchived) ? `<button class="tb-bulk-img-btn" onclick="toggleShowArchivedBom()" title="${showingArchived ? 'Back to the active BOM' : 'Review archived items'}">${showingArchived ? '← Active BOM' : `📦 Archived (${archivedArr.length})`}</button>` : ''}
   </div>`;
 
   html += `<div class="tb-search-row">
@@ -8002,7 +8013,9 @@ function renderInstallBomView(){
   </div>`;
 
   if(itemsArr.length === 0){
-    html += `<div class="tb-empty">No parts defined for <strong>${formatInstallType(installType)}</strong> BOM yet.${state.isAdmin ? '<br><span class="hint" onclick="addPartItem()">+ Add your first part</span>' : ''}</div>`;
+    html += showingArchived
+      ? `<div class="tb-empty">No archived parts in the <strong>${formatInstallType(installType)}</strong> BOM.</div>`
+      : `<div class="tb-empty">No parts defined for <strong>${formatInstallType(installType)}</strong> BOM yet.${state.isAdmin ? '<br><span class="hint" onclick="addPartItem()">+ Add your first part</span>' : ''}</div>`;
     return html;
   }
 
@@ -8066,8 +8079,12 @@ function renderInstallBomView(){
 // but the per-unit semantic is "per device" not "per install". Stored at
 // /autoflag/mechanical-parts/{itemId}.
 function renderMechBomView(){
-  const itemsArr = sortAndFilterItems(state.mechParts);
-  const totalDeviceCost = itemsArr.reduce((sum, [_, p]) => {
+  // Rev 3.17: active vs archived split (cost from active only). See install BOM.
+  const showingArchived = !!state.showArchivedBom;
+  const activeArr = sortAndFilterItems(state.mechParts);
+  const archivedArr = sortAndFilterItems(state.mechParts, true).filter(([_, p]) => p.archived);
+  const itemsArr = showingArchived ? archivedArr : activeArr;
+  const totalDeviceCost = activeArr.reduce((sum, [_, p]) => {
     const qty = Number(p.qty) || 1;
     const packCost = Number(p.packCost) || 0;
     const qtyPerUnit = Number(p.qtyPerUnit) || 1;
@@ -8093,9 +8110,10 @@ function renderMechBomView(){
   });
 
   let html = `<div class="tb-toolbar">
-    <div class="tb-summary"><strong>${itemsArr.length}</strong> part${itemsArr.length===1?'':'s'} · <strong>$${totalDeviceCost.toFixed(2)}</strong> per device${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
-    ${state.isAdmin ? `<button class="tb-add-btn" onclick="addMechPartItem()">+ Add Part</button>
+    <div class="tb-summary">${showingArchived ? `<span style="color:var(--amber-bright)">📦 Archived</span> · <strong>${archivedArr.length}</strong> item${archivedArr.length===1?'':'s'}` : `<strong>${activeArr.length}</strong> part${activeArr.length===1?'':'s'} · <strong>$${totalDeviceCost.toFixed(2)}</strong> per device`}${search ? ` · <span style="color:var(--amber)">${sorted.length} match${sorted.length===1?'':'es'}</span>` : ''}</div>
+    ${state.isAdmin && !showingArchived ? `<button class="tb-add-btn" onclick="addMechPartItem()">+ Add Part</button>
       <button class="tb-bulk-img-btn" onclick="openBulkImageImport('mechpart')" title="Bulk-upload images from a ZIP">🖼️ Import</button>` : ''}
+    ${(archivedArr.length || showingArchived) ? `<button class="tb-bulk-img-btn" onclick="toggleShowArchivedBom()" title="${showingArchived ? 'Back to the active BOM' : 'Review archived items'}">${showingArchived ? '← Active BOM' : `📦 Archived (${archivedArr.length})`}</button>` : ''}
   </div>`;
 
   html += `<div class="tb-search-row">
@@ -8105,7 +8123,9 @@ function renderMechBomView(){
   </div>`;
 
   if(itemsArr.length === 0){
-    html += `<div class="tb-empty">No parts in the Mechanical BOM yet.${state.isAdmin ? '<br><span class="hint" onclick="addMechPartItem()">+ Add your first part</span>' : ''}</div>`;
+    html += showingArchived
+      ? `<div class="tb-empty">No archived parts in the Mechanical BOM.</div>`
+      : `<div class="tb-empty">No parts in the Mechanical BOM yet.${state.isAdmin ? '<br><span class="hint" onclick="addMechPartItem()">+ Add your first part</span>' : ''}</div>`;
     return html;
   }
 
@@ -8292,6 +8312,7 @@ function renderPartDetailPanel(id, item, kind = "part"){
       <div style="display:flex;gap:6px">
         <button class="tb-delete-btn" data-no-drag onclick="deleteTbItem('${kind}','${id}')">✕ Delete</button>
         <button class="tb-history-btn" data-no-drag onclick="openHistoryModal('${kind}','${id}','${escapeHtml(item.name || '').replace(/'/g, "\\'")}'${kind==='part' ? ",'"+(state.bomTab||'external')+"'" : ''})">📜 History</button>
+        <button class="tb-history-btn" data-no-drag onclick="toggleTbArchive('${kind}','${id}')" title="${item.archived ? 'Restore this item to the active BOM' : 'Archive — hides it from the BOM and excludes it from cost (reversible)'}">${item.archived ? '♻️ Unarchive' : '📦 Archive'}</button>
       </div>
       <div style="flex:1"></div>
       <button class="tb-save-btn" data-no-drag onclick="saveCloseTbRow('${kind}','${id}')">✓ Save</button>
@@ -8716,6 +8737,29 @@ window.deleteTbItem = async (kind, id) => {
     history: [...(item.history || []), entry].slice(-100)
   });
   toast(`Deleted "${label}"`);
+};
+
+// Rev 3.17: Archive / unarchive a BOM item. Archived items are hidden from the
+// BOM list and excluded from cost rollups (see sortAndFilterItems), but kept so
+// they can be reviewed and restored later. Reversible — not a delete.
+window.toggleTbArchive = async (kind, id) => {
+  if(!state.isAdmin) return;
+  const item = tbGetCurrentItem(kind, id);
+  if(!item) return;
+  const next = !item.archived;
+  const label = item.name || `(${kind} ${id})`;
+  const path = tbItemPath(kind, id);
+  const entry = buildHistoryEntry([{ field: "archived", from: item.archived ? "archived" : "active", to: next ? "archived" : "active" }]);
+  await writeNode(path, {
+    ...item,
+    archived: next,
+    archivedAt: next ? Date.now() : null,
+    archivedBy: next ? state.user.uid : null,
+    updatedAt: Date.now(),
+    updatedBy: state.user.uid,
+    history: [...(item.history || []), entry].slice(-100)
+  });
+  toast(next ? `Archived "${label}" — removed from BOM & cost` : `Restored "${label}" to the BOM`);
 };
 
 // ===== Image upload / drop / paste =====
@@ -11547,7 +11591,7 @@ function buildAIContext(){
   // 2) Tools / BOMs context for AI search + edit. Compact representation
   //    — strip history, deletedAt, created/updatedBy. Costs computed on the fly.
   const tbCompact = (item, computePerLabel) => {
-    if(!item || item.deletedAt) return null;
+    if(!item || item.deletedAt || item.archived) return null;
     const qty = Number(item.qty) || 1;
     const packCost = Number(item.packCost) || 0;
     const qtyPerUnit = Number(item.qtyPerUnit) || 1;
