@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.18" />
+<meta name="app-rev" content="3.19" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -8858,6 +8858,17 @@ window.addTbLink = async (kind, id) => {
     updatedAt: Date.now(),
     updatedBy: state.user.uid
   });
+  // Rev 3.19: the button sits inside .tb-detail-inner, so the parts subscription
+  // skips its re-render (focus guard) and the new source row wouldn't appear
+  // until focus left / another render fired — which is why it "took a few taps."
+  // Blur + re-render now so the row shows immediately, then focus its label.
+  try { document.activeElement?.blur?.(); } catch(_){}
+  try { renderActive(); } catch(_){}
+  try {
+    const card = document.querySelector(`[data-item-id="${id}"][data-kind="${kind}"]`);
+    const rows = card?.querySelectorAll(".tb-link-row");
+    rows?.[rows.length - 1]?.querySelector(".tb-link-label")?.focus();
+  } catch(_){}
 };
 
 window.removeTbLink = async (kind, id, linkIdx) => {
@@ -8874,6 +8885,9 @@ window.removeTbLink = async (kind, id, linkIdx) => {
     updatedAt: Date.now(),
     updatedBy: state.user.uid
   });
+  // Rev 3.19: same focus-guard issue — re-render so the removed row disappears now.
+  try { document.activeElement?.blur?.(); } catch(_){}
+  try { renderActive(); } catch(_){}
 };
 
 window.verifyTbLink = async (kind, id) => {
