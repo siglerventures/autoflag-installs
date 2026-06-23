@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.14" />
+<meta name="app-rev" content="3.15" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6964,6 +6964,15 @@ window.setListSort = (col) => {
   renderActive();
 };
 
+// Rev 3.15: List-view filter — show only poles whose halyard isn't made/labeled
+// yet. Excludes cylinder poles (no halyard section) and poles already marked
+// made, so the crew can see at a glance what halyards still need building.
+let _listHalyardPending = false;
+window.toggleListHalyardPending = () => { _listHalyardPending = !_listHalyardPending; renderActive(); };
+function halyardPending(p){
+  return poleHalyardStatus(p) !== null && !p?.halyardMade;
+}
+
 // Resolve a "completedBy" value (UID or emailKey) to a human name.
 // Named getCompletedByName to avoid collision with the local var of the
 // same name used inside exportCSV.
@@ -7387,8 +7396,9 @@ function halyardCellHtml(p){
 }
 
 function renderList(){
-  const allPoles = collectPoles();
-  if(allPoles.length===0) return renderViewHeaderStrip() + `<div class="empty">No poles match.</div>`;
+  let allPoles = collectPoles();
+  if(_listHalyardPending) allPoles = allPoles.filter(({p}) => halyardPending(p));
+  if(allPoles.length===0) return renderViewHeaderStrip() + `<div class="empty">${_listHalyardPending ? "No poles with a halyard still to make." : "No poles match."}</div>`;
 
   // Sort according to current column/direction
   const dir = _listSort.dir === "asc" ? 1 : -1;
@@ -7441,6 +7451,7 @@ function renderList(){
   if(state.filter.status !== "all") filterSummary.push(`Status: ${STATUS_LABELS[state.filter.status] || state.filter.status}`);
   if(state.filter.installType !== "all") filterSummary.push(`Type: ${formatInstallType(state.filter.installType)}`);
   if(state.filter.customer !== "all") filterSummary.push(`Customer: ${state.data.customers[state.filter.customer]?.name || state.filter.customer}`);
+  if(_listHalyardPending) filterSummary.push("Halyard: not made yet");
   const subtitle = filterSummary.length
     ? `<div class="list-subtitle no-print">${escapeHtml(filterSummary.join(" · "))}</div>`
     : "";
@@ -7453,6 +7464,10 @@ function renderList(){
       ${subtitle}
     </div>
     <div class="list-toolbar-right">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-right:12px;color:${_listHalyardPending?'var(--amber-bright)':'var(--text-muted)'}" title="Show only poles whose halyard hasn't been made & labeled yet">
+        <input type="checkbox" ${_listHalyardPending?'checked':''} onclick="toggleListHalyardPending()" style="width:15px;height:15px" />
+        🪢 Halyards not made
+      </label>
       <button class="list-print-btn" onclick="window.print()" title="Print this list">🖨️ Print</button>
     </div>
   </div>
