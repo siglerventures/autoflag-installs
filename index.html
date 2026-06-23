@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.17" />
+<meta name="app-rev" content="3.18" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -8760,6 +8760,12 @@ window.toggleTbArchive = async (kind, id) => {
     history: [...(item.history || []), entry].slice(-100)
   });
   toast(next ? `Archived "${label}" — removed from BOM & cost` : `Restored "${label}" to the BOM`);
+  // Rev 3.18: the Archive button lives inside .tb-detail-inner, so the parts
+  // subscription's "skip re-render while a card is focused" guard would otherwise
+  // leave the item on screen until a reload. Drop focus + re-render now so it
+  // disappears (or returns) immediately.
+  try { document.activeElement?.blur?.(); } catch(_){}
+  try { renderActive(); } catch(_){}
 };
 
 // ===== Image upload / drop / paste =====
