@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.15" />
+<meta name="app-rev" content="3.16" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -6970,7 +6970,11 @@ window.setListSort = (col) => {
 let _listHalyardPending = false;
 window.toggleListHalyardPending = () => { _listHalyardPending = !_listHalyardPending; renderActive(); };
 function halyardPending(p){
-  return poleHalyardStatus(p) !== null && !p?.halyardMade;
+  if(!p) return false;
+  // Rev 3.16: a Completed or Verified install necessarily has its halyard made,
+  // so never count those as pending even if the halyardMade flag was never set.
+  if(p.status === "completed" || p.status === "verified") return false;
+  return poleHalyardStatus(p) !== null && !p.halyardMade;
 }
 
 // Resolve a "completedBy" value (UID or emailKey) to a human name.
