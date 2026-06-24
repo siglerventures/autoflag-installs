@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.19" />
+<meta name="app-rev" content="3.20" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1307,7 +1307,12 @@
           <option value="cylinder">Cylinder</option>
         </select></div>
         <div class="form-row f-sm"><label>Serial #</label><input id="mp-fw" /></div>
-        <div class="form-row f-med"><label>SIM / ICCID</label><input id="mp-sim" /></div>
+        <div class="form-row f-med"><label>SIM / ICCID</label>
+          <div style="display:flex;gap:6px;align-items:stretch">
+            <input id="mp-sim" style="flex:1;min-width:0" placeholder="Type or 📷 scan" />
+            <button type="button" class="btn-secondary btn" onclick="scanSimIccid()" title="Scan the SIM barcode / QR with your camera" style="flex:0 0 auto;padding:8px 11px;font-size:14px">📷</button>
+          </div>
+        </div>
         <div class="form-row f-sm"><label>SaaS plan</label><select id="mp-plan">
           <option value="">—</option>
           <option value="lte">LTE ($199/yr)</option>
@@ -10940,6 +10945,102 @@ function getAssignedInstallersFromUI(){
     .map(cb => cb.closest(".ai-option")?.dataset.key)
     .filter(Boolean);
 }
+
+// Rev 3.20: Scan a SIM/ICCID barcode or QR with the phone camera into #mp-sim.
+// You can still type into the field — this just fills it for you. Primary path is
+// the native BarcodeDetector (Android Chrome / Samsung Internet, covers the
+// Soracom Code-128 barcode with zero dependency). Browsers without it (e.g. iOS
+// Safari) lazy-load ZXing from unpkg (allowed by our CSP script-src). If neither
+// works, we fail gracefully and tell the user to type it.
+window.scanSimIccid = async () => {
+  const input = document.getElementById("mp-sim");
+  if(!input) return;
+  if(!navigator.mediaDevices?.getUserMedia){
+    toast("Camera not available here — type the SIM/ICCID in", true);
+    return;
+  }
+
+  const ov = document.createElement("div");
+  ov.id = "simScanOverlay";
+  ov.style.cssText = "position:fixed;inset:0;z-index:3000;background:#000;overflow:hidden";
+  ov.innerHTML = `
+    <video id="simScanVideo" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
+    <div style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:14px 16px;background:rgba(0,0,0,.6);color:#fff;font-size:14px">
+      <span style="flex:1">📷 Point at the SIM barcode / QR</span>
+      <button id="simScanCancel" style="background:#7d3838;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer">Cancel</button>
+    </div>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:82%;max-width:380px;height:130px;border:3px solid rgba(255,255,255,.85);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.35)"></div>
+    <div id="simScanStatus" style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,.6);color:#cfcfcf;font-size:12px;text-align:center">Hold steady — scans automatically. Or Cancel and type it in.</div>`;
+  document.body.appendChild(ov);
+  const video = ov.querySelector("#simScanVideo");
+  const statusEl = ov.querySelector("#simScanStatus");
+  let stopped = false, stream = null, rafId = null, zxingReader = null;
+
+  const cleanup = () => {
+    if(stopped) return;
+    stopped = true;
+    if(rafId) cancelAnimationFrame(rafId);
+    try { zxingReader?.reset?.(); } catch(_){}
+    if(stream){ try { stream.getTracks().forEach(t => t.stop()); } catch(_){} }
+    ov.remove();
+  };
+  ov.querySelector("#simScanCancel").onclick = cleanup;
+
+  const onResult = (raw) => {
+    if(stopped) return;
+    const val = String(raw || "").trim();
+    if(!val) return;
+    cleanup();
+    input.value = val;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    try { navigator.vibrate?.(120); } catch(_){}
+    toast("SIM/ICCID scanned ✓");
+  };
+
+  // Open the back camera ourselves (so both paths use it).
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+    if(stopped){ stream.getTracks().forEach(t => t.stop()); return; }
+    video.srcObject = stream;
+    await video.play().catch(()=>{});
+  } catch(e){
+    cleanup();
+    toast(e?.name === "NotAllowedError" ? "Camera blocked — allow it or type the SIM/ICCID in" : "Couldn't open camera — type the SIM/ICCID in", true);
+    return;
+  }
+
+  // Path A: native BarcodeDetector (no dependency).
+  if("BarcodeDetector" in window){
+    try {
+      let fmts = [];
+      try { fmts = await window.BarcodeDetector.getSupportedFormats(); } catch(_){}
+      const want = ["code_128","code_39","codabar","itf","ean_13","qr_code","data_matrix"].filter(f => !fmts.length || fmts.includes(f));
+      const detector = new window.BarcodeDetector(want.length ? { formats: want } : undefined);
+      const tick = async () => {
+        if(stopped) return;
+        try { const codes = await detector.detect(video); if(codes && codes.length){ onResult(codes[0].rawValue); return; } } catch(_){}
+        rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
+      return;
+    } catch(_){ /* fall through to ZXing */ }
+  }
+
+  // Path B: ZXing fallback (iOS Safari etc.), decoding our existing video stream.
+  if(statusEl) statusEl.textContent = "Loading scanner…";
+  try {
+    const mod = await import("https://unpkg.com/@zxing/library@0.21.3?module");
+    if(stopped) return;
+    const Reader = mod.BrowserMultiFormatReader || mod.default?.BrowserMultiFormatReader;
+    if(!Reader) throw new Error("reader unavailable");
+    zxingReader = new Reader();
+    if(statusEl) statusEl.textContent = "Hold steady — scans automatically. Or Cancel and type it in.";
+    await zxingReader.decodeFromVideoElement(video, (result) => { if(result) onResult(result.getText()); });
+  } catch(e){
+    cleanup();
+    toast("Scanning isn't supported on this browser — type the SIM/ICCID in", true);
+  }
+};
 
 window.usePhoneGPS = () => {
   const status = document.getElementById("mp-gps-status");
