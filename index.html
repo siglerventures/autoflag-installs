@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.23" />
+<meta name="app-rev" content="3.24" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1222,7 +1222,11 @@
       <!-- Rev 3.7: History + Directions sit right after the pole title (was far
            right). margin-left:auto on the close button pushes only the × to the
            far right; the two action buttons stay grouped next to the name. -->
-      <button class="btn-secondary btn" id="mp-history-btn" onclick="openPoleHistory()" title="See who did what & when, plus issues filed" style="margin-left:12px;margin-right:8px;font-size:12px;padding:6px 12px;border-color:var(--amber-dim);color:var(--amber)">📜 History</button>
+      <!-- Rev 3.24: 🏡 Home button — saves any pending edit, then goes to the
+           Home screen just like the site logo's Home (hard reset). Sits in front
+           of History. -->
+      <button class="btn-secondary btn" id="mp-home-btn" onclick="goHomeFromPole()" title="Save & go to the Home screen" style="margin-left:12px;margin-right:8px;font-size:12px;padding:6px 12px;border-color:var(--amber-dim);color:var(--amber)">🏡 Home</button>
+      <button class="btn-secondary btn" id="mp-history-btn" onclick="openPoleHistory()" title="See who did what & when, plus issues filed" style="margin-right:8px;font-size:12px;padding:6px 12px;border-color:var(--amber-dim);color:var(--amber)">📜 History</button>
       <button class="ai-icon-btn" id="mp-directions-btn" onclick="openMapForCurrentPole()" title="Get directions to this site" style="margin-right:8px;border-color:var(--blue);color:var(--blue);display:none">🗺️</button>
       <button class="modal-close" onclick="closeModal('modalPole')" style="margin-left:auto">×</button>
     </div>
@@ -6698,6 +6702,14 @@ window.goHome = () => {
   // Strips URL hash so reload lands on the default home view.
   if(location.hash) history.replaceState(null, "", location.pathname + location.search);
   location.reload();
+};
+
+// Rev 3.24: Home button inside the pole editor. Flush any pending autosave first
+// (the hard reload would otherwise drop the last debounced edit), then go Home
+// exactly like the logo does.
+window.goHomeFromPole = async () => {
+  try { if(state.editing?.poleId) await savePole(true); } catch(_){}
+  goHome();
 };
 
 // Rev 2.05: Soft "go to Browse" used by the in-Installs Home button (different
