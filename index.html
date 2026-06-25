@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.21" />
+<meta name="app-rev" content="3.22" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -5636,14 +5636,6 @@ function matchesSearch(c, s, p){
   // with two flags on the pole. Counts the filled flag-size slots.
   const flagCnt = p ? [p.flagSize, p.flagSize2, p.flagSize3].filter(v => v && String(v).trim()).length : 0;
   const flagCountToken = flagCnt ? `${flagCnt} flag${flagCnt > 1 ? "s" : ""}` : "";
-  // Rev 3.21: make the device Serial # findable by natural phrasing. p.fw is the
-  // serial; add "serial N" / "unit N" (and #-prefixed) so searches like
-  // "Serial 5" or "Unit 5" match the pole whose serial is 5 (the bare number
-  // already matches via p.fw below).
-  const fwVal = (p?.fw || "").toString().trim();
-  const serialPhrases = fwVal
-    ? [`serial ${fwVal}`, `serial #${fwVal}`, `serial#${fwVal}`, `unit ${fwVal}`, `unit #${fwVal}`]
-    : [];
   // Rev 2.70: Flatten multi-contact data into searchable haystack
   const allContacts = c ? (Array.isArray(c.contacts) ? c.contacts : []) : [];
   const contactSearchTokens = allContacts.flatMap(ct => [ct?.name, ct?.title, ct?.phone, ct?.email, ct?.type]);
@@ -5652,15 +5644,27 @@ function matchesSearch(c, s, p){
     ...contactSearchTokens,
     s?.name, s?.address, s?.notes, s?.contact, s?.phone,
     p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes,
-    ...serialPhrases,
     p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.flagSize2, p?.flagSize3, flagCountToken, p?.saas,
     installerName,
     fmtDate(p?.expectedInstallDate), fmtDate(p?.completedDate), fmtDate(p?.updatedAt)
   ].filter(v => v != null && v !== "").join(" ").toLowerCase();
-  // Rev 3.21: token-AND match — every whitespace-separated word in the query must
-  // appear somewhere in the haystack (order-independent), so "serial 5" or
-  // "utah 5x8" match. Leading # on a token is ignored ("#5" → "5").
-  const tokens = q.split(/\s+/).map(t => t.replace(/^#+/, "")).filter(Boolean);
+  // Rev 3.22: explicit Serial/Unit lookup. "serial 79" / "unit 79" / "sn 79" /
+  // "s/n 79" / "serial #79" must match THIS pole's Serial # (p.fw) specifically —
+  // NOT just any field that happens to contain 79 (SIM, phone, dates). Customers
+  // and sites have no serial, so a serial query surfaces them only via a matching
+  // pole. The remainder of the query (if any) still matches the full haystack,
+  // token-by-token and order-independent.
+  let rest = q;
+  const serialMatch = q.match(/\b(?:serial|unit|sn|s\/n)\s*#?\s*([a-z0-9][a-z0-9-]*)/);
+  if(serialMatch){
+    const want = serialMatch[1];
+    const fw = (p?.fw || "").toString().toLowerCase();
+    if(!fw || !fw.includes(want)) return false;
+    rest = q.replace(serialMatch[0], " ");
+  }
+  // Token-AND: every remaining whitespace-separated word must appear in the
+  // haystack (so "utah 5x8" works). A leading # on a token is ignored.
+  const tokens = rest.split(/\s+/).map(t => t.replace(/^#+/, "")).filter(Boolean);
   if(tokens.length === 0) return true;
   return tokens.every(tok => hay.includes(tok));
 }
