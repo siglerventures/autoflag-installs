@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.24" />
+<meta name="app-rev" content="3.25" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1307,6 +1307,47 @@
             </div>
           </div>
         </div>
+        <!-- Rev 3.25: Which flag is flying. Mirrors the Flag Size layout — the 2nd/3rd
+             type pickers enable with the same 2/3 checkboxes (via syncFlagFields).
+             Defaults to USA unless set. -->
+        <div class="form-row f-med"><label>Flag Type</label>
+          <div style="display:flex;gap:6px;align-items:flex-start">
+            <select id="mp-flagType" style="flex:1">
+              <option value="USA">USA</option>
+              <option value="State">State</option>
+              <option value="City">City</option>
+              <optgroup label="Military">
+                <option value="Army">Army</option>
+                <option value="Navy">Navy</option>
+                <option value="Air Force">Air Force</option>
+                <option value="Marine Corps">Marine Corps</option>
+                <option value="Coast Guard">Coast Guard</option>
+                <option value="Space Force">Space Force</option>
+              </optgroup>
+              <option value="Other">Other</option>
+            </select>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <select id="mp-flagType2" disabled style="font-size:12px;padding:3px" title="Type of the 2nd flag">
+                <option value="">—</option>
+                <option value="USA">USA</option><option value="State">State</option><option value="City">City</option>
+                <optgroup label="Military">
+                  <option value="Army">Army</option><option value="Navy">Navy</option><option value="Air Force">Air Force</option>
+                  <option value="Marine Corps">Marine Corps</option><option value="Coast Guard">Coast Guard</option><option value="Space Force">Space Force</option>
+                </optgroup>
+                <option value="Other">Other</option>
+              </select>
+              <select id="mp-flagType3" disabled style="font-size:12px;padding:3px" title="Type of the 3rd flag">
+                <option value="">—</option>
+                <option value="USA">USA</option><option value="State">State</option><option value="City">City</option>
+                <optgroup label="Military">
+                  <option value="Army">Army</option><option value="Navy">Navy</option><option value="Air Force">Air Force</option>
+                  <option value="Marine Corps">Marine Corps</option><option value="Coast Guard">Coast Guard</option><option value="Space Force">Space Force</option>
+                </optgroup>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <div class="form-row f-sm"><label>Install type *</label><select id="mp-installType">
           <option value="">— Select —</option>
           <option value="external">External halyard</option>
@@ -2182,6 +2223,8 @@ function sanitizePole(p, id){
     serial: stripHTML(p.serial||""), flagSize: stripHTML(p.flagSize||""), sim: stripHTML(p.sim||""), fw: stripHTML(p.fw||""),
     // Rev 3.0: optional 2nd/3rd flags on the same pole (drives the multi-flag cutsheet).
     flagSize2: stripHTML(p.flagSize2||""), flagSize3: stripHTML(p.flagSize3||""),
+    // Rev 3.25: which flag is flying (USA / State / City / a military branch / Other), per flag.
+    flagType: stripHTML(p.flagType||""), flagType2: stripHTML(p.flagType2||""), flagType3: stripHTML(p.flagType3||""),
     plan: ["lte","wifi"].includes(p.plan) ? p.plan : "",
     saas: ["pending","active","failed"].includes(p.saas) ? p.saas : "",
     lat: num(p.lat), lng: num(p.lng),
@@ -3310,7 +3353,7 @@ async function _restRead(path){
 }
 
 // ==== Audit log helpers ====
-const TRACKED_FIELDS = ["label","status","installType","serial","flagSize","flagSize2","flagSize3","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
+const TRACKED_FIELDS = ["label","status","installType","serial","flagSize","flagSize2","flagSize3","flagType","flagType2","flagType3","sim","fw","plan","saas","lat","lng","expectedInstallDate","completedDate","completedBy","survey","notes"];
 
 function diffPole(before, after){
   const changes = [];
@@ -3364,7 +3407,7 @@ function fmtHistoryValue(v){
 function fmtHistoryField(f){
   const labels = {
     label:"Label", status:"Status", installType:"Install Type",
-    serial:"Flag Pole Height", flagSize:"Flag Size", flagSize2:"Flag Size (2nd)", flagSize3:"Flag Size (3rd)", sim:"SIM", fw:"Serial #", plan:"Plan", saas:"SaaS",
+    serial:"Flag Pole Height", flagSize:"Flag Size", flagSize2:"Flag Size (2nd)", flagSize3:"Flag Size (3rd)", flagType:"Flag Type", flagType2:"Flag Type (2nd)", flagType3:"Flag Type (3rd)", sim:"SIM", fw:"Serial #", plan:"Plan", saas:"SaaS",
     lat:"Latitude", lng:"Longitude",
     expectedInstallDate:"Expected Install Date",
     completedDate:"Completed Date",
@@ -5648,7 +5691,7 @@ function matchesSearch(c, s, p){
     ...contactSearchTokens,
     s?.name, s?.address, s?.notes, s?.contact, s?.phone,
     p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes,
-    p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.flagSize2, p?.flagSize3, flagCountToken, p?.saas,
+    p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.flagSize2, p?.flagSize3, p?.flagType, p?.flagType2, p?.flagType3, flagCountToken, p?.saas,
     installerName,
     fmtDate(p?.expectedInstallDate), fmtDate(p?.completedDate), fmtDate(p?.updatedAt)
   ].filter(v => v != null && v !== "").join(" ").toLowerCase();
@@ -9970,6 +10013,11 @@ window.openPoleModal = (pid, cid, sid) => {
   document.getElementById("mp-flagSize3").value = p?.flagSize3 || "";
   document.getElementById("mp-flag2-on").checked = !!(p?.flagSize2);
   document.getElementById("mp-flag3-on").checked = !!(p?.flagSize3);
+  // Rev 3.25: flag type per flag. Default flag 1 to USA when unset; extra flags
+  // default to USA only when present. syncFlagFields() enables/disables 2 & 3.
+  document.getElementById("mp-flagType").value = p?.flagType || "USA";
+  document.getElementById("mp-flagType2").value = p?.flagType2 || (p?.flagSize2 ? "USA" : "");
+  document.getElementById("mp-flagType3").value = p?.flagType3 || (p?.flagSize3 ? "USA" : "");
   syncFlagFields(true);
   document.getElementById("mp-sim").value = p?.sim || "";
   document.getElementById("mp-fw").value = p?.fw || "";
@@ -10816,6 +10864,11 @@ window.syncFlagFields = (skipRender) => {
   s3.disabled = !c3.checked;
   if(!c2.checked) s2.value = "";
   if(!c3.checked) s3.value = "";
+  // Rev 3.25: the 2nd/3rd flag-TYPE pickers follow the same checkboxes. Default a
+  // newly-enabled extra flag to USA; clear it when its flag is removed.
+  const t2 = document.getElementById("mp-flagType2"), t3 = document.getElementById("mp-flagType3");
+  if(t2){ t2.disabled = !c2.checked; if(!c2.checked) t2.value = ""; else if(!t2.value) t2.value = "USA"; }
+  if(t3){ t3.disabled = !c3.checked; if(!c3.checked) t3.value = ""; else if(!t3.value) t3.value = "USA"; }
   if(skipRender) return;
   const {customerId:cid, siteId:sid, poleId:pid} = state.editing;
   const p = (cid && sid && pid) ? state.data.customers[cid]?.sites[sid]?.poles[pid] : null;
@@ -11233,6 +11286,9 @@ window.savePole = async (auto = false) => {
     flagSize: document.getElementById("mp-flagSize").value,
     flagSize2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagSize2").value || "") : "",
     flagSize3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagSize3").value || "") : "",
+    flagType: document.getElementById("mp-flagType")?.value || "USA",
+    flagType2: document.getElementById("mp-flag2-on")?.checked ? (document.getElementById("mp-flagType2").value || "") : "",
+    flagType3: document.getElementById("mp-flag3-on")?.checked ? (document.getElementById("mp-flagType3").value || "") : "",
     sim: document.getElementById("mp-sim").value.trim(),
     fw: document.getElementById("mp-fw").value.trim(),
     plan: document.getElementById("mp-plan").value,
@@ -11358,7 +11414,7 @@ function autoSavePoleNow(){                   // immediate — commit / blur / c
 (function attachPoleAutosave(){
   const modal = document.getElementById("modalPole");
   if(!modal) return;
-  const FIELD_SEL = "#mp-label,#mp-status,#mp-installType,#mp-serial,#mp-flagSize,#mp-flagSize2,#mp-flagSize3,#mp-flag2-on,#mp-flag3-on,#mp-sim,#mp-fw,#mp-plan,#mp-saas,#mp-lat,#mp-lng,#mp-expected-date,#mp-completed-date,#mp-completed-by,#mp-survey,#mp-notes";
+  const FIELD_SEL = "#mp-label,#mp-status,#mp-installType,#mp-serial,#mp-flagSize,#mp-flagSize2,#mp-flagSize3,#mp-flagType,#mp-flagType2,#mp-flagType3,#mp-flag2-on,#mp-flag3-on,#mp-sim,#mp-fw,#mp-plan,#mp-saas,#mp-lat,#mp-lng,#mp-expected-date,#mp-completed-date,#mp-completed-by,#mp-survey,#mp-notes";
   const isField = t => !!t && (t.matches?.(FIELD_SEL) || !!t.closest?.("#mp-assigned-installers"));
   modal.addEventListener("input",  e => { if(isField(e.target)) schedulePoleAutoSave(); });
   modal.addEventListener("change", e => { if(isField(e.target)) autoSavePoleNow(); });
