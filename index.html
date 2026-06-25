@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.25" />
+<meta name="app-rev" content="3.26" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1071,6 +1071,7 @@
       <button class="view-tab" data-view="map" onclick="switchView('map')">🗺️ Map</button>
       <button class="view-tab" data-view="installs" id="installsViewTab" onclick="switchView('installs')">🔧 Installs</button>
       <button class="view-tab" data-view="issues" onclick="switchView('issues')" title="Repair / Issue log">🚨 Issues</button>
+      <button class="view-tab" data-view="stock" onclick="switchView('stock')" title="Restock list — parts to order">📦 Stock</button>
       <button class="view-tab" onclick="openSuggestionModal()" title="Submit a suggestion or report an issue">💡 Suggest</button>
     </div>
     <!-- Rev 2.04: Installs sub-tabs render here inline when state.view === "installs".
@@ -2165,6 +2166,8 @@ const state = {
   tools: {},
   parts: { external: {}, internal: {}, cylinder: {} },
   mechParts: {},  // Rev 2.04: universal Mechanical BOM (the AutoFlag device internals)
+  stock: {},          // Rev 3.26: restock list (autoflag/misc/stock)
+  stockBarcodes: {},  // Rev 3.26: barcode → BOM item map (autoflag/misc/barcodes)
   bomTab: "external",  // active install type for Install BOM
   // Rev 2.00 spreadsheet view state
   toolsSort: { col: "displayOrder", dir: "asc" },
@@ -3484,6 +3487,20 @@ function subscribeToolsAndParts(){
       if(!focusedInsideTb) renderActive();
     }
   }, err => console.error("Mechanical BOM subscribe error:", err));
+
+  // Rev 3.26: Stock / restock list + barcode→item map (autoflag/misc).
+  onValue(ref(db, "autoflag/misc/stock"), snap => {
+    const v = snap.val();
+    state.stock = v && typeof v === "object" ? v : {};
+    if(state.view === "stock"){
+      const focusedInside = document.activeElement?.closest?.("#stockList");
+      if(!focusedInside) renderActive();
+    }
+  }, err => console.error("Stock subscribe error:", err));
+  onValue(ref(db, "autoflag/misc/barcodes"), snap => {
+    const v = snap.val();
+    state.stockBarcodes = v && typeof v === "object" ? v : {};
+  }, err => console.error("Barcode-map subscribe error:", err));
 }
 
 // Rev 2.76: Issues are stored NESTED per-customer at autoflag/issues/{cid}/{issueId}
@@ -5932,6 +5949,7 @@ window.renderActive = () => {
   else if(state.view === "list")     main.innerHTML = renderList();
   else if(state.view === "sites")    main.innerHTML = renderSites();
   else if(state.view === "issues")   main.innerHTML = renderIssues();
+  else if(state.view === "stock")    main.innerHTML = renderStockList();
   else if(state.view === "map"){ main.innerHTML = `<div id="mapContainer"></div>`; setTimeout(renderMap,50); }
   else if(state.view === "installs") main.innerHTML = renderInstalls();
 };
@@ -11091,30 +11109,29 @@ function getAssignedInstallersFromUI(){
 // Soracom Code-128 barcode with zero dependency). Browsers without it (e.g. iOS
 // Safari) lazy-load ZXing from unpkg (allowed by our CSP script-src). If neither
 // works, we fail gracefully and tell the user to type it.
-window.scanSimIccid = async () => {
-  const input = document.getElementById("mp-sim");
-  if(!input) return;
-  if(!navigator.mediaDevices?.getUserMedia){
-    toast("Camera not available here — type the SIM/ICCID in", true);
-    return;
-  }
-
+// Rev 3.26: Generic camera barcode/QR scanner. Opens a fullscreen camera overlay,
+// decodes via native BarcodeDetector (Android/Chrome) or ZXing fallback (iOS), and
+// calls opts.onResult(value) once with the decoded string. Used by the SIM field
+// and the Stock list. Manual entry/other flows are unaffected.
+window.openBarcodeScanner = async (opts = {}) => {
+  const title = opts.title || "Scan barcode / QR";
+  const onResult = typeof opts.onResult === "function" ? opts.onResult : () => {};
+  if(!navigator.mediaDevices?.getUserMedia){ toast("Camera not available on this device", true); return; }
   const ov = document.createElement("div");
-  ov.id = "simScanOverlay";
+  ov.id = "bcScanOverlay";
   ov.style.cssText = "position:fixed;inset:0;z-index:3000;background:#000;overflow:hidden";
   ov.innerHTML = `
-    <video id="simScanVideo" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
+    <video id="bcScanVideo" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
     <div style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:14px 16px;background:rgba(0,0,0,.6);color:#fff;font-size:14px">
-      <span style="flex:1">📷 Point at the SIM barcode / QR</span>
-      <button id="simScanCancel" style="background:#7d3838;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer">Cancel</button>
+      <span style="flex:1">📷 ${escapeHtml(title)}</span>
+      <button id="bcScanCancel" style="background:#7d3838;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer">Cancel</button>
     </div>
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:82%;max-width:380px;height:130px;border:3px solid rgba(255,255,255,.85);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.35)"></div>
-    <div id="simScanStatus" style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,.6);color:#cfcfcf;font-size:12px;text-align:center">Hold steady — scans automatically. Or Cancel and type it in.</div>`;
+    <div id="bcScanStatus" style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,.6);color:#cfcfcf;font-size:12px;text-align:center">Hold steady — scans automatically.</div>`;
   document.body.appendChild(ov);
-  const video = ov.querySelector("#simScanVideo");
-  const statusEl = ov.querySelector("#simScanStatus");
+  const video = ov.querySelector("#bcScanVideo");
+  const statusEl = ov.querySelector("#bcScanStatus");
   let stopped = false, stream = null, rafId = null, zxingReader = null;
-
   const cleanup = () => {
     if(stopped) return;
     stopped = true;
@@ -11123,21 +11140,15 @@ window.scanSimIccid = async () => {
     if(stream){ try { stream.getTracks().forEach(t => t.stop()); } catch(_){} }
     ov.remove();
   };
-  ov.querySelector("#simScanCancel").onclick = cleanup;
-
-  const onResult = (raw) => {
+  ov.querySelector("#bcScanCancel").onclick = cleanup;
+  const fire = (raw) => {
     if(stopped) return;
     const val = String(raw || "").trim();
     if(!val) return;
     cleanup();
-    input.value = val;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));  // Rev 3.21: autosave the scanned value
     try { navigator.vibrate?.(120); } catch(_){}
-    toast("SIM/ICCID scanned ✓");
+    onResult(val);
   };
-
-  // Open the back camera ourselves (so both paths use it).
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
     if(stopped){ stream.getTracks().forEach(t => t.stop()); return; }
@@ -11145,28 +11156,24 @@ window.scanSimIccid = async () => {
     await video.play().catch(()=>{});
   } catch(e){
     cleanup();
-    toast(e?.name === "NotAllowedError" ? "Camera blocked — allow it or type the SIM/ICCID in" : "Couldn't open camera — type the SIM/ICCID in", true);
+    toast(e?.name === "NotAllowedError" ? "Camera blocked — allow camera access" : "Couldn't open the camera", true);
     return;
   }
-
-  // Path A: native BarcodeDetector (no dependency).
   if("BarcodeDetector" in window){
     try {
       let fmts = [];
       try { fmts = await window.BarcodeDetector.getSupportedFormats(); } catch(_){}
-      const want = ["code_128","code_39","codabar","itf","ean_13","qr_code","data_matrix"].filter(f => !fmts.length || fmts.includes(f));
+      const want = ["code_128","code_39","codabar","itf","ean_13","ean_8","upc_a","upc_e","qr_code","data_matrix"].filter(f => !fmts.length || fmts.includes(f));
       const detector = new window.BarcodeDetector(want.length ? { formats: want } : undefined);
       const tick = async () => {
         if(stopped) return;
-        try { const codes = await detector.detect(video); if(codes && codes.length){ onResult(codes[0].rawValue); return; } } catch(_){}
+        try { const codes = await detector.detect(video); if(codes && codes.length){ fire(codes[0].rawValue); return; } } catch(_){}
         rafId = requestAnimationFrame(tick);
       };
       rafId = requestAnimationFrame(tick);
       return;
     } catch(_){ /* fall through to ZXing */ }
   }
-
-  // Path B: ZXing fallback (iOS Safari etc.), decoding our existing video stream.
   if(statusEl) statusEl.textContent = "Loading scanner…";
   try {
     const mod = await import("https://unpkg.com/@zxing/library@0.21.3?module");
@@ -11174,13 +11181,230 @@ window.scanSimIccid = async () => {
     const Reader = mod.BrowserMultiFormatReader || mod.default?.BrowserMultiFormatReader;
     if(!Reader) throw new Error("reader unavailable");
     zxingReader = new Reader();
-    if(statusEl) statusEl.textContent = "Hold steady — scans automatically. Or Cancel and type it in.";
-    await zxingReader.decodeFromVideoElement(video, (result) => { if(result) onResult(result.getText()); });
+    if(statusEl) statusEl.textContent = "Hold steady — scans automatically.";
+    await zxingReader.decodeFromVideoElement(video, (result) => { if(result) fire(result.getText()); });
   } catch(e){
     cleanup();
-    toast("Scanning isn't supported on this browser — type the SIM/ICCID in", true);
+    toast("Scanning isn't supported on this browser", true);
   }
 };
+
+// Thin wrapper: scan a SIM/ICCID barcode into the pole modal's SIM field.
+window.scanSimIccid = () => {
+  const input = document.getElementById("mp-sim");
+  if(!input) return;
+  openBarcodeScanner({ title: "Point at the SIM barcode / QR", onResult: (val) => {
+    input.value = val;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    toast("SIM/ICCID scanned ✓");
+  }});
+};
+
+// ===================== Rev 3.26: Stock / Restock list =====================
+// Installer-friendly list of parts to restock, drawn from the Install & Mechanical
+// BOM. Stored under autoflag/misc (admins + installers read/write — no rules
+// change needed). Optional camera scan maps a barcode → BOM item; the mapping is
+// built the first time you scan + pick an item, so later scans add it instantly.
+//   autoflag/misc/stock/{id}       = { kind, installType, itemId, name, qty, status, note, addedBy, addedByName, addedAt, updatedAt }
+//   autoflag/misc/barcodes/{code}  = { kind, installType, itemId }
+const STOCK_PATH = "autoflag/misc/stock";
+const STOCK_BARCODE_PATH = "autoflag/misc/barcodes";
+const STOCK_STATUSES = ["needed", "ordered", "received"];
+const STOCK_STATUS_LABEL = { needed: "🟡 Needed", ordered: "🟣 Ordered", received: "🟢 Received" };
+let _stockPendingBarcode = null;
+
+// RTDB keys can't contain . # $ [ ] / — sanitize the scanned code for use as a key.
+function encodeBarcodeKey(code){ return String(code || "").trim().replace(/[.#$/\[\]]/g, "_"); }
+
+// Flatten every ACTIVE BOM item (Install ×3 + Mechanical) for the picker.
+function allBomItems(){
+  const out = [];
+  ["external", "internal", "cylinder"].forEach(t => {
+    sortAndFilterItems(state.parts[t] || {}).forEach(([id, item]) => {
+      out.push({ kind: "part", installType: t, id, item, name: item.name || "(unnamed)", where: `🏗️ ${formatInstallType(t)} BOM` });
+    });
+  });
+  sortAndFilterItems(state.mechParts || {}).forEach(([id, item]) => {
+    out.push({ kind: "mechpart", installType: null, id, item, name: item.name || "(unnamed)", where: "⚙️ Mechanical BOM" });
+  });
+  return out;
+}
+function stockResolveBomItem(map){
+  if(!map) return null;
+  if(map.kind === "mechpart") return state.mechParts?.[map.itemId] || null;
+  if(map.kind === "part") return state.parts?.[map.installType]?.[map.itemId] || null;
+  return null;
+}
+
+window.addStockToList = async (kind, installType, itemId, name, qty) => {
+  qty = qty || 1;
+  installType = installType || null;
+  // Bump qty if an open (not-received) entry for this item already exists.
+  const existing = Object.entries(state.stock || {}).find(([_, e]) =>
+    e && e.itemId === itemId && e.kind === kind && (e.installType || null) === installType && e.status !== "received");
+  try {
+    if(existing){
+      const [eid, e] = existing;
+      const next = (Number(e.qty) || 1) + qty;
+      await patchNode(`${STOCK_PATH}/${eid}`, { qty: next, updatedAt: Date.now(), updatedBy: state.user.uid });
+      toast(`+${qty} ${name} (now ${next})`);
+    } else {
+      const id = push(ref(db, STOCK_PATH)).key;
+      await writeNode(`${STOCK_PATH}/${id}`, {
+        kind, installType, itemId, name: name || "",
+        qty, status: "needed", note: "",
+        addedBy: state.user.uid, addedByName: state.user?.displayName || state.user?.email || "", addedAt: Date.now(), updatedAt: Date.now()
+      });
+      toast(`Added ${name}`);
+    }
+  } catch(e){ toast("Couldn't save to stock list: " + (e?.message || e), true); }
+};
+window.setStockQty = async (id, delta) => {
+  const e = state.stock?.[id]; if(!e) return;
+  const q = Math.max(1, (Number(e.qty) || 1) + delta);
+  try { await patchNode(`${STOCK_PATH}/${id}`, { qty: q, updatedAt: Date.now(), updatedBy: state.user.uid }); }
+  catch(err){ toast("Save failed: " + (err?.message || err), true); }
+};
+window.cycleStockStatus = async (id) => {
+  const e = state.stock?.[id]; if(!e) return;
+  const next = STOCK_STATUSES[(STOCK_STATUSES.indexOf(e.status || "needed") + 1) % STOCK_STATUSES.length];
+  try { await patchNode(`${STOCK_PATH}/${id}`, { status: next, updatedAt: Date.now(), updatedBy: state.user.uid }); }
+  catch(err){ toast("Save failed: " + (err?.message || err), true); }
+};
+window.setStockNote = async (id, val) => {
+  const e = state.stock?.[id]; if(!e || (e.note || "") === val) return;
+  try { await patchNode(`${STOCK_PATH}/${id}`, { note: String(val || "").slice(0, 500), updatedAt: Date.now(), updatedBy: state.user.uid }); }
+  catch(err){ toast("Save failed: " + (err?.message || err), true); }
+};
+window.removeStockItem = async (id) => {
+  const e = state.stock?.[id]; if(!e) return;
+  if(!confirm(`Remove "${e.name}" from the stock list?`)) return;
+  try { await removeNode(`${STOCK_PATH}/${id}`); } catch(err){ toast("Remove failed: " + (err?.message || err), true); }
+};
+window.clearReceivedStock = async () => {
+  const ids = Object.entries(state.stock || {}).filter(([_, e]) => e.status === "received").map(([id]) => id);
+  if(!ids.length) return;
+  if(!confirm(`Clear ${ids.length} received item${ids.length === 1 ? "" : "s"} from the list?`)) return;
+  for(const id of ids){ try { await removeNode(`${STOCK_PATH}/${id}`); } catch(_){} }
+};
+
+function renderStockList(){
+  const entries = Object.entries(state.stock || {}).map(([id, e]) => ({ id, ...e }));
+  const q = (state.search || "").trim().toLowerCase();
+  const filtered = q ? entries.filter(e => (e.name || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)) : entries;
+  const order = { needed: 0, ordered: 1, received: 2 };
+  filtered.sort((a, b) => (order[a.status] ?? 0) - (order[b.status] ?? 0) || (b.addedAt || 0) - (a.addedAt || 0));
+  const needed = entries.filter(e => (e.status || "needed") === "needed").length;
+  const hasReceived = entries.some(e => e.status === "received");
+
+  let html = `<div class="tb-toolbar">
+    <div class="tb-summary">📦 <strong>${entries.length}</strong> item${entries.length === 1 ? "" : "s"} · ${needed} needed</div>
+    <button class="tb-add-btn" onclick="openStockPicker()">+ Add part</button>
+    <button class="tb-bulk-img-btn" onclick="scanStockBarcode()" title="Scan a part's barcode with the camera">📷 Scan</button>
+    ${hasReceived ? `<button class="tb-bulk-img-btn" onclick="clearReceivedStock()" title="Remove received items">🧹 Clear received</button>` : ""}
+  </div>
+  <div style="font-size:11px;color:var(--text-muted);margin:2px 2px 8px">Parts you need to restock — pulled from the Install &amp; Mechanical BOM. Tap the status to cycle Needed → Ordered → Received. Use the global search to filter.</div>`;
+
+  if(filtered.length === 0){
+    html += `<div class="tb-empty">${entries.length
+      ? "No items match your search."
+      : "Stock list is empty.<br><span class='hint' onclick='openStockPicker()'>+ Add a part</span> or tap 📷 Scan."}</div>`;
+    return `<div id="stockList">${html}</div>`;
+  }
+
+  html += `<div style="display:flex;flex-direction:column;gap:8px">`;
+  filtered.forEach(e => {
+    const st = e.status || "needed";
+    const meta = [e.addedByName ? escapeHtml(e.addedByName) : "", e.addedAt ? new Date(e.addedAt).toLocaleDateString() : ""].filter(Boolean).join(" · ");
+    html += `<div class="stock-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">
+        <div style="font-weight:600;color:var(--text)">${escapeHtml(e.name || "(item)")}</div>
+        ${meta ? `<div style="font-size:11px;color:var(--text-muted)">${meta}</div>` : ""}
+        <input type="text" value="${escapeHtml(e.note || "")}" placeholder="note (optional)" onchange="setStockNote('${e.id}',this.value)"
+          style="margin-top:6px;width:100%;max-width:340px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;color:var(--text);font-size:12px" />
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button class="btn-secondary btn" onclick="setStockQty('${e.id}',-1)" style="padding:4px 10px;font-size:15px">−</button>
+        <span style="min-width:28px;text-align:center;font-weight:700">${Number(e.qty) || 1}</span>
+        <button class="btn-secondary btn" onclick="setStockQty('${e.id}',1)" style="padding:4px 10px;font-size:15px">+</button>
+      </div>
+      <button class="btn-secondary btn" onclick="cycleStockStatus('${e.id}')" title="Tap to change status" style="padding:6px 10px;font-size:12px;white-space:nowrap">${STOCK_STATUS_LABEL[st] || st}</button>
+      <button class="btn-secondary btn" onclick="removeStockItem('${e.id}')" title="Remove" style="padding:6px 9px;border-color:#7d3838;color:#e88a8a">✕</button>
+    </div>`;
+  });
+  html += `</div>`;
+  return `<div id="stockList">${html}</div>`;
+}
+
+// ----- Add-part picker (lists all BOM items) -----
+window.openStockPicker = (pendingBarcode = null) => {
+  _stockPendingBarcode = pendingBarcode || null;
+  const ov = document.createElement("div");
+  ov.id = "stockPickerOverlay";
+  ov.className = "modal-overlay open";
+  ov.style.zIndex = "2600";
+  ov.innerHTML = `<div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h2>${pendingBarcode ? "🔗 Link barcode to a part" : "Add a part to stock"}</h2>
+      <button class="modal-close" onclick="closeStockPicker()">×</button>
+    </div>
+    <div class="modal-body">
+      ${pendingBarcode ? `<div style="font-size:12px;color:var(--amber);margin-bottom:8px">No part is linked to barcode <strong>${escapeHtml(pendingBarcode)}</strong> yet — pick the matching part and we'll remember it for next time.</div>` : ""}
+      <input type="text" id="stockPickerSearch" placeholder="🔍 Search BOM parts..." oninput="filterStockPicker(this.value)"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);margin-bottom:10px" />
+      <div id="stockPickerList" style="max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  renderStockPickerList("");
+  setTimeout(() => document.getElementById("stockPickerSearch")?.focus(), 60);
+};
+function renderStockPickerList(q){
+  const wrap = document.getElementById("stockPickerList"); if(!wrap) return;
+  q = (q || "").trim().toLowerCase();
+  let items = allBomItems();
+  if(q) items = items.filter(x => (x.name || "").toLowerCase().includes(q) || (x.where || "").toLowerCase().includes(q) || (x.item?.material || "").toLowerCase().includes(q));
+  if(items.length === 0){ wrap.innerHTML = `<div class="tb-empty">No parts match.</div>`; return; }
+  wrap.innerHTML = items.slice(0, 150).map(x => {
+    const thumb = x.item?.imageUrl
+      ? `<img src="${x.item.imageUrl}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:4px;flex-shrink:0" />`
+      : `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border-radius:4px;flex-shrink:0">📦</div>`;
+    return `<div onclick="pickStockItem('${x.kind}','${x.installType || ""}','${x.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer">
+      ${thumb}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;color:var(--text)">${escapeHtml(x.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(x.where)}${x.item?.material ? " · " + escapeHtml(x.item.material) : ""}</div>
+      </div>
+      <div style="color:var(--amber);font-size:18px">+</div>
+    </div>`;
+  }).join("");
+}
+window.filterStockPicker = (v) => renderStockPickerList(v);
+window.closeStockPicker = () => { document.getElementById("stockPickerOverlay")?.remove(); _stockPendingBarcode = null; };
+window.pickStockItem = async (kind, installType, id) => {
+  installType = installType || null;
+  const item = kind === "mechpart" ? state.mechParts?.[id] : state.parts?.[installType]?.[id];
+  const name = item?.name || "(item)";
+  if(_stockPendingBarcode){
+    try { await writeNode(`${STOCK_BARCODE_PATH}/${encodeBarcodeKey(_stockPendingBarcode)}`, { kind, installType, itemId: id }); } catch(_){}
+  }
+  closeStockPicker();
+  await addStockToList(kind, installType, id, name, 1);
+};
+
+// ----- Scan a part barcode → add to stock (link via picker if unknown) -----
+function handleStockScan(code){
+  const c = String(code || "").trim(); if(!c) return;
+  const map = state.stockBarcodes?.[encodeBarcodeKey(c)];
+  if(map){
+    const item = stockResolveBomItem(map);
+    if(item){ addStockToList(map.kind, map.installType || null, map.itemId, item.name || "(item)", 1); return; }
+  }
+  toast("New barcode — pick the matching part to link it");
+  openStockPicker(c);
+}
+window.scanStockBarcode = () => openBarcodeScanner({ title: "Scan the part's barcode", onResult: handleStockScan });
 
 window.usePhoneGPS = () => {
   const status = document.getElementById("mp-gps-status");
