@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.27" />
+<meta name="app-rev" content="3.28" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -2869,7 +2869,13 @@ let _deferredBgRender = false;
 function isEditingFormControl(){
   const ae = document.activeElement;
   const tag = ae && ae.tagName;
-  return tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA";
+  if(tag !== "SELECT" && tag !== "INPUT" && tag !== "TEXTAREA") return false;
+  // Rev 3.28: Only DEFER the live-data re-render when focus is somewhere a rebuild
+  // would actually disrupt — an open modal (closes a native dropdown mid-edit) or
+  // the Tools/BOM inline editor. When you're just viewing Browse/List/Kanban (e.g.
+  // cursor parked in the search box), keep live updates flowing so you see data as
+  // teammates enter it. Previously ANY focused field blocked the refresh.
+  return !!(ae.closest?.(".modal-overlay.open") || ae.closest?.(".tb-detail-inner"));
 }
 function renderActiveDeferrable(source){
   if(isEditingFormControl()){ _deferredBgRender = true; return; }
