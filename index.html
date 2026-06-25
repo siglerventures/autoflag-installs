@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.22" />
+<meta name="app-rev" content="3.23" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -5810,6 +5810,55 @@ function renderTbSearchResultsPanel(){
   return html;
 }
 
+// Rev 3.23: Dedicated "Matches by Serial #" panel — like the Tools/BOM matches
+// box, but for poles found by their device Serial # (p.fw). Shows whenever the
+// search query (or the number after a serial/unit keyword) is a substring of a
+// pole's Serial #, so even a bare "35" surfaces serial hits in their own box
+// instead of getting lost among height/SIM matches. Click → opens the pole.
+function renderSerialMatchesPanel(){
+  const raw = (state.search || "").trim().toLowerCase();
+  if(!raw) return "";
+  const m = raw.match(/\b(?:serial|unit|sn|s\/n)\s*#?\s*([a-z0-9][a-z0-9-]*)/);
+  const q = (m ? m[1] : raw).replace(/^#+/, "");
+  if(!q) return "";
+  const hits = [];
+  Object.values(state.data.customers || {}).forEach(c => {
+    Object.values(c.sites || {}).forEach(s => {
+      Object.values(s.poles || {}).forEach(p => {
+        const fw = (p.fw || "").toString().toLowerCase();
+        if(fw && fw.includes(q)) hits.push({ c, s, p, fw });
+      });
+    });
+  });
+  if(hits.length === 0) return "";
+  // Exact serial matches first, then numeric/lexical order.
+  hits.sort((a, b) => {
+    const ax = a.fw === q ? 0 : 1, bx = b.fw === q ? 0 : 1;
+    if(ax !== bx) return ax - bx;
+    return a.fw.localeCompare(b.fw, undefined, { numeric: true });
+  });
+  let html = `<div class="tb-search-results">
+    <div class="tb-search-results-header">
+      🔢 <strong>${hits.length}</strong> match${hits.length===1?'':'es'} by Serial #
+    </div>`;
+  hits.slice(0, 12).forEach(({ c, s, p }) => {
+    const status = STATUS_LABELS[p.status] || p.status || "";
+    html += `<div class="tb-search-result" onclick="openPoleModal('${p.id}','${c.id}','${s.id}')">
+      <div class="tb-search-thumb empty">🔢</div>
+      <div class="tb-search-result-text">
+        <div class="tb-search-result-label">Serial ${escapeHtml(p.fw || "")} · ${escapeHtml(p.label || "(pole)")}</div>
+        <div class="tb-search-result-sublabel">${escapeHtml(c.name || "")} › ${escapeHtml(s.name || "")}${status ? " · " + escapeHtml(status) : ""}</div>
+      </div>
+      <div class="tb-search-result-jump">↗</div>
+    </div>`;
+  });
+  if(hits.length > 12){
+    html += `<div class="tb-search-result-more">+ ${hits.length - 12} more — refine your search</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 // ==== Render dispatcher ====
 window.renderActive = () => {
   const newSearch = document.getElementById("searchInput")?.value.trim() || "";
@@ -6020,11 +6069,12 @@ function renderBrowse(){
   // only matched tool/part names. (See Lessons L-014.)
   if(list.length===0){
     const headerStrip = renderViewHeaderStrip({ showExpand: true });
+    const serialPanel = renderSerialMatchesPanel();
     const tbPanel = renderTbSearchResultsPanel();
-    if(state.search && tbPanel){
-      // Search active + TB matches exist: show the panel + an explanatory note
-      // for the customer tree so it's clear customers were also searched.
-      return headerStrip + tbPanel + `<div class="empty" style="margin-top:14px;padding:14px;font-size:12px;color:var(--text-muted)">No customers, sites, or poles match "${escapeHtml(state.search)}".</div>`;
+    if(state.search && (serialPanel || tbPanel)){
+      // Search active + serial/TB matches exist: show the panels + a note that
+      // the customer tree itself had no match.
+      return headerStrip + serialPanel + tbPanel + `<div class="empty" style="margin-top:14px;padding:14px;font-size:12px;color:var(--text-muted)">No customers, sites, or poles match "${escapeHtml(state.search)}".</div>`;
     }
     return headerStrip + `<div class="empty">No customers yet.${state.isAdmin?'<br><span class="hint" onclick="openCustomerModal()">+ Add your first customer</span>':''}</div>`;
   }
@@ -6032,6 +6082,9 @@ function renderBrowse(){
   const countHtml = `<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">${list.length} customer${list.length===1?'':'s'}</div>`;
   let html = renderViewHeaderStrip({ leftContent: countHtml, showExpand: true });
 
+  // Rev 3.23: poles matched by Serial # surface in their own box (above the
+  // Tools/BOM matches), so a serial lookup is unmistakable.
+  html += renderSerialMatchesPanel();
   // Rev 2.06: Tools / BOMs search results render above customer rows when query
   // matches anything in tools/parts/mech parts. Click a result → jumpToTbItem
   // navigates to the appropriate tab + auto-expands the row.
