@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.20" />
+<meta name="app-rev" content="3.21" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1205,6 +1205,9 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="mp-title">Pole</h2>
+      <!-- Rev 3.21: autosave status — fields persist automatically; this shows
+           "Saving…" / "✓ Saved" so the user knows, no scroll-to-Save needed. -->
+      <span id="mp-autosave-status" style="font-size:12px;margin-left:10px;white-space:nowrap;color:var(--text-muted)"></span>
       <!-- Rev 2.40: 🗺️ Directions button next to title. Phil's installer feedback —
            people open the pole modal first and want one-tap directions from there
            too, not just from the Browse tree row. Uses the same openMapToSite
@@ -1397,7 +1400,7 @@
              editing state from inside the module scope. -->
         <button class="btn-secondary btn" onclick="showPastIssuesForCurrentPole()" style="border-color:#5a7d38;color:#a8d68a" title="See all issues filed on this pole">👷 Past Issues</button>
         <button class="btn-secondary btn" onclick="reportIssueForCurrentPole()" style="border-color:#7d3838;color:#e88a8a">🚨 Report Issue</button>
-        <button class="btn-secondary btn" id="mp-cancel" onclick="closeModal('modalPole')">Cancel</button>
+        <button class="btn-secondary btn" id="mp-cancel" onclick="closeModal('modalPole')" title="Changes save automatically as you edit">Close</button>
         <button class="btn-secondary btn" id="mp-close" onclick="closeModal('modalPole')" style="display:none">Close</button>
         <button class="btn" id="mp-save" onclick="savePole()">Save</button>
       </div>
@@ -5633,6 +5636,14 @@ function matchesSearch(c, s, p){
   // with two flags on the pole. Counts the filled flag-size slots.
   const flagCnt = p ? [p.flagSize, p.flagSize2, p.flagSize3].filter(v => v && String(v).trim()).length : 0;
   const flagCountToken = flagCnt ? `${flagCnt} flag${flagCnt > 1 ? "s" : ""}` : "";
+  // Rev 3.21: make the device Serial # findable by natural phrasing. p.fw is the
+  // serial; add "serial N" / "unit N" (and #-prefixed) so searches like
+  // "Serial 5" or "Unit 5" match the pole whose serial is 5 (the bare number
+  // already matches via p.fw below).
+  const fwVal = (p?.fw || "").toString().trim();
+  const serialPhrases = fwVal
+    ? [`serial ${fwVal}`, `serial #${fwVal}`, `serial#${fwVal}`, `unit ${fwVal}`, `unit #${fwVal}`]
+    : [];
   // Rev 2.70: Flatten multi-contact data into searchable haystack
   const allContacts = c ? (Array.isArray(c.contacts) ? c.contacts : []) : [];
   const contactSearchTokens = allContacts.flatMap(ct => [ct?.name, ct?.title, ct?.phone, ct?.email, ct?.type]);
@@ -5641,11 +5652,17 @@ function matchesSearch(c, s, p){
     ...contactSearchTokens,
     s?.name, s?.address, s?.notes, s?.contact, s?.phone,
     p?.label, p?.serial, p?.sim, p?.fw, p?.survey, p?.notes,
+    ...serialPhrases,
     p?.installType, p?.status, statusLabel, p?.plan, p?.flagSize, p?.flagSize2, p?.flagSize3, flagCountToken, p?.saas,
     installerName,
     fmtDate(p?.expectedInstallDate), fmtDate(p?.completedDate), fmtDate(p?.updatedAt)
   ].filter(v => v != null && v !== "").join(" ").toLowerCase();
-  return hay.includes(q);
+  // Rev 3.21: token-AND match — every whitespace-separated word in the query must
+  // appear somewhere in the haystack (order-independent), so "serial 5" or
+  // "utah 5x8" match. Leading # on a token is ignored ("#5" → "5").
+  const tokens = q.split(/\s+/).map(t => t.replace(/^#+/, "")).filter(Boolean);
+  if(tokens.length === 0) return true;
+  return tokens.every(tok => hay.includes(tok));
 }
 
 // ==== Rev 2.06: Search across Tools / Install BOM / Mechanical BOM ====
@@ -10993,6 +11010,7 @@ window.scanSimIccid = async () => {
     cleanup();
     input.value = val;
     input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));  // Rev 3.21: autosave the scanned value
     try { navigator.vibrate?.(120); } catch(_){}
     toast("SIM/ICCID scanned ✓");
   };
@@ -11056,6 +11074,7 @@ window.usePhoneGPS = () => {
       const acc = Math.round(pos.coords.accuracy);
       document.getElementById("mp-lat").value = lat;
       document.getElementById("mp-lng").value = lng;
+      document.getElementById("mp-lat").dispatchEvent(new Event("change", { bubbles: true }));  // Rev 3.21: trigger autosave
       status.textContent = `✓ GPS fix · ±${acc}m accuracy`;
       status.style.color = "var(--green)";
       toast(`GPS captured · ±${acc}m`);
@@ -11080,22 +11099,28 @@ window.useSiteCoords = () => {
   if(site.lat == null || site.lng == null){ toast("Site has no coordinates set", true); return; }
   document.getElementById("mp-lat").value = site.lat;
   document.getElementById("mp-lng").value = site.lng;
+  document.getElementById("mp-lat").dispatchEvent(new Event("change", { bubbles: true }));  // Rev 3.21: trigger autosave
   const status = document.getElementById("mp-gps-status");
   status.textContent = "📍 Set to site location";
   status.style.color = "var(--text-muted)";
 };
 
-window.savePole = async () => {
+window.savePole = async (auto = false) => {
   const label = document.getElementById("mp-label").value.trim();
-  if(!label) return toast("Label required", true);
+  if(!label){ if(auto) return; return toast("Label required", true); }
   const {customerId:cid, siteId:sid} = state.editing;
   let pid = state.editing.poleId;
   const isNewPole = !pid;
+  // Rev 3.21: autosave never CREATES a pole (avoids junk from a half-filled New
+  // Pole form) — a brand-new pole is created by an explicit Save click, then
+  // autosave takes over for subsequent edits.
+  if(isNewPole && auto) return;
   if(!pid) pid = push(ref(db, `autoflag/installs/customers/${cid}/sites/${sid}/poles`)).key;
 
   // Guard: non-admins cannot set status=verified
   const requestedStatus = document.getElementById("mp-status").value;
   if(requestedStatus === "verified" && !state.isAdmin){
+    if(auto) return;
     return toast("Only admins can mark a pole as Verified", true);
   }
 
@@ -11213,9 +11238,63 @@ window.savePole = async () => {
   await patchNode(`autoflag/installs/customers/${cid}/sites/${sid}`, sitePatch);
   await patchNode(`autoflag/installs/customers/${cid}`, {updatedAt: Date.now()});
   state.poleTempPhotos = [];
+  // Rev 3.21: autosave persists quietly (status pill) and leaves the modal open;
+  // an explicit Save still toasts and closes.
+  if(auto){
+    if(state.editing.poleId == null) state.editing.poleId = pid;  // adopt id if first save
+    setPoleAutoSaveStatus("saved");
+    return;
+  }
   toast("Pole saved");
   closeModal("modalPole");
 };
+// ===== Rev 3.21: Pole-editor autosave =====
+// Fields persist automatically so nobody has to scroll to the Save button.
+// `input` (typing) debounces; `change` (blur / select / checkbox / date) saves
+// immediately so closing the modal right after an edit can't lose it. Only
+// existing poles autosave — a brand-new pole still needs one explicit Save.
+let _poleAutoSaveTimer = null, _poleAutoSaving = false, _poleAutoSaveAgain = false;
+function setPoleAutoSaveStatus(kind){
+  const el = document.getElementById("mp-autosave-status");
+  if(!el) return;
+  clearTimeout(el._clr);
+  if(kind === "saving"){ el.textContent = "Saving…"; el.style.color = "var(--text-muted)"; }
+  else if(kind === "saved"){ el.textContent = "✓ Saved"; el.style.color = "var(--green)"; el._clr = setTimeout(() => { el.textContent = ""; }, 2000); }
+  else { el.textContent = ""; }
+}
+async function runPoleAutoSave(){
+  const modal = document.getElementById("modalPole");
+  if(!state.editing?.poleId || !modal?.classList.contains("open")) return;
+  if(_poleAutoSaving){ _poleAutoSaveAgain = true; return; }   // coalesce — pick up latest after
+  _poleAutoSaving = true;
+  try { await savePole(true); }
+  catch(_){}
+  finally {
+    _poleAutoSaving = false;
+    if(_poleAutoSaveAgain){ _poleAutoSaveAgain = false; runPoleAutoSave(); }
+  }
+}
+function schedulePoleAutoSave(){              // debounced — live typing
+  if(!state.editing?.poleId) return;
+  setPoleAutoSaveStatus("saving");
+  clearTimeout(_poleAutoSaveTimer);
+  _poleAutoSaveTimer = setTimeout(runPoleAutoSave, 1000);
+}
+function autoSavePoleNow(){                   // immediate — commit / blur / close
+  if(!state.editing?.poleId) return;
+  clearTimeout(_poleAutoSaveTimer);
+  setPoleAutoSaveStatus("saving");
+  runPoleAutoSave();
+}
+(function attachPoleAutosave(){
+  const modal = document.getElementById("modalPole");
+  if(!modal) return;
+  const FIELD_SEL = "#mp-label,#mp-status,#mp-installType,#mp-serial,#mp-flagSize,#mp-flagSize2,#mp-flagSize3,#mp-flag2-on,#mp-flag3-on,#mp-sim,#mp-fw,#mp-plan,#mp-saas,#mp-lat,#mp-lng,#mp-expected-date,#mp-completed-date,#mp-completed-by,#mp-survey,#mp-notes";
+  const isField = t => !!t && (t.matches?.(FIELD_SEL) || !!t.closest?.("#mp-assigned-installers"));
+  modal.addEventListener("input",  e => { if(isField(e.target)) schedulePoleAutoSave(); });
+  modal.addEventListener("change", e => { if(isField(e.target)) autoSavePoleNow(); });
+})();
+
 window.deletePole = async () => {
   const {customerId:cid, siteId:sid, poleId:pid} = state.editing; if(!pid) return;
   if(!confirm("Delete this pole?")) return;
