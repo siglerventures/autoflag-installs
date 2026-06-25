@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0d0d0f" />
-<meta name="app-rev" content="3.26" />
+<meta name="app-rev" content="3.27" />
 <title>AutoFlag</title>
 <script>
 // ===== Cache-bust bootstrap (Rev 1.98) =====
@@ -1266,69 +1266,47 @@
           <option value="70 ft">70 ft</option>
           <option value="80 ft">80 ft</option>
         </select></div>
-        <div class="form-row f-med"><label>Flag Size</label>
-          <div style="display:flex;gap:6px;align-items:flex-start">
-            <select id="mp-flagSize" style="flex:1">
-              <option value="">—</option>
-              <option value="2x3">2x3</option>
-              <option value="3x5">3x5</option>
-              <option value="4x6">4x6</option>
-              <option value="5x8">5x8</option>
-              <option value="6x10">6x10</option>
-              <option value="8x12">8x12</option>
-              <option value="10x15">10x15</option>
-              <option value="12x18">12x18</option>
-              <option value="15x25">15x25</option>
-              <option value="20x30">20x30</option>
-              <option value="30x60">30x60</option>
-            </select>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="display:flex;align-items:center;gap:4px" title="Add a 2nd flag on this pole">
-                <input type="checkbox" id="mp-flag2-on" onchange="syncFlagFields()" style="width:15px;height:15px" />
-                <span style="font-weight:700;font-size:13px;color:var(--text-muted)">2</span>
-                <select id="mp-flagSize2" disabled style="font-size:12px;padding:3px">
-                  <option value="">—</option>
-                  <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
-                  <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
-                  <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
-                  <option value="20x30">20x30</option><option value="30x60">30x60</option>
-                </select>
-              </div>
-              <div style="display:flex;align-items:center;gap:4px" title="Add a 3rd flag on this pole">
-                <input type="checkbox" id="mp-flag3-on" onchange="syncFlagFields()" style="width:15px;height:15px" />
-                <span style="font-weight:700;font-size:13px;color:var(--text-muted)">3</span>
-                <select id="mp-flagSize3" disabled style="font-size:12px;padding:3px">
-                  <option value="">—</option>
-                  <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
-                  <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
-                  <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
-                  <option value="20x30">20x30</option><option value="30x60">30x60</option>
-                </select>
-              </div>
+        <!-- Rev 3.27: Flags grouped per-flag so SIZE + TYPE sit on the same row and
+             it's clear which flag each belongs to. The 2/3 checkboxes reveal the
+             extra flags' size + type. All ids unchanged (save/load/sync untouched). -->
+        <div class="form-row f-wide"><label>Flag(s) — size &amp; type</label>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;gap:6px;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding-left:50px">
+              <span style="flex:1">Size</span><span style="flex:1">Type</span>
             </div>
-          </div>
-        </div>
-        <!-- Rev 3.25: Which flag is flying. Mirrors the Flag Size layout — the 2nd/3rd
-             type pickers enable with the same 2/3 checkboxes (via syncFlagFields).
-             Defaults to USA unless set. -->
-        <div class="form-row f-med"><label>Flag Type</label>
-          <div style="display:flex;gap:6px;align-items:flex-start">
-            <select id="mp-flagType" style="flex:1">
-              <option value="USA">USA</option>
-              <option value="State">State</option>
-              <option value="City">City</option>
-              <optgroup label="Military">
-                <option value="Army">Army</option>
-                <option value="Navy">Navy</option>
-                <option value="Air Force">Air Force</option>
-                <option value="Marine Corps">Marine Corps</option>
-                <option value="Coast Guard">Coast Guard</option>
-                <option value="Space Force">Space Force</option>
-              </optgroup>
-              <option value="Other">Other</option>
-            </select>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <select id="mp-flagType2" disabled style="font-size:12px;padding:3px" title="Type of the 2nd flag">
+            <!-- Flag 1 (always present) -->
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="width:44px;flex-shrink:0;font-weight:700;font-size:12px;color:var(--text-muted)">1</span>
+              <select id="mp-flagSize" style="flex:1;min-width:0">
+                <option value="">—</option>
+                <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
+                <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
+                <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
+                <option value="20x30">20x30</option><option value="30x60">30x60</option>
+              </select>
+              <select id="mp-flagType" style="flex:1;min-width:0">
+                <option value="USA">USA</option><option value="State">State</option><option value="City">City</option>
+                <optgroup label="Military">
+                  <option value="Army">Army</option><option value="Navy">Navy</option><option value="Air Force">Air Force</option>
+                  <option value="Marine Corps">Marine Corps</option><option value="Coast Guard">Coast Guard</option><option value="Space Force">Space Force</option>
+                </optgroup>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <!-- Flag 2 (checkbox-gated) -->
+            <div style="display:flex;align-items:center;gap:6px" title="Add a 2nd flag on this pole">
+              <label style="width:44px;flex-shrink:0;display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="mp-flag2-on" onchange="syncFlagFields()" style="width:16px;height:16px" />
+                <span style="font-weight:700;font-size:12px;color:var(--text-muted)">2</span>
+              </label>
+              <select id="mp-flagSize2" disabled style="flex:1;min-width:0">
+                <option value="">—</option>
+                <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
+                <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
+                <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
+                <option value="20x30">20x30</option><option value="30x60">30x60</option>
+              </select>
+              <select id="mp-flagType2" disabled style="flex:1;min-width:0" title="Type of the 2nd flag">
                 <option value="">—</option>
                 <option value="USA">USA</option><option value="State">State</option><option value="City">City</option>
                 <optgroup label="Military">
@@ -1337,7 +1315,21 @@
                 </optgroup>
                 <option value="Other">Other</option>
               </select>
-              <select id="mp-flagType3" disabled style="font-size:12px;padding:3px" title="Type of the 3rd flag">
+            </div>
+            <!-- Flag 3 (checkbox-gated) -->
+            <div style="display:flex;align-items:center;gap:6px" title="Add a 3rd flag on this pole">
+              <label style="width:44px;flex-shrink:0;display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="mp-flag3-on" onchange="syncFlagFields()" style="width:16px;height:16px" />
+                <span style="font-weight:700;font-size:12px;color:var(--text-muted)">3</span>
+              </label>
+              <select id="mp-flagSize3" disabled style="flex:1;min-width:0">
+                <option value="">—</option>
+                <option value="2x3">2x3</option><option value="3x5">3x5</option><option value="4x6">4x6</option>
+                <option value="5x8">5x8</option><option value="6x10">6x10</option><option value="8x12">8x12</option>
+                <option value="10x15">10x15</option><option value="12x18">12x18</option><option value="15x25">15x25</option>
+                <option value="20x30">20x30</option><option value="30x60">30x60</option>
+              </select>
+              <select id="mp-flagType3" disabled style="flex:1;min-width:0" title="Type of the 3rd flag">
                 <option value="">—</option>
                 <option value="USA">USA</option><option value="State">State</option><option value="City">City</option>
                 <optgroup label="Military">
